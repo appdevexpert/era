@@ -1,11 +1,10 @@
-import { HomeTabParamList } from "@/app/navigation/types";
 import {
   SolarChartBoldDuotone,
   SolarDumbbellBoldDuotone,
   SolarHomeAngle2BoldDuotone,
   SolarLunchBoldDuotone,
 } from "@/app/components/icons/SolarTabIcons";
-import { useNavigation } from "@react-navigation/native";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { ComponentType } from "react";
@@ -14,42 +13,63 @@ import { useTranslation } from "react-i18next";
 import { SvgProps } from "react-native-svg";
 import { SafeAreaView } from "react-native-screens/experimental";
 
-type TabName = keyof HomeTabParamList;
-
-type Props = {
-  activeTab: TabName;
+const TAB_ICONS: Record<
+  string,
+  ComponentType<SvgProps & { color?: string; secondaryColor?: string; size?: number }>
+> = {
+  Tab1: SolarHomeAngle2BoldDuotone,
+  Tab2: SolarDumbbellBoldDuotone,
+  Tab3: SolarLunchBoldDuotone,
+  Tab4: SolarChartBoldDuotone,
 };
 
-const TAB_CONFIG: Array<{
-  name: TabName;
-  labelKey: string;
-  Icon: ComponentType<SvgProps & { color?: string; secondaryColor?: string; size?: number }>;
-}> = [
-  { name: "Tab1", labelKey: "tabs.workout", Icon: SolarHomeAngle2BoldDuotone },
-  { name: "Tab2", labelKey: "tabs.training", Icon: SolarDumbbellBoldDuotone },
-  { name: "Tab3", labelKey: "tabs.meals", Icon: SolarLunchBoldDuotone },
-  { name: "Tab4", labelKey: "tabs.stats", Icon: SolarChartBoldDuotone },
-];
+const TAB_LABEL_KEYS: Record<string, string> = {
+  Tab1: "tabs.workout",
+  Tab2: "tabs.training",
+  Tab3: "tabs.meals",
+  Tab4: "tabs.stats",
+};
 
-const BottomWorkoutTabBar = ({ activeTab }: Props) => {
-  const navigation = useNavigation<any>();
+const BottomWorkoutTabBar = ({ state, navigation }: BottomTabBarProps) => {
   const { t } = useTranslation();
 
   return (
     <SafeAreaView edges={{ bottom: true }} style={styles.safeArea}>
       <View style={styles.container}>
-        {TAB_CONFIG.map((tab) => {
-          const isActive = tab.name === activeTab;
+        {state.routes.map((route, index) => {
+          const isActive = state.index === index;
           const iconColor = isActive ? "#C9A84C" : "#FFFFFF";
-          const Icon = tab.Icon;
+          const Icon = TAB_ICONS[route.name];
+          const labelKey = TAB_LABEL_KEYS[route.name];
+
+          if (!Icon) return null;
+
+          const onPress = () => {
+            const event = navigation.emit({
+              type: "tabPress",
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!isActive && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          };
+
+          const onLongPress = () => {
+            navigation.emit({
+              type: "tabLongPress",
+              target: route.key,
+            });
+          };
 
           if (isActive) {
             return (
-              <View key={tab.name} style={styles.activeWrapper}>
+              <View key={route.key} style={styles.activeWrapper}>
                 <Pressable
                   accessibilityRole="tab"
                   accessibilityState={{ selected: true }}
-                  onPress={() => navigation.navigate(tab.name)}
+                  onPress={onPress}
+                  onLongPress={onLongPress}
                   style={styles.activeTab}
                 >
                   <BlurView
@@ -66,7 +86,7 @@ const BottomWorkoutTabBar = ({ activeTab }: Props) => {
                   <View style={styles.glassBorder} />
                   <View style={styles.glow} />
                   <Icon size={24} color={iconColor} secondaryColor={iconColor} />
-                  <Text style={styles.activeLabel}>{t(tab.labelKey)}</Text>
+                  <Text style={styles.activeLabel}>{t(labelKey)}</Text>
                 </Pressable>
               </View>
             );
@@ -74,10 +94,11 @@ const BottomWorkoutTabBar = ({ activeTab }: Props) => {
 
           return (
             <Pressable
-              key={tab.name}
+              key={route.key}
               accessibilityRole="tab"
               accessibilityState={{ selected: false }}
-              onPress={() => navigation.navigate(tab.name)}
+              onPress={onPress}
+              onLongPress={onLongPress}
               style={styles.iconTab}
             >
               <Icon size={28} color={iconColor} secondaryColor={iconColor} />

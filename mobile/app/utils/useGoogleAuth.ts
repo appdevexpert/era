@@ -14,9 +14,9 @@ export function useGoogleAuth() {
   useEffect(() => {
     GoogleSignin.configure({
       webClientId:
-        "989359166941-ppi5ek70bip29tkcpudhe1rq6m4svin7.apps.googleusercontent.com",
+        "184813130596-cch2jmnqkhnsi9aqrcgdt66if6jfve9b.apps.googleusercontent.com",
       iosClientId:
-        "989359166941-igq8e3utrhb6gi4smdrmm9kqi2td4qd2.apps.googleusercontent.com",
+        "184813130596-0ktq9j7k78ofodl1i55btn4lubp7gmm2.apps.googleusercontent.com",
       offlineAccess: false,
       forceCodeForRefreshToken: false,
     });
@@ -26,24 +26,31 @@ export function useGoogleAuth() {
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 
-      // Clear cached account so the account picker always shows
       try { await GoogleSignin.signOut(); } catch {}
 
       const signInResult: any = await GoogleSignin.signIn();
+
+      console.log("[GOOGLE] signInResult:", JSON.stringify(signInResult));
+
       const idToken =
         signInResult?.idToken ?? signInResult?.data?.idToken ?? null;
 
       if (!idToken) return { type: "cancel" };
 
-      const { error } = await supabase.auth.signInWithIdToken({
+      const { data, error } = await supabase.auth.signInWithIdToken({
         provider: "google",
         token: idToken,
       });
 
-      if (error) return { type: "error", error: new Error(error.message) };
+      if (error) {
+        console.error("[GOOGLE] Supabase error:", error.message);
+        return { type: "error", error: new Error(error.message) };
+      }
 
+      console.log("[GOOGLE] Success, user:", data?.user?.email);
       return { type: "success" };
     } catch (err: any) {
+      console.error("[GOOGLE] catch:", err?.code, err?.message, err);
       if (err?.code === statusCodes.SIGN_IN_CANCELLED) return { type: "cancel" };
       if (err?.code === statusCodes.IN_PROGRESS) return { type: "in_progress" };
       if (err?.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {

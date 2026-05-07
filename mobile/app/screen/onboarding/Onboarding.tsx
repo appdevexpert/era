@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch } from 'react-redux'
 import { completeOnboarding } from '@/app/stores/slice/authSlice'
 import { updateGoalData } from '@/app/stores/slice/onboardingSlice'
+import { useAppDispatch } from '@/app/stores/store'
 import OnboardingLayout from '@/app/components/onboarding/OnboardingLayout'
 import GenderStep from './steps/GenderStep'
 import LevelStep from './steps/LevelStep'
@@ -33,7 +33,7 @@ interface Selections {
 
 const Onboarding = () => {
   const { t } = useTranslation()
-  const dispatch = useDispatch()
+  const dispatch = useAppDispatch()
   const [stepIndex, setStepIndex] = useState(0)
   const [selections, setSelections] = useState<Selections>({
     gender: null,

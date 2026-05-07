@@ -4,9 +4,9 @@ import {
   AuthNavigator,
   HomeNavigator,
   OnboardingNavigator,
-  PlanGenerationNavigator,
 } from "@/app/navigation";
 import { login, clearSession } from "@/app/stores/slice/authSlice";
+import { submitGoalData } from "@/app/stores/slice/onboardingSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
 import { mapSupabaseUser, supabase } from "@/app/utils/auth";
@@ -80,7 +80,6 @@ const Navigation = () => {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const isOnboarded = useSelector((state: RootState) => state.auth.isOnboarded);
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
-  const isPlanGenerated = useSelector((state: RootState) => state.auth.isPlanGenerated);
   const [isRecovery, setIsRecovery] = useState(false);
 
   // Handle deep links (password recovery)
@@ -115,6 +114,7 @@ const Navigation = () => {
         if (event === "SIGNED_IN" && session?.user) {
           if (!isRecovery) {
             dispatch(login(mapSupabaseUser(session.user)));
+            dispatch(submitGoalData());
           }
         } else if (event === "SIGNED_OUT") {
           setIsRecovery(false);
@@ -150,12 +150,10 @@ const Navigation = () => {
     <RecoveryContext.Provider value={recoveryValue}>
       <NavigationContainer ref={navigationRef} linking={showAuthStack || isRecovery ? linking : undefined}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {!isOnboarded ? (
-            <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
-          ) : isRecovery || !isLoggedIn ? (
+          {isRecovery || (!isLoggedIn && isOnboarded) ? (
             <Stack.Screen name="AuthStack" component={AuthNavigator} />
-          ) : !isPlanGenerated ? (
-            <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
+          ) : !isLoggedIn && !isOnboarded ? (
+            <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
           ) : (
             <Stack.Screen name="HomeStack" component={HomeNavigator} />
           )}

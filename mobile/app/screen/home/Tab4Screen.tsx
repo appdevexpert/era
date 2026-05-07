@@ -1,4 +1,3 @@
-import BottomWorkoutTabBar from "@/app/components/navigation/BottomWorkoutTabBar";
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -8,7 +7,6 @@ const Tab4Screen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.text}>{t("tabs.stats")}</Text>
-      <BottomWorkoutTabBar activeTab="Tab4" />
     </View>
   );
 };

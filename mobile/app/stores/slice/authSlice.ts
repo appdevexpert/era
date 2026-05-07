@@ -15,7 +15,7 @@ interface AuthState {
   user: AuthUser | null;
   isLoggedIn: boolean;
   isOnboarded: boolean;
-  isPlanGenerated: boolean;
+
   loadingStatus: LoadingState;
   error: string | null;
 }
@@ -24,7 +24,7 @@ const initialState: AuthState = {
   user: null,
   isLoggedIn: false,
   isOnboarded: false,
-  isPlanGenerated: false,
+
   loadingStatus: "idle",
   error: null,
 };
@@ -96,8 +96,7 @@ const authSlice = createSlice({
       if (state.user) state.user = { ...state.user, ...action.payload };
     },
     completeOnboarding: (state) => { state.isOnboarded = true; },
-    completePlanGeneration: (state) => { state.isPlanGenerated = true; },
-    resetPlanGeneration: (state) => { state.isPlanGenerated = false; },
+
     clearError: (state) => {
       state.error = null;
       state.loadingStatus = "idle";
@@ -162,7 +161,7 @@ const authSlice = createSlice({
 
 export const {
   login, logout, clearSession, updateUser, clearError,
-  completeOnboarding, completePlanGeneration, resetPlanGeneration,
+  completeOnboarding,
 } = authSlice.actions;
 
 export default authSlice.reducer;

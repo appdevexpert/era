@@ -12,10 +12,6 @@ export type AuthStackParamList = {
   ForgotPassword: undefined;
 };
 
-export type PlanGenerationStackParamList = {
-  PlanGeneration: undefined;
-};
-
 export type HomeTabParamList = {
   Tab1: undefined;
   Tab2: undefined;
@@ -32,6 +28,6 @@ export type HomeStackParamList = {
 export type RootStackParamList = {
   OnboardingStack: undefined;
   AuthStack: undefined;
-  PlanGenerationStack: undefined;
+
   HomeStack: undefined;
 };
