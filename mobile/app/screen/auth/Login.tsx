@@ -136,6 +136,7 @@ const Login = ({ navigation }: LoginProps) => {
               secureTextEntry={passwordHidden}
               autoCapitalize="none"
               style={styles.input}
+              
             />
             <Pressable
               hitSlop={12}
