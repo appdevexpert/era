@@ -68,7 +68,7 @@ const WorkoutCard = ({
             <View key={tag} style={styles.tag}>
               <GlassView
                 pointerEvents="none"
-                glassEffectStyle="regular"
+                glassEffectStyle="clear"
                 colorScheme="dark"
                 style={styles.tagGlass}
               />
@@ -90,12 +90,13 @@ const WorkoutCard = ({
           </View>
         </View>
       </View>
+      
 
       {/* Start button — Figma: left 70%, top 66% of card */}
       <Pressable onPress={onStartPress} style={styles.startButton}>
         <GlassView
           pointerEvents="none"
-          glassEffectStyle="regular"
+          glassEffectStyle="clear"
           colorScheme="dark"
           style={styles.startGradient}
         />
@@ -108,6 +109,8 @@ const WorkoutCard = ({
         />
         <Text style={styles.startText}>Start</Text>
       </Pressable>
+
+      
     </View>
   );
 };

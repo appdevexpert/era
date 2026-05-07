@@ -89,7 +89,7 @@ const TabItem = ({
     >
       <GlassView
         pointerEvents="none"
-        glassEffectStyle="regular"
+        glassEffectStyle="clear"
         colorScheme="dark"
         style={styles.glassFill}
       />
