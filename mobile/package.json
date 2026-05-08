@@ -22,6 +22,7 @@
     "@reduxjs/toolkit": "^2.11.2",
     "@sentry/react-native": "~7.2.0",
     "@shopify/flash-list": "2.0.2",
+    "@solar-icons/react-native": "^1.1.0",
     "@supabase/supabase-js": "^2.105.1",
     "expo": "~54.0.33",
     "expo-apple-authentication": "~8.0.8",

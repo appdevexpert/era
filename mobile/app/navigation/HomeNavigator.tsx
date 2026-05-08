@@ -1,7 +1,9 @@
+import WorkoutPlanHeader from "@/app/components/navigation/WorkoutPlanHeader";
+import NotificationScreen from "@/app/screen/home/NotificationScreen";
+import SettingScreen from "@/app/screen/home/SettingScreen";
+import WorkoutPlanScreen from "@/app/screen/home/WorkoutPlanScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import BottomTabNavigator from "./BottomTabNavigator";
-import SettingScreen from "@/app/screen/home/SettingScreen";
-import NotificationScreen from "@/app/screen/home/NotificationScreen";
 import { HomeStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<HomeStackParamList>();
@@ -11,6 +13,15 @@ const HomeNavigator = () => (
     <Stack.Screen name="HomeTabs" component={BottomTabNavigator} />
     <Stack.Screen name="Setting" component={SettingScreen} />
     <Stack.Screen name="Notification" component={NotificationScreen} />
+    <Stack.Screen
+      name="WorkoutPlan"
+      component={WorkoutPlanScreen}
+      options={{
+        headerShown: true,
+        header: (props) => <WorkoutPlanHeader {...props} />,
+        headerTransparent: true,
+      }}
+    />
   </Stack.Navigator>
 );
 

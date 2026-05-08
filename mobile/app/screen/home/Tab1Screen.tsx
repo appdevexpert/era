@@ -4,9 +4,12 @@ import WorkoutCard from "@/app/components/workout/WorkoutCard";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
+import { HomeStackParamList } from "@/app/navigation/types";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const DAYS: DayItem[] = [
   { key: "mon", label: "Mon", date: "04", active: true },
@@ -21,6 +24,7 @@ const DAYS: DayItem[] = [
 
 const Tab1Screen = () => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
   return (
     <View style={styles.root}>
@@ -66,7 +70,7 @@ const Tab1Screen = () => {
         </View>
 
         {/* Workout card */}
-        <WorkoutCard />
+        <WorkoutCard onStartPress={() => navigation.navigate("WorkoutPlan")} />
       </ScrollView>
     </View>
   );

@@ -23,6 +23,7 @@ export type HomeStackParamList = {
   HomeTabs: NavigatorScreenParams<HomeTabParamList> | undefined;
   Setting: undefined;
   Notification: undefined;
+  WorkoutPlan: undefined;
 };
 
 export type RootStackParamList = {
