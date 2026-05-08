@@ -13,17 +13,32 @@ export type AuthStackParamList = {
 };
 
 export type HomeTabParamList = {
-  Tab1: undefined;
-  Tab2: undefined;
-  Tab3: undefined;
-  Tab4: undefined;
+  Workout: undefined;
+  Training: undefined;
+  Meal: undefined;
+  Stats: undefined;
+};
+
+export type MuscleGroup =
+  | "chest"
+  | "shoulders"
+  | "arm"
+  | "abs"
+  | "leg"
+  | "front";
+
+export type WorkoutPlanParams = {
+  subtitle?: string;
+  title?: string;
+  muscles?: MuscleGroup[];
 };
 
 export type HomeStackParamList = {
   HomeTabs: NavigatorScreenParams<HomeTabParamList> | undefined;
   Setting: undefined;
   Notification: undefined;
-  WorkoutPlan: undefined;
+  WorkoutPlan: WorkoutPlanParams | undefined;
+  ExerciseList: WorkoutPlanParams | undefined;
 };
 
 export type RootStackParamList = {

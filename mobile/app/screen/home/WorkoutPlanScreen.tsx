@@ -3,11 +3,12 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { InfoCircle, MedalBadge } from "@/assets/icons";
-import Svg, { Path } from "react-native-svg";
-import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Line } from "react-native-svg";
+import { GlassView } from "expo-glass-effect";
+import { useCallback, useState } from "react";
 
 // --- Types ---
 
@@ -159,7 +160,7 @@ const WEEKS: WeekData[] = [
   },
   {
     weekNumber: 9,
-    phase: "Hypertrophy",
+    phase: "Peak",
     completedDays: 0,
     totalDays: 6,
     days: [
@@ -175,7 +176,7 @@ const WEEKS: WeekData[] = [
   },
   {
     weekNumber: 10,
-    phase: "Hypertrophy",
+    phase: "Peak",
     completedDays: 0,
     totalDays: 6,
     days: [
@@ -191,7 +192,7 @@ const WEEKS: WeekData[] = [
   },
   {
     weekNumber: 11,
-    phase: "Strength",
+    phase: "Peak",
     completedDays: 0,
     totalDays: 6,
     days: [
@@ -207,7 +208,7 @@ const WEEKS: WeekData[] = [
   },
   {
     weekNumber: 12,
-    phase: "Strength",
+    phase: "Peak",
     completedDays: 0,
     totalDays: 6,
     days: [
@@ -224,6 +225,35 @@ const WEEKS: WeekData[] = [
 ];
 
 // --- Sub-components ---
+
+const DashedTimeline = ({ isCurrentWeek }: { isCurrentWeek: boolean }) => {
+  const [height, setHeight] = useState(0);
+  const onLayout = useCallback((e: LayoutChangeEvent) => {
+    setHeight(e.nativeEvent.layout.height);
+  }, []);
+
+  const strokeColor = isCurrentWeek
+    ? COLORS.primary.dark
+    : "rgba(255, 255, 255, 0.24)";
+
+  return (
+    <View style={styles.timelineLine} onLayout={onLayout}>
+      {height > 0 && (
+        <Svg width={2} height={height}>
+          <Line
+            x1={1}
+            y1={0}
+            x2={1}
+            y2={height}
+            stroke={strokeColor}
+            strokeWidth={2}
+            strokeDasharray="8,8"
+          />
+        </Svg>
+      )}
+    </View>
+  );
+};
 
 const getDayPillColors = (status: DayStatus) => {
   switch (status) {
@@ -260,40 +290,46 @@ const DayPillItem = ({ pill }: { pill: DayPill }) => {
   const hasGradient = pill.status !== "future";
 
   return (
-    <View style={[styles.dayPillOuter, hasGradient && styles.dayPillShadow]}>
-      <GlassView
-        pointerEvents="none"
-        glassEffectStyle={{
-          style: "clear",
-          animate: true,
-          animationDuration: 0.5,
-        }}
-        colorScheme="dark"
-        style={styles.dayPillGlass}
-      />
-      {hasGradient ? (
-        <LinearGradient
+    <View style={styles.dayPillShadow}>
+      <View style={styles.dayPillOuter}>
+        <GlassView
           pointerEvents="none"
-          colors={[...colors.pillBg]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.dayPillGlass}
+          glassEffectStyle="clear"
+          colorScheme="dark"
+          style={styles.dayPillFill}
         />
-      ) : null}
-      <Text style={styles.dayDate}>{pill.date}</Text>
-      <View style={[styles.dayCircle, { backgroundColor: colors.circleBg }]}>
-        <Text style={[styles.dayText, { color: colors.textColor }]}>
-          {pill.day}
-        </Text>
+        {hasGradient ? (
+          <LinearGradient
+            pointerEvents="none"
+            colors={[...colors.pillBg]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.dayPillFill}
+          />
+        ) : null}
+        <Text style={styles.dayDate}>{pill.date}</Text>
+        <View style={[styles.dayCircle, { backgroundColor: colors.circleBg }]}>
+          <Text style={[styles.dayText, { color: colors.textColor }]}>
+            {pill.day}
+          </Text>
+        </View>
       </View>
     </View>
   );
 };
 
 const WeekBadge = ({ weekNumber }: { weekNumber: number }) => (
-  <View style={styles.weekBadge}>
-    <Text style={styles.weekBadgeText}>W{weekNumber}</Text>
-    <MedalBadge width={24} height={24} />
+  <View style={styles.weekBadgeShadow}>
+    <View style={styles.weekBadge}>
+      <GlassView
+        pointerEvents="none"
+        glassEffectStyle="clear"
+        colorScheme="dark"
+        style={styles.dayPillFill}
+      />
+      <Text style={styles.weekBadgeText}>W{weekNumber}</Text>
+      <MedalBadge width={24} height={24} />
+    </View>
   </View>
 );
 
@@ -319,16 +355,7 @@ const WeekSection = ({ week }: { week: WeekData }) => {
       {/* Timeline + Card */}
       <View style={styles.weekBody}>
         {/* Vertical dashed line */}
-        <View style={styles.timelineLine}>
-          <Svg width={2} height="100%">
-            <Path
-              d="M1 0 L1 1000"
-              stroke={COLORS.primary.dark}
-              strokeWidth={2}
-              strokeDasharray="8,8"
-            />
-          </Svg>
-        </View>
+        <DashedTimeline isCurrentWeek={week.isCurrentWeek} />
 
         {/* Days card */}
         <View style={styles.daysCard}>
@@ -349,12 +376,20 @@ const WeekSection = ({ week }: { week: WeekData }) => {
         </View>
       </View>
 
-      {/* Info note (only on Week 1) */}
+      {/* Info notes */}
       {week.weekNumber === 1 && (
         <View style={styles.infoRow}>
           <InfoCircle width={18} height={18} />
           <Text style={styles.infoText}>
             The initial days will be adjusted in the 4th week
+          </Text>
+        </View>
+      )}
+      {week.weekNumber === 4 && (
+        <View style={styles.infoRow}>
+          <InfoCircle width={18} height={18} />
+          <Text style={styles.infoText}>
+            Initial Days of Week 1 are adjusted here.
           </Text>
         </View>
       )}
@@ -403,6 +438,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: horizontalScale(20),
   },
   progressBarSection: {
+    marginTop: 10,
     marginBottom: verticalScale(24),
   },
 
@@ -454,9 +490,9 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(8),
   },
   timelineLine: {
-    width: 22,
+    width: 14,
     alignItems: "center",
-    paddingTop: 2,
+    marginRight: 8,
   },
   daysCard: {
     flex: 1,
@@ -480,6 +516,14 @@ const styles = StyleSheet.create({
   },
 
   // Day pill
+  dayPillShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3.08 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.08,
+    elevation: 4,
+    borderRadius: 77,
+  },
   dayPillOuter: {
     alignItems: "center",
     gap: 6,
@@ -488,14 +532,7 @@ const styles = StyleSheet.create({
     borderRadius: 77,
     overflow: "hidden",
   },
-  dayPillShadow: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  dayPillGlass: {
+  dayPillFill: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 77,
   },
@@ -507,6 +544,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: 0.56,
+    lineHeight: 14,
   },
   dayCircle: {
     width: 36,
@@ -521,9 +559,18 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textTransform: "uppercase",
     textAlign: "center",
+    lineHeight: 12,
   },
 
   // Week badge
+  weekBadgeShadow: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3.08 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.08,
+    elevation: 4,
+    borderRadius: 77,
+  },
   weekBadge: {
     alignItems: "center",
     gap: 6,
@@ -533,6 +580,7 @@ const styles = StyleSheet.create({
     height: 74,
     justifyContent: "center",
     borderRadius: 77,
+    overflow: "hidden",
   },
   weekBadgeText: {
     fontFamily: FONTS.regular,
@@ -542,6 +590,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: 0.56,
+    lineHeight: 14,
   },
 
   // Info row

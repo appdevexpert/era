@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
-const Tab3Screen = () => {
+const MealScreen = () => {
   const { t } = useTranslation();
 
   return (
@@ -16,4 +16,4 @@ const styles = StyleSheet.create({
   text: { color: "#fff", fontSize: 18 },
 });
 
-export default Tab3Screen;
+export default MealScreen;

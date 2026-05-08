@@ -29,17 +29,17 @@ const TAB_ICONS: Record<
   string,
   ComponentType<{ size?: number; color?: string; secondaryColor?: string }>
 > = {
-  Tab1: SolarHomeAngle2BoldDuotone,
-  Tab2: SolarDumbbellBoldDuotone,
-  Tab3: SolarLunchBoldDuotone,
-  Tab4: SolarChartBoldDuotone,
+  Workout: SolarHomeAngle2BoldDuotone,
+  Training: SolarDumbbellBoldDuotone,
+  Meal: SolarLunchBoldDuotone,
+  Stats: SolarChartBoldDuotone,
 };
 
 const TAB_LABEL_KEYS: Record<string, string> = {
-  Tab1: "tabs.workout",
-  Tab2: "tabs.training",
-  Tab3: "tabs.meals",
-  Tab4: "tabs.stats",
+  Workout: "tabs.workout",
+  Training: "tabs.training",
+  Meal: "tabs.meals",
+  Stats: "tabs.stats",
 };
 
 const TIMING_CONFIG = {

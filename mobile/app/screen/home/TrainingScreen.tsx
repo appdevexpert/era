@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
-const Tab2Screen = () => {
+const TrainingScreen = () => {
   const { t } = useTranslation();
 
   return (
@@ -16,4 +16,4 @@ const styles = StyleSheet.create({
   text: { color: "#fff", fontSize: 18 },
 });
 
-export default Tab2Screen;
+export default TrainingScreen;

@@ -6,7 +6,7 @@ interface IconProps {
   secondaryColor?: string
 }
 
-// Tab1 — Workout / Home
+// Workout / Home
 export const SolarHomeAngle2BoldDuotone = ({ size = 28 }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 28 28" fill="none">
     <Path
@@ -23,7 +23,7 @@ export const SolarHomeAngle2BoldDuotone = ({ size = 28 }: IconProps) => (
   </Svg>
 )
 
-// Tab2 — Training / Dumbbell
+// Training / Dumbbell
 export const SolarDumbbellBoldDuotone = ({ size = 24 }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Defs>
@@ -60,7 +60,7 @@ export const SolarDumbbellBoldDuotone = ({ size = 24 }: IconProps) => (
   </Svg>
 )
 
-// Tab3 — Meals / Fork & Knife
+// Meals / Fork & Knife
 export const SolarLunchBoldDuotone = ({ size = 28 }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 28 28" fill="none">
     <Defs>
@@ -77,7 +77,7 @@ export const SolarLunchBoldDuotone = ({ size = 28 }: IconProps) => (
   </Svg>
 )
 
-// Tab4 — Stats / Chart
+// Stats / Chart
 export const SolarChartBoldDuotone = ({ size = 28 }: IconProps) => (
   <Svg width={size} height={size} viewBox="0 0 28 28" fill="none">
     <Defs>

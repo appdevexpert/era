@@ -3,13 +3,13 @@ import WeekDaySelector, { DayItem } from "@/app/components/workout/WeekDaySelect
 import WorkoutCard from "@/app/components/workout/WorkoutCard";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
-import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { HomeStackParamList } from "@/app/navigation/types";
+import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const DAYS: DayItem[] = [
   { key: "mon", label: "Mon", date: "04", active: true },
@@ -21,8 +21,7 @@ const DAYS: DayItem[] = [
   { key: "sun", label: "Sun", date: "10" },
 ];
 
-
-const Tab1Screen = () => {
+const WorkoutScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
@@ -70,7 +69,16 @@ const Tab1Screen = () => {
         </View>
 
         {/* Workout card */}
-        <WorkoutCard onStartPress={() => navigation.navigate("WorkoutPlan")} />
+        <WorkoutCard
+          onCardPress={() => navigation.navigate("WorkoutPlan")}
+          onStartPress={() =>
+            navigation.navigate("ExerciseList", {
+              subtitle: "Week 1 • Monday",
+              title: "Push - Heavy",
+              muscles: ["chest", "shoulders", "abs", "arm"],
+            })
+          }
+        />
       </ScrollView>
     </View>
   );
@@ -145,4 +153,4 @@ const styles = StyleSheet.create({
 
 });
 
-export default Tab1Screen;
+export default WorkoutScreen;

@@ -19,6 +19,7 @@ interface WorkoutCardProps {
   programType?: string;
   programWeek?: string;
   programDay?: string;
+  onCardPress?: () => void;
   onStartPress?: () => void;
 }
 
@@ -31,72 +32,78 @@ const WorkoutCard = ({
   programType = "Strength",
   programWeek = "Week 6/12",
   programDay = "Day 2",
+  onCardPress,
   onStartPress,
 }: WorkoutCardProps) => {
   return (
     <View style={styles.wrapper}>
-      {/* Card shape image */}
-      <Image
-        source={WorkoutCardBg}
-        style={styles.cardImage}
-        resizeMode="contain"
-      />
+      <Pressable onPress={onCardPress} style={styles.cardPressLayer}>
+        {/* Card shape image */}
+        <Image
+          source={WorkoutCardBg}
+          style={styles.cardImage}
+          resizeMode="contain"
+        />
 
-      {/* Top content: header, name, tags */}
-      <View style={styles.topContent}>
-        {/* Header row */}
-        <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
-          <View style={styles.meta}>
-            <View style={styles.metaItem}>
-              <StatStretching width={14} height={14} />
-              <Text style={styles.metaText}>{exerciseCount}</Text>
+        {/* Top content: header, name, tags */}
+        <View style={styles.topContent}>
+          {/* Header row */}
+          <View style={styles.header}>
+            <Text style={styles.title}>{title}</Text>
+            <View style={styles.meta}>
+              <View style={styles.metaItem}>
+                <StatStretching width={14} height={14} />
+                <Text style={styles.metaText}>{exerciseCount}</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <StatStopwatch width={14} height={14} />
+                <Text style={styles.metaText}>{duration}</Text>
+              </View>
             </View>
-            <View style={styles.metaItem}>
-              <StatStopwatch width={14} height={14} />
-              <Text style={styles.metaText}>{duration}</Text>
-            </View>
+          </View>
+
+          {/* Workout name */}
+          <Text style={styles.workoutName}>{workoutName}</Text>
+
+          {/* Tags */}
+          <View style={styles.tagRow}>
+            {tags.map((tag) => (
+              <View key={tag} style={styles.tag}>
+                <GlassView
+                  pointerEvents="none"
+                  glassEffectStyle="clear"
+                  colorScheme="dark"
+                  style={styles.tagGlass}
+                />
+                <Text style={styles.tagText}>{tag}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
-        {/* Workout name */}
-        <Text style={styles.workoutName}>{workoutName}</Text>
-
-        {/* Tags */}
-        <View style={styles.tagRow}>
-          {tags.map((tag) => (
-            <View key={tag} style={styles.tag}>
-              <GlassView
-                pointerEvents="none"
-                glassEffectStyle="clear"
-                colorScheme="dark"
-                style={styles.tagGlass}
-              />
-              <Text style={styles.tagText}>{tag}</Text>
+        {/* Program info — positioned at bottom-left of card (Figma: top 75%, left 24) */}
+        <View style={styles.programInfo}>
+          <StrengthIconSvg width={36} height={36} />
+          <View style={styles.programMeta}>
+            <Text style={styles.programTitle}>{programType}</Text>
+            <View style={styles.programSubRow}>
+              <Text style={styles.programSub}>{programWeek}</Text>
+              <Text style={styles.programDot}>•</Text>
+              <Text style={styles.programSub}>{programDay}</Text>
             </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Program info — positioned at bottom-left of card (Figma: top 75%, left 24) */}
-      <View style={styles.programInfo}>
-        <StrengthIconSvg width={36} height={36} />
-        <View style={styles.programMeta}>
-          <Text style={styles.programTitle}>{programType}</Text>
-          <View style={styles.programSubRow}>
-            <Text style={styles.programSub}>{programWeek}</Text>
-            <Text style={styles.programDot}>•</Text>
-            <Text style={styles.programSub}>{programDay}</Text>
           </View>
         </View>
-      </View>
-      
+      </Pressable>
 
       {/* Start button — Figma: left 70%, top 66% of card */}
       <Pressable onPress={onStartPress} style={styles.startButton}>
         <GlassView
           pointerEvents="none"
-          glassEffectStyle="clear"
+          glassEffectStyle={{
+            style: "clear",
+            animate: true,
+            animationDuration: 0.5,
+          }}
           colorScheme="dark"
           style={styles.startGradient}
         />
@@ -121,6 +128,9 @@ const styles = StyleSheet.create({
   wrapper: {
     position: "relative",
     aspectRatio: CARD_ASPECT,
+  },
+  cardPressLayer: {
+    ...StyleSheet.absoluteFillObject,
   },
   cardImage: {
     position: "absolute",
