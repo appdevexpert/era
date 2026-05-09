@@ -19,6 +19,10 @@ export type HomeTabParamList = {
   Stats: undefined;
 };
 
+export type PlanGenerationStackParamList = {
+  PlanGeneration: undefined;
+};
+
 export type MuscleGroup =
   | "chest"
   | "shoulders"
@@ -31,11 +35,14 @@ export type WorkoutPlanParams = {
   subtitle?: string;
   title?: string;
   muscles?: MuscleGroup[];
+  programId?: string;
+  programDayId?: string;
 };
 
 export type HomeStackParamList = {
   HomeTabs: NavigatorScreenParams<HomeTabParamList> | undefined;
   Setting: undefined;
+  Profile: undefined;
   Notification: undefined;
   WorkoutPlan: WorkoutPlanParams | undefined;
   ExerciseList: WorkoutPlanParams | undefined;
@@ -44,6 +51,6 @@ export type HomeStackParamList = {
 export type RootStackParamList = {
   OnboardingStack: undefined;
   AuthStack: undefined;
-
+  PlanGenerationStack: undefined;
   HomeStack: undefined;
 };

@@ -13,6 +13,7 @@ import {
 import { BlurView } from "expo-blur";
 import type { FC } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SvgProps } from "react-native-svg";
 import type { NativeStackHeaderProps } from "@react-navigation/native-stack";
@@ -38,10 +39,11 @@ const MuscleCircle = ({ Icon }: { Icon: FC<SvgProps> }) => (
 
 const WorkoutPlanHeader = ({ navigation, route }: NativeStackHeaderProps) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const params = (route as RouteProp<HomeStackParamList, "WorkoutPlan">).params;
 
-  const subtitle = params?.subtitle ?? "12 Week Personalized";
-  const title = params?.title ?? "Workout Plan";
+  const subtitle = params?.subtitle ?? "";
+  const title = params?.title ?? t("workout.ui.workoutPlan");
   const muscles = params?.muscles;
   const hasIcons = muscles && muscles.length > 0;
 

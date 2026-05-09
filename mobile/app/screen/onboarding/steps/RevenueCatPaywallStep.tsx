@@ -1,12 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 
 const RevenueCatPaywallStep = () => {
+  const { t } = useTranslation()
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Paywall</Text>
-      <Text style={styles.subtitle}>Coming soon</Text>
+      <Text style={styles.title}>{t('onboarding.steps.paywall.placeholderTitle')}</Text>
+      <Text style={styles.subtitle}>{t('onboarding.steps.paywall.placeholderSubtitle')}</Text>
     </View>
   )
 }

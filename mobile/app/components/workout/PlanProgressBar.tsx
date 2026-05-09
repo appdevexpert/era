@@ -3,7 +3,7 @@ import { FONTS } from "@/app/constants/fonts";
 import { IconFlag, MedalBadge } from "@/assets/icons";
 import { useCallback, useState } from "react";
 import { LayoutChangeEvent, StyleSheet, Text, View } from "react-native";
-import Svg, { Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
+import Svg, { Defs, Line, LinearGradient, Stop } from "react-native-svg";
 
 
 // --- Stepper Segment ---
@@ -84,43 +84,45 @@ interface PlanProgressBarProps {
   phases?: PlanPhase[];
 }
 
-const PlanProgressBar = ({
-  phases = [
-    { label: "Hypertrophy", active: true, progress: 0.1 },
-    { label: "Strength", active: false, progress: 0 },
-    { label: "Peak", active: false, progress: 0 },
-  ],
-}: PlanProgressBarProps) => (
-  <View style={styles.container}>
-    {/* Progress bar row */}
-    <View style={styles.barRow}>
-      <IconFlag width={20} height={20} />
-      <View style={styles.tracks}>
-        {phases.map((phase, i) => (
-          <StepperSegment key={i} progress={phase.progress} />
-        ))}
-      </View>
-      <MedalBadge width={20} height={20} />
-    </View>
+const PlanProgressBar = ({ phases }: PlanProgressBarProps) => {
+  const displayPhases = phases ?? [];
 
-    {/* Labels row */}
-    <View style={styles.labelRow}>
-      <View style={styles.labelSpacer} />
-      {phases.map((phase, i) => (
-        <Text
-          key={i}
-          style={[
-            styles.label,
-            phase.active ? styles.labelActive : styles.labelInactive,
-          ]}
-        >
-          {phase.label}
-        </Text>
-      ))}
-      <View style={styles.labelSpacer} />
+  if (displayPhases.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Progress bar row */}
+      <View style={styles.barRow}>
+        <IconFlag width={20} height={20} />
+        <View style={styles.tracks}>
+          {displayPhases.map((phase, i) => (
+            <StepperSegment key={i} progress={phase.progress} />
+          ))}
+        </View>
+        <MedalBadge width={20} height={20} />
+      </View>
+
+      {/* Labels row */}
+      <View style={styles.labelRow}>
+        <View style={styles.labelSpacer} />
+        {displayPhases.map((phase, i) => (
+          <Text
+            key={i}
+            style={[
+              styles.label,
+              phase.active ? styles.labelActive : styles.labelInactive,
+            ]}
+          >
+            {phase.label}
+          </Text>
+        ))}
+        <View style={styles.labelSpacer} />
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 export default PlanProgressBar;
 

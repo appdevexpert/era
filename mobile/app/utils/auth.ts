@@ -31,7 +31,10 @@ export type AuthUser = {
 export const mapSupabaseUser = (user: User): AuthUser => ({
   id: user.id,
   email: user.email ?? "",
-  name: (user.user_metadata?.name as string) ?? "",
+  name:
+    (user.user_metadata?.name as string) ||
+    (user.user_metadata?.full_name as string) ||
+    "",
   provider: user.app_metadata?.provider,
   created_at: user.created_at,
 });

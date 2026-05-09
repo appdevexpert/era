@@ -1,29 +1,75 @@
 import StatsChipsRow from "@/app/components/workout/StatsChipsRow";
-import WeekDaySelector, { DayItem } from "@/app/components/workout/WeekDaySelector";
+import WeekDaySelector from "@/app/components/workout/WeekDaySelector";
 import WorkoutCard from "@/app/components/workout/WorkoutCard";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { HomeStackParamList } from "@/app/navigation/types";
+import { selectUser } from "@/app/stores/selectors/authSelectors";
+import {
+  selectHasWorkoutBootstrap,
+  selectWorkoutOverview,
+  selectWorkoutError,
+  selectWorkoutStatus,
+} from "@/app/stores/selectors/workoutSelectors";
+import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import { useAppDispatch } from "@/app/stores/store";
+import { mapMusclesToIcons, mapWorkoutHome } from "@/app/utils/workoutMappers";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const DAYS: DayItem[] = [
-  { key: "mon", label: "Mon", date: "04", active: true },
-  { key: "tue", label: "Tue", date: "05" },
-  { key: "wed", label: "Wed", date: "06" },
-  { key: "thu", label: "Thu", date: "07" },
-  { key: "fri", label: "Fri", date: "08" },
-  { key: "sat", label: "Sat", date: "09" },
-  { key: "sun", label: "Sun", date: "10" },
-];
+import { useEffect, useMemo } from "react";
 
 const WorkoutScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const dispatch = useAppDispatch();
+  const { t, i18n } = useTranslation();
+  const user = useSelector(selectUser);
+  const overview = useSelector(selectWorkoutOverview);
+  const workout = useMemo(
+    () => (overview ? mapWorkoutHome(overview, i18n.language) : null),
+    [i18n.language, overview],
+  );
+  const workoutStatus = useSelector(selectWorkoutStatus);
+  const workoutError = useSelector(selectWorkoutError);
+  const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
+  const displayName = user?.name || user?.email?.split("@")[0] || t("profile.fallbackName");
+  const avatarInitial = displayName.charAt(0).toUpperCase();
+  const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
+  const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+
+  useEffect(() => {
+    if (!hasWorkoutBootstrap && workoutStatus === "idle") {
+      dispatch(loadWorkoutBootstrap());
+    }
+  }, [dispatch, hasWorkoutBootstrap, workoutStatus]);
+
+  const openWorkoutPlan = () => {
+    navigation.navigate("WorkoutPlan", {
+      programId: workout?.programId,
+      subtitle: workout?.title,
+      title: t("workout.ui.workoutPlan"),
+    });
+  };
+
+  const startWorkout = () => {
+    if (!workout) {
+      return;
+    }
+
+    navigation.navigate("ExerciseList", {
+      programId: workout.programId,
+      programDayId: workout.currentDayId,
+      subtitle: workout.subtitle,
+      title: workout.workoutName,
+      muscles: mapMusclesToIcons(workout.targetMuscles),
+    });
+  };
 
   return (
     <View style={styles.root}>
@@ -42,21 +88,25 @@ const WorkoutScreen = () => {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>
-            <Text style={styles.greetingDim}>Hi, </Text>
-            Rami K.
+          <Text numberOfLines={1} style={styles.greeting}>
+            <Text style={styles.greetingDim}>{t("workout.ui.greeting")} </Text>
+            {displayName}
           </Text>
-          <View style={styles.avatar}>
+          <Pressable
+            onPress={() => navigation.navigate("Profile")}
+            style={styles.avatar}
+            hitSlop={10}
+          >
             <LinearGradient
               colors={[COLORS.primary.dark, COLORS.primary.base]}
               style={StyleSheet.absoluteFill}
             />
-            <Text style={styles.avatarText}>R</Text>
-          </View>
+            <Text style={styles.avatarText}>{avatarInitial}</Text>
+          </Pressable>
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>Ready to train today?</Text>
+        <Text style={styles.title}>{t("workout.ui.readyTitle")}</Text>
 
         {/* Stats chips */}
         <View style={styles.statsSection}>
@@ -65,20 +115,35 @@ const WorkoutScreen = () => {
 
         {/* Week day selector */}
         <View style={styles.weekRow}>
-          <WeekDaySelector days={DAYS} />
+          {workout ? (
+            <WeekDaySelector days={workout.days} />
+          ) : (
+            <Text style={styles.statusText}>
+              {isLoading ? t("workout.ui.loadingWorkout") : errorMessage}
+            </Text>
+          )}
         </View>
 
         {/* Workout card */}
-        <WorkoutCard
-          onCardPress={() => navigation.navigate("WorkoutPlan")}
-          onStartPress={() =>
-            navigation.navigate("ExerciseList", {
-              subtitle: "Week 1 • Monday",
-              title: "Push - Heavy",
-              muscles: ["chest", "shoulders", "abs", "arm"],
-            })
-          }
-        />
+        {workout ? (
+          <WorkoutCard
+            duration={workout.duration}
+            exerciseCount={workout.exerciseCount}
+            onCardPress={openWorkoutPlan}
+            onStartPress={startWorkout}
+            programDay={workout.programDay}
+            programType={workout.programType}
+            programWeek={workout.programWeek}
+            tags={workout.tags}
+            workoutName={workout.workoutName}
+          />
+        ) : (
+          <View style={styles.emptyCard}>
+            <Text style={styles.statusText}>
+              {isLoading ? t("workout.ui.loadingWorkout") : errorMessage}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -108,6 +173,8 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(0),
   },
   greeting: {
+    flex: 1,
+    marginRight: 16,
     fontSize: 20,
     fontFamily: FONTS.medium,
     fontWeight: "500",
@@ -149,6 +216,21 @@ const styles = StyleSheet.create({
   // Week day selector
   weekRow: {
     marginBottom: verticalScale(28),
+  },
+  emptyCard: {
+    minHeight: verticalScale(220),
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: COLORS.neutral.charcoal,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  statusText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "rgba(240,240,240,0.72)",
+    textAlign: "center",
   },
 
 });

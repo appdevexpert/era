@@ -15,6 +15,7 @@ interface AuthState {
   user: AuthUser | null;
   isLoggedIn: boolean;
   isOnboarded: boolean;
+  isPlanGenerated: boolean;
 
   loadingStatus: LoadingState;
   error: string | null;
@@ -24,6 +25,7 @@ const initialState: AuthState = {
   user: null,
   isLoggedIn: false,
   isOnboarded: false,
+  isPlanGenerated: false,
 
   loadingStatus: "idle",
   error: null,
@@ -89,6 +91,7 @@ const authSlice = createSlice({
     clearSession: (state) => {
       state.user = null;
       state.isLoggedIn = false;
+      state.isPlanGenerated = false;
       state.loadingStatus = "idle";
       state.error = null;
     },
@@ -96,6 +99,8 @@ const authSlice = createSlice({
       if (state.user) state.user = { ...state.user, ...action.payload };
     },
     completeOnboarding: (state) => { state.isOnboarded = true; },
+    completePlanGeneration: (state) => { state.isPlanGenerated = true; },
+    resetPlanGeneration: (state) => { state.isPlanGenerated = false; },
 
     clearError: (state) => {
       state.error = null;
@@ -149,19 +154,31 @@ const authSlice = createSlice({
     });
 
     // Sign Out
-    builder.addCase(signOutThunk.fulfilled, () => initialState);
+    builder.addCase(signOutThunk.pending, (state) => {
+      state.loadingStatus = "loading";
+      state.error = null;
+    });
+    builder.addCase(signOutThunk.fulfilled, (state) => {
+      state.user = null;
+      state.isLoggedIn = false;
+      state.isPlanGenerated = false;
+      state.loadingStatus = "idle";
+      state.error = null;
+    });
     builder.addCase(signOutThunk.rejected, (state, action) => {
+      state.loadingStatus = "failed";
       state.error = action.payload as string;
       // Still reset user state to avoid stale session
       state.user = null;
       state.isLoggedIn = false;
+      state.isPlanGenerated = false;
     });
   },
 });
 
 export const {
   login, logout, clearSession, updateUser, clearError,
-  completeOnboarding,
+  completeOnboarding, completePlanGeneration, resetPlanGeneration,
 } = authSlice.actions;
 
 export default authSlice.reducer;

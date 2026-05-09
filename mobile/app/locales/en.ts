@@ -28,6 +28,7 @@ const en = {
     passwordResetSuccess: "Password updated successfully!",
     loginSuccess: "You are successfully logged in!",
     accountCreated: "Account created successfully!",
+    logout: "Log out",
     errors: {
       invalidEmail: "Please enter a valid email address.",
       passwordTooShort: "Password must be at least 6 characters.",
@@ -138,12 +139,21 @@ const en = {
         eyebrow: "CURRENT BODY METRICS",
         heading: "What’s your Height?",
         description: "This us helps adjust workouts to fit your body.",
+        bmi: {
+          label: "Your BMI",
+          below: "Your BMI is below normal range - you need to gain weight for a healthier you.",
+          healthy: "Your BMI is in a healthy range - keep it up for a stronger, healthier you.",
+          overweight: "Your BMI is in the overweight range - a balanced diet and exercise can help.",
+          obese: "Your BMI is in the obese range - consider consulting a healthcare provider.",
+        },
       },
       paywall: {
         title: "Unlimited",
         eyebrow: "",
         heading: "Get Unlimited Experience.",
         description: "",
+        placeholderTitle: "Paywall",
+        placeholderSubtitle: "Coming soon",
       },
       calories: {
         title: "Calories",
@@ -215,6 +225,7 @@ const en = {
     actions: {
       generating: "Generating plan",
       ready: "Start training",
+      retry: "Retry",
     },
     fallback: {
       notSet: "Not set",
@@ -228,7 +239,45 @@ const en = {
   },
   screens: {
     settings: "Settings",
+    profile: "Profile",
     notifications: "Notifications",
+  },
+  profile: {
+    fallbackName: "User",
+  },
+  workout: {
+    ui: {
+      greeting: "Hi,",
+      readyTitle: "Ready to train today?",
+      points: "{{count}} pts",
+      streak: "{{count}}D streak",
+      workoutPlan: "Workout Plan",
+      todaysWorkout: "Today's Workout",
+      start: "Start",
+      startNow: "Start Now",
+      exercisesLabel: "exercises",
+      minutesLabel: "minutes",
+      edit: "Edit",
+      initialWeight: "Initial WT.",
+      weekLabel: "Week {{number}}",
+      weekBadge: "W{{number}}",
+      dayLabel: "Day {{number}}",
+      daysCount: "{{completed}}/{{total}} Days",
+      weekInitialNote: "The initial days will be adjusted in the 4th week",
+      weekAdjustedNote: "Initial Days of Week 1 are adjusted here.",
+      loadingWorkout: "Loading workout...",
+      unableToLoadWorkout: "Unable to load workout.",
+    },
+    weekdays: {
+      mon: "Mon",
+      tue: "Tue",
+      wed: "Wed",
+      thu: "Thu",
+      fri: "Fri",
+      sat: "Sat",
+      sun: "Sun",
+      monday: "Monday",
+    },
   },
   language: {
     title: "Language",

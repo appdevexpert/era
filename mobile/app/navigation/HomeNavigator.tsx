@@ -1,6 +1,7 @@
 import WorkoutPlanHeader from "@/app/components/navigation/WorkoutPlanHeader";
 import ExerciseListScreen from "@/app/screen/home/ExerciseListScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";
+import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
 import WorkoutPlanScreen from "@/app/screen/home/WorkoutPlanScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -13,6 +14,7 @@ const HomeNavigator = () => (
   <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#000" } }}>
     <Stack.Screen name="HomeTabs" component={BottomTabNavigator} />
     <Stack.Screen name="Setting" component={SettingScreen} />
+    <Stack.Screen name="Profile" component={ProfileScreen} />
     <Stack.Screen name="Notification" component={NotificationScreen} />
     <Stack.Screen
       name="WorkoutPlan"

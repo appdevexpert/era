@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated'
+import { useTranslation } from 'react-i18next'
 import * as Haptics from 'expo-haptics'
 import { COLORS, GRADIENTS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
@@ -98,11 +99,11 @@ const getBMIColor = (bmi: number) => {
   return COLORS.semantic.danger
 }
 
-const getBMIMessage = (bmi: number) => {
-  if (bmi < 18.5) return 'Your BMI is below normal range — you need to gain weight for a healthier you.'
-  if (bmi < 25) return 'Your BMI is in a healthy range — keep it up for a stronger, healthier you.'
-  if (bmi < 30) return 'Your BMI is in the overweight range — a balanced diet and exercise can help.'
-  return 'Your BMI is in the obese range — consider consulting a healthcare provider.'
+const getBMIMessageKey = (bmi: number) => {
+  if (bmi < 18.5) return 'below'
+  if (bmi < 25) return 'healthy'
+  if (bmi < 30) return 'overweight'
+  return 'obese'
 }
 
 const GradientHeightText = ({ value, fractionDigits }: { value: number; fractionDigits: number }) => {
@@ -170,15 +171,19 @@ const UnitSwitch = ({
 }
 
 const BMIDisplay = ({ bmi }: { bmi: number }) => {
+  const { t } = useTranslation()
+
   if (bmi <= 0) return null
 
   return (
     <View style={styles.bmiContainer}>
       <View style={styles.bmiHeader}>
-        <Text style={styles.bmiLabel}>Your BMI</Text>
+        <Text style={styles.bmiLabel}>{t('onboarding.steps.height.bmi.label')}</Text>
         <Text style={[styles.bmiValue, { color: getBMIColor(bmi) }]}>{bmi.toFixed(1)}</Text>
       </View>
-      <Text style={styles.bmiMessage}>{getBMIMessage(bmi)}</Text>
+      <Text style={styles.bmiMessage}>
+        {t(`onboarding.steps.height.bmi.${getBMIMessageKey(bmi)}`)}
+      </Text>
     </View>
   )
 }

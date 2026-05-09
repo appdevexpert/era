@@ -1,235 +1,38 @@
 import PlanProgressBar from "@/app/components/workout/PlanProgressBar";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import type { HomeStackParamList } from "@/app/navigation/types";
+import {
+  selectHasWorkoutBootstrap,
+  selectWorkoutOverview,
+  selectWorkoutError,
+  selectWorkoutStatus,
+} from "@/app/stores/selectors/workoutSelectors";
+import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import { useAppDispatch } from "@/app/stores/store";
+import type {
+  WorkoutPlanWeekView,
+  WorkoutDayStatus,
+} from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import { InfoCircle, MedalBadge } from "@/assets/icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Line } from "react-native-svg";
+import { mapWorkoutPlan } from "@/app/utils/workoutMappers";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { GlassView } from "expo-glass-effect";
-import { useCallback, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
+import Svg, { Line } from "react-native-svg";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { InfoCircle, MedalBadge } from "@/assets/icons";
 
-// --- Types ---
-
-type DayStatus = "completed" | "missed" | "active" | "future";
-
-interface DayPill {
-  date: string;
-  day: string;
-  status: DayStatus;
-}
-
-interface WeekData {
-  weekNumber: number;
-  phase: string;
-  completedDays: number;
-  totalDays: number;
-  days: DayPill[];
-  isCurrentWeek: boolean;
-}
-
-// --- Mock Data ---
-
-const WEEKS: WeekData[] = [
-  {
-    weekNumber: 1,
-    phase: "Hypertrophy",
-    completedDays: 1,
-    totalDays: 6,
-    days: [
-      { date: "29", day: "Wed", status: "missed" },
-      { date: "30", day: "Thu", status: "completed" },
-      { date: "01", day: "Fri", status: "active" },
-      { date: "02", day: "Sat", status: "future" },
-      { date: "03", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: true,
-  },
-  {
-    weekNumber: 2,
-    phase: "Hypertrophy",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "04", day: "Mon", status: "future" },
-      { date: "05", day: "Tue", status: "future" },
-      { date: "06", day: "Wed", status: "future" },
-      { date: "07", day: "Thu", status: "future" },
-      { date: "08", day: "Fri", status: "future" },
-      { date: "09", day: "Sat", status: "future" },
-      { date: "10", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 3,
-    phase: "Hypertrophy",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "11", day: "Mon", status: "future" },
-      { date: "12", day: "Tue", status: "future" },
-      { date: "13", day: "Wed", status: "future" },
-      { date: "14", day: "Thu", status: "future" },
-      { date: "15", day: "Fri", status: "future" },
-      { date: "16", day: "Sat", status: "future" },
-      { date: "17", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 4,
-    phase: "Hypertrophy",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "18", day: "Mon", status: "future" },
-      { date: "19", day: "Tue", status: "future" },
-      { date: "20", day: "Wed", status: "future" },
-      { date: "21", day: "Thu", status: "future" },
-      { date: "22", day: "Fri", status: "future" },
-      { date: "23", day: "Sat", status: "future" },
-      { date: "24", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 5,
-    phase: "Strength",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "25", day: "Mon", status: "future" },
-      { date: "26", day: "Tue", status: "future" },
-      { date: "27", day: "Wed", status: "future" },
-      { date: "28", day: "Thu", status: "future" },
-      { date: "29", day: "Fri", status: "future" },
-      { date: "30", day: "Sat", status: "future" },
-      { date: "01", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 6,
-    phase: "Strength",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "02", day: "Mon", status: "future" },
-      { date: "03", day: "Tue", status: "future" },
-      { date: "04", day: "Wed", status: "future" },
-      { date: "05", day: "Thu", status: "future" },
-      { date: "06", day: "Fri", status: "future" },
-      { date: "07", day: "Sat", status: "future" },
-      { date: "08", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 7,
-    phase: "Strength",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "09", day: "Mon", status: "future" },
-      { date: "10", day: "Tue", status: "future" },
-      { date: "11", day: "Wed", status: "future" },
-      { date: "12", day: "Thu", status: "future" },
-      { date: "13", day: "Fri", status: "future" },
-      { date: "14", day: "Sat", status: "future" },
-      { date: "15", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 8,
-    phase: "Strength",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "16", day: "Mon", status: "future" },
-      { date: "17", day: "Tue", status: "future" },
-      { date: "18", day: "Wed", status: "future" },
-      { date: "19", day: "Thu", status: "future" },
-      { date: "20", day: "Fri", status: "future" },
-      { date: "21", day: "Sat", status: "future" },
-      { date: "22", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 9,
-    phase: "Peak",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "23", day: "Mon", status: "future" },
-      { date: "24", day: "Tue", status: "future" },
-      { date: "25", day: "Wed", status: "future" },
-      { date: "26", day: "Thu", status: "future" },
-      { date: "27", day: "Fri", status: "future" },
-      { date: "28", day: "Sat", status: "future" },
-      { date: "29", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 10,
-    phase: "Peak",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "30", day: "Mon", status: "future" },
-      { date: "01", day: "Tue", status: "future" },
-      { date: "02", day: "Wed", status: "future" },
-      { date: "03", day: "Thu", status: "future" },
-      { date: "04", day: "Fri", status: "future" },
-      { date: "05", day: "Sat", status: "future" },
-      { date: "06", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 11,
-    phase: "Peak",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "07", day: "Mon", status: "future" },
-      { date: "08", day: "Tue", status: "future" },
-      { date: "09", day: "Wed", status: "future" },
-      { date: "10", day: "Thu", status: "future" },
-      { date: "11", day: "Fri", status: "future" },
-      { date: "12", day: "Sat", status: "future" },
-      { date: "13", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-  {
-    weekNumber: 12,
-    phase: "Peak",
-    completedDays: 0,
-    totalDays: 6,
-    days: [
-      { date: "14", day: "Mon", status: "future" },
-      { date: "15", day: "Tue", status: "future" },
-      { date: "16", day: "Wed", status: "future" },
-      { date: "17", day: "Thu", status: "future" },
-      { date: "18", day: "Fri", status: "future" },
-      { date: "19", day: "Sat", status: "future" },
-      { date: "20", day: "Sun", status: "future" },
-    ],
-    isCurrentWeek: false,
-  },
-];
-
-// --- Sub-components ---
+type DayPill = WorkoutPlanWeekView["days"][number];
 
 const DashedTimeline = ({ isCurrentWeek }: { isCurrentWeek: boolean }) => {
   const [height, setHeight] = useState(0);
-  const onLayout = useCallback((e: LayoutChangeEvent) => {
-    setHeight(e.nativeEvent.layout.height);
+  const onLayout = useCallback((event: LayoutChangeEvent) => {
+    setHeight(event.nativeEvent.layout.height);
   }, []);
 
   const strokeColor = isCurrentWeek
@@ -238,7 +41,7 @@ const DashedTimeline = ({ isCurrentWeek }: { isCurrentWeek: boolean }) => {
 
   return (
     <View style={styles.timelineLine} onLayout={onLayout}>
-      {height > 0 && (
+      {height > 0 ? (
         <Svg width={2} height={height}>
           <Line
             x1={1}
@@ -250,12 +53,12 @@ const DashedTimeline = ({ isCurrentWeek }: { isCurrentWeek: boolean }) => {
             strokeDasharray="8,8"
           />
         </Svg>
-      )}
+      ) : null}
     </View>
   );
 };
 
-const getDayPillColors = (status: DayStatus) => {
+const getDayPillColors = (status: WorkoutDayStatus) => {
   switch (status) {
     case "completed":
       return {
@@ -273,14 +76,14 @@ const getDayPillColors = (status: DayStatus) => {
       return {
         pillBg: ["rgba(201,168,76,0.35)", "rgba(201,168,76,0.35)"] as const,
         circleBg: COLORS.primary.dark,
-        textColor: "#FFFFFF",
+        textColor: COLORS.neutral.white,
       };
     case "future":
     default:
       return {
         pillBg: ["transparent", "transparent"] as const,
         circleBg: "#1B1B1B",
-        textColor: "#FFFFFF",
+        textColor: COLORS.neutral.white,
       };
   }
 };
@@ -310,7 +113,7 @@ const DayPillItem = ({ pill }: { pill: DayPill }) => {
         <Text style={styles.dayDate}>{pill.date}</Text>
         <View style={[styles.dayCircle, { backgroundColor: colors.circleBg }]}>
           <Text style={[styles.dayText, { color: colors.textColor }]}>
-            {pill.day}
+            {pill.dayLabel}
           </Text>
         </View>
       </View>
@@ -318,89 +121,105 @@ const DayPillItem = ({ pill }: { pill: DayPill }) => {
   );
 };
 
-const WeekBadge = ({ weekNumber }: { weekNumber: number }) => (
-  <View style={styles.weekBadgeShadow}>
-    <View style={styles.weekBadge}>
-      <GlassView
-        pointerEvents="none"
-        glassEffectStyle="clear"
-        colorScheme="dark"
-        style={styles.dayPillFill}
-      />
-      <Text style={styles.weekBadgeText}>W{weekNumber}</Text>
-      <MedalBadge width={24} height={24} />
-    </View>
-  </View>
-);
+const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
+  const { t } = useTranslation();
 
-const WeekSection = ({ week }: { week: WeekData }) => {
-  const row1 = week.days.slice(0, 4);
-  const row2 = week.days.slice(4);
+  return (
+    <View style={styles.weekBadgeShadow}>
+      <View style={styles.weekBadge}>
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="clear"
+          colorScheme="dark"
+          style={styles.dayPillFill}
+        />
+        <Text style={styles.weekBadgeText}>
+          {t("workout.ui.weekBadge", { number: weekNumber })}
+        </Text>
+        <MedalBadge width={24} height={24} />
+      </View>
+    </View>
+  );
+};
+
+const WeekSection = ({ week }: { week: WorkoutPlanWeekView }) => {
+  const { t } = useTranslation();
+  const firstRow = week.days.slice(0, 4);
+  const secondRow = week.days.slice(4);
 
   return (
     <View style={[styles.weekSection, !week.isCurrentWeek && styles.weekDimmed]}>
-      {/* Week header */}
       <View style={styles.weekHeader}>
         <View style={styles.weekHeaderLeft}>
-          <Text style={styles.weekTitle}>Week {week.weekNumber}</Text>
+          <Text style={styles.weekTitle}>{week.title}</Text>
           <Text style={styles.weekPhase}>{week.phase}</Text>
         </View>
-        {week.isCurrentWeek && (
+        {week.isCurrentWeek ? (
           <Text style={styles.weekDays}>
-            {week.completedDays}/{week.totalDays} Days
+            {t("workout.ui.daysCount", {
+              completed: week.completedDays,
+              total: week.totalDays,
+            })}
           </Text>
-        )}
+        ) : null}
       </View>
 
-      {/* Timeline + Card */}
       <View style={styles.weekBody}>
-        {/* Vertical dashed line */}
         <DashedTimeline isCurrentWeek={week.isCurrentWeek} />
 
-        {/* Days card */}
         <View style={styles.daysCard}>
-          {/* Row 1: 4 days */}
           <View style={styles.daysRow}>
-            {row1.map((pill, i) => (
-              <DayPillItem key={`${week.weekNumber}-r1-${i}`} pill={pill} />
+            {firstRow.map((pill) => (
+              <DayPillItem key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`} pill={pill} />
             ))}
           </View>
 
-          {/* Row 2: remaining days + week badge */}
           <View style={styles.daysRow2}>
-            {row2.map((pill, i) => (
-              <DayPillItem key={`${week.weekNumber}-r2-${i}`} pill={pill} />
+            {secondRow.map((pill) => (
+              <DayPillItem key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`} pill={pill} />
             ))}
             <WeekBadge weekNumber={week.weekNumber} />
           </View>
         </View>
       </View>
 
-      {/* Info notes */}
-      {week.weekNumber === 1 && (
+      {week.weekNumber === 1 ? (
         <View style={styles.infoRow}>
           <InfoCircle width={18} height={18} />
-          <Text style={styles.infoText}>
-            The initial days will be adjusted in the 4th week
-          </Text>
+          <Text style={styles.infoText}>{t("workout.ui.weekInitialNote")}</Text>
         </View>
-      )}
-      {week.weekNumber === 4 && (
+      ) : null}
+      {week.weekNumber === 4 ? (
         <View style={styles.infoRow}>
           <InfoCircle width={18} height={18} />
-          <Text style={styles.infoText}>
-            Initial Days of Week 1 are adjusted here.
-          </Text>
+          <Text style={styles.infoText}>{t("workout.ui.weekAdjustedNote")}</Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 };
 
-// --- Main Screen ---
-
 const WorkoutPlanScreen = () => {
   const insets = useSafeAreaInsets();
+  const route = useRoute<RouteProp<HomeStackParamList, "WorkoutPlan">>();
+  const dispatch = useAppDispatch();
+  const { t, i18n } = useTranslation();
+  const overview = useSelector(selectWorkoutOverview);
+  const plan = useMemo(
+    () => (overview ? mapWorkoutPlan(overview, i18n.language) : null),
+    [i18n.language, overview],
+  );
+  const workoutStatus = useSelector(selectWorkoutStatus);
+  const workoutError = useSelector(selectWorkoutError);
+  const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
+  const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
+  const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+
+  useEffect(() => {
+    if (!hasWorkoutBootstrap && workoutStatus === "idle") {
+      dispatch(loadWorkoutBootstrap({ programId: route.params?.programId }));
+    }
+  }, [dispatch, hasWorkoutBootstrap, route.params?.programId, workoutStatus]);
 
   return (
     <View style={styles.root}>
@@ -411,23 +230,29 @@ const WorkoutPlanScreen = () => {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Plan progress bar */}
-        <View style={styles.progressBarSection}>
-          <PlanProgressBar />
-        </View>
+        {plan ? (
+          <>
+            <View style={styles.progressBarSection}>
+              <PlanProgressBar phases={plan.phases} />
+            </View>
 
-        {/* Week sections */}
-        {WEEKS.map((week) => (
-          <WeekSection key={week.weekNumber} week={week} />
-        ))}
+            {plan.weeks.map((week) => (
+              <WeekSection key={week.weekNumber} week={week} />
+            ))}
+          </>
+        ) : (
+          <View style={styles.statusBox}>
+            <Text style={styles.statusText}>
+              {isLoading ? t("workout.ui.loadingWorkout") : errorMessage}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
 };
 
 export default WorkoutPlanScreen;
-
-// --- Styles ---
 
 const styles = StyleSheet.create({
   root: {
@@ -441,8 +266,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: verticalScale(24),
   },
-
-  // Week section
   weekSection: {
     marginBottom: verticalScale(16),
   },
@@ -483,8 +306,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.56,
     lineHeight: 16.8,
   },
-
-  // Timeline + Card body
   weekBody: {
     flexDirection: "row",
     marginTop: verticalScale(8),
@@ -503,8 +324,6 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 24,
   },
-
-  // Days rows
   daysRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -514,8 +333,6 @@ const styles = StyleSheet.create({
     gap: 32,
     alignItems: "center",
   },
-
-  // Day pill
   dayPillShadow: {
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3.08 },
@@ -540,7 +357,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
-    color: "#FFFFFF",
+    color: COLORS.neutral.white,
     textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: 0.56,
@@ -561,8 +378,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 12,
   },
-
-  // Week badge
   weekBadgeShadow: {
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 3.08 },
@@ -586,14 +401,12 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
-    color: "#FFFFFF",
+    color: COLORS.neutral.white,
     textAlign: "center",
     textTransform: "uppercase",
     letterSpacing: 0.56,
     lineHeight: 14,
   },
-
-  // Info row
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -607,5 +420,18 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     color: "rgba(240,240,240,0.6)",
     lineHeight: 15.6,
+  },
+  statusBox: {
+    minHeight: verticalScale(320),
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  statusText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(240,240,240,0.72)",
+    textAlign: "center",
   },
 });

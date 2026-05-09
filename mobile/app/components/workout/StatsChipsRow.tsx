@@ -4,6 +4,7 @@ import { horizontalScale } from "@/app/utils/responsive";
 import { StatCoin, StatFire, StatWorkoutPlan } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 interface StatsChipsRowProps {
   points?: number;
@@ -11,6 +12,8 @@ interface StatsChipsRowProps {
 }
 
 const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => {
+  const { t } = useTranslation();
+
   return (
     <ScrollView
       horizontal
@@ -27,7 +30,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => 
         <View style={styles.iconWrap}>
           <StatCoin width={24} height={24} />
         </View>
-        <Text style={styles.chipLabel}>{points} pts</Text>
+        <Text style={styles.chipLabel}>{t("workout.ui.points", { count: points })}</Text>
       </View>
 
       {/* Streak chip */}
@@ -40,7 +43,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => 
         <View style={[styles.iconWrap, styles.fireIconBg]}>
           <StatFire width={32} height={32} />
         </View>
-        <Text style={styles.chipLabel}>{streakDays}D streak</Text>
+        <Text style={styles.chipLabel}>{t("workout.ui.streak", { count: streakDays })}</Text>
       </LinearGradient>
 
       {/* Workout Plan chip */}
@@ -51,7 +54,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => 
         style={styles.chip}
       >
         <StatWorkoutPlan width={32} height={32} />
-        <Text style={[styles.chipLabel, { width: 101 }]}>Workout Plan</Text>
+        <Text style={[styles.chipLabel, { width: 101 }]}>{t("workout.ui.workoutPlan")}</Text>
       </LinearGradient>
     </ScrollView>
   );

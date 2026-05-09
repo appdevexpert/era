@@ -4,9 +4,12 @@ import {
   AuthNavigator,
   HomeNavigator,
   OnboardingNavigator,
+  PlanGenerationNavigator,
 } from "@/app/navigation";
 import { login, clearSession } from "@/app/stores/slice/authSlice";
+import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
 import { submitGoalData } from "@/app/stores/slice/onboardingSlice";
+import { clearWorkoutCache } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
 import { mapSupabaseUser, supabase } from "@/app/utils/auth";
@@ -80,6 +83,8 @@ const Navigation = () => {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const isOnboarded = useSelector((state: RootState) => state.auth.isOnboarded);
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
+  const isPlanGenerated = useSelector((state: RootState) => state.auth.isPlanGenerated);
+  const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
   const [isRecovery, setIsRecovery] = useState(false);
 
   // Handle deep links (password recovery)
@@ -119,6 +124,7 @@ const Navigation = () => {
         } else if (event === "SIGNED_OUT") {
           setIsRecovery(false);
           dispatch(clearSession());
+          dispatch(clearWorkoutCache());
         }
       },
     );
@@ -154,6 +160,8 @@ const Navigation = () => {
             <Stack.Screen name="AuthStack" component={AuthNavigator} />
           ) : !isLoggedIn && !isOnboarded ? (
             <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
+          ) : !isPlanGenerated || !hasWorkoutBootstrap ? (
+            <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
           ) : (
             <Stack.Screen name="HomeStack" component={HomeNavigator} />
           )}

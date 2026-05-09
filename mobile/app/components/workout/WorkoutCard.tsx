@@ -5,6 +5,7 @@ import { WorkoutCard as WorkoutCardBg } from "@/assets/images";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 
 // Figma: card 337x297, content at (24,24) w=289, program at (25,222), start at (237,197)
 const CARD_ASPECT = 337 / 297;
@@ -24,17 +25,19 @@ interface WorkoutCardProps {
 }
 
 const WorkoutCard = ({
-  title = "Today's Workout",
-  workoutName = "Push - Heavy",
-  exerciseCount = 12,
-  duration = "75min",
-  tags = ["Chest", "Tricep", "Forearms", "Core"],
-  programType = "Strength",
-  programWeek = "Week 6/12",
-  programDay = "Day 2",
+  title,
+  workoutName = "",
+  exerciseCount = 0,
+  duration = "",
+  tags = [],
+  programType = "",
+  programWeek = "",
+  programDay = "",
   onCardPress,
   onStartPress,
 }: WorkoutCardProps) => {
+  const { t } = useTranslation();
+
   return (
     <View style={styles.wrapper}>
       <Pressable onPress={onCardPress} style={styles.cardPressLayer}>
@@ -49,7 +52,7 @@ const WorkoutCard = ({
         <View style={styles.topContent}>
           {/* Header row */}
           <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.title}>{title ?? t("workout.ui.todaysWorkout")}</Text>
             <View style={styles.meta}>
               <View style={styles.metaItem}>
                 <StatStretching width={14} height={14} />
@@ -66,30 +69,38 @@ const WorkoutCard = ({
           <Text style={styles.workoutName}>{workoutName}</Text>
 
           {/* Tags */}
-          <View style={styles.tagRow}>
-            {tags.map((tag) => (
-              <View key={tag} style={styles.tag}>
-                <GlassView
-                  pointerEvents="none"
-                  glassEffectStyle="clear"
-                  colorScheme="dark"
-                  style={styles.tagGlass}
-                />
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
+          {tags.length > 0 ? (
+            <View style={styles.tagRow}>
+              {tags.map((tag) => (
+                <View key={tag} style={styles.tag}>
+                  <GlassView
+                    pointerEvents="none"
+                    glassEffectStyle="clear"
+                    colorScheme="dark"
+                    style={styles.tagGlass}
+                  />
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {/* Program info — positioned at bottom-left of card (Figma: top 75%, left 24) */}
         <View style={styles.programInfo}>
           <StrengthIconSvg width={36} height={36} />
           <View style={styles.programMeta}>
-            <Text style={styles.programTitle}>{programType}</Text>
+            <Text style={styles.programTitle}>
+              {programType}
+            </Text>
             <View style={styles.programSubRow}>
-              <Text style={styles.programSub}>{programWeek}</Text>
-              <Text style={styles.programDot}>•</Text>
-              <Text style={styles.programSub}>{programDay}</Text>
+              <Text style={styles.programSub}>
+                {programWeek}
+              </Text>
+              {programWeek && programDay ? <Text style={styles.programDot}>•</Text> : null}
+              <Text style={styles.programSub}>
+                {programDay}
+              </Text>
             </View>
           </View>
         </View>
@@ -114,7 +125,7 @@ const WorkoutCard = ({
           end={{ x: 0.5, y: 1 }}
           style={styles.startGradient}
         />
-        <Text style={styles.startText}>Start</Text>
+        <Text style={styles.startText}>{t("workout.ui.start")}</Text>
       </Pressable>
 
       

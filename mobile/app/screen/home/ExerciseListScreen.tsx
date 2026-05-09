@@ -1,35 +1,28 @@
-import { COLORS, GRADIENTS } from "@/app/constants/colors";
+import PrimaryButton from "@/app/components/ui/PrimaryButton";
+import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import type { HomeStackParamList } from "@/app/navigation/types";
+import {
+  selectCurrentDayDetail,
+  selectHasWorkoutBootstrap,
+  selectWorkoutError,
+  selectWorkoutStatus,
+} from "@/app/stores/selectors/workoutSelectors";
+import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import { useAppDispatch } from "@/app/stores/store";
+import type {
+  ExerciseListExerciseView,
+  ExerciseListSectionView,
+} from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import { GlassView } from "expo-glass-effect";
+import { mapExerciseList } from "@/app/utils/workoutMappers";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useEffect, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-type Exercise = {
-  name: string;
-  prescription: string;
-  weight?: string;
-  showHandle?: boolean;
-};
-
-const PRIMARY_EXERCISES: Exercise[] = [
-  { name: "Incline Dumbbell Press", prescription: "3 Sets • 10 Reps", weight: "60 kg" },
-  { name: "Bench Press", prescription: "3 Sets • 10 Reps", weight: "30 kg" },
-  { name: "Rope Pushdown", prescription: "3 Sets • 10 Reps", weight: "40 kg" },
-  { name: "Skull Crushers", prescription: "3 Sets • 10 Reps", weight: "40 kg" },
-  { name: "Overhead Press", prescription: "3 Sets • 10 Reps", weight: "20 kg" },
-];
-
-const CORE_EXERCISES: Exercise[] = [
-  { name: "Leg Raises", prescription: "3 Sets • 15-20 Reps" },
-  { name: "Cable Crunch", prescription: "3 Sets • 15-20 Reps" },
-  { name: "Plank", prescription: "3 Sets • 60 Sec" },
-];
-
-const CARDIO_EXERCISES: Exercise[] = [
-  { name: "Incline Walk", prescription: "20 min • moderate to fast pace", showHandle: false },
-];
 
 const ReorderIcon = () => (
   <View style={styles.reorderIcon}>
@@ -53,26 +46,30 @@ const SectionHeader = ({
 }: {
   title: string;
   showEdit?: boolean;
-}) => (
-  <View style={styles.sectionHeader}>
-    <View style={styles.sectionLine} />
-    <Text style={styles.sectionTitle}>{title}</Text>
-    <View style={styles.sectionLine} />
-    {showEdit ? (
-      <Pressable hitSlop={8} style={styles.editButton}>
-        <Text style={styles.editText}>Edit</Text>
-        <Text style={styles.editChevron}>›</Text>
-      </Pressable>
-    ) : null}
-  </View>
-);
+}) => {
+  const { t } = useTranslation();
 
-const ExerciseRow = ({ exercise }: { exercise: Exercise }) => {
-  const showHandle = exercise.showHandle !== false;
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionLine} />
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionLine} />
+      {showEdit ? (
+        <Pressable hitSlop={8} style={styles.editButton}>
+          <Text style={styles.editText}>{t("workout.ui.edit")}</Text>
+          <Text style={styles.editChevron}>›</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+};
+
+const ExerciseRow = ({ exercise }: { exercise: ExerciseListExerciseView }) => {
+  const { t } = useTranslation();
 
   return (
     <View style={styles.exerciseRow}>
-      {showHandle ? <ReorderIcon /> : null}
+      {exercise.showHandle ? <ReorderIcon /> : null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
           {exercise.name}
@@ -81,7 +78,7 @@ const ExerciseRow = ({ exercise }: { exercise: Exercise }) => {
       </View>
       {exercise.weight ? (
         <View style={styles.weightBlock}>
-          <Text style={styles.weightLabel}>Initial WT.</Text>
+          <Text style={styles.weightLabel}>{t("workout.ui.initialWeight")}</Text>
           <Text style={styles.weightValue}>{exercise.weight}</Text>
         </View>
       ) : null}
@@ -89,22 +86,14 @@ const ExerciseRow = ({ exercise }: { exercise: Exercise }) => {
   );
 };
 
-const ExerciseSection = ({
-  title,
-  exercises,
-  showEdit = false,
-}: {
-  title: string;
-  exercises: Exercise[];
-  showEdit?: boolean;
-}) => (
+const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
   <View style={styles.section}>
-    <SectionHeader title={title} showEdit={showEdit} />
+    <SectionHeader title={section.title} showEdit={section.showEdit} />
     <View style={styles.exerciseList}>
-      {exercises.map((exercise, index) => (
-        <View key={exercise.name}>
+      {section.exercises.map((exercise, index) => (
+        <View key={exercise.id}>
           <ExerciseRow exercise={exercise} />
-          {index < exercises.length - 1 ? <View style={styles.divider} /> : null}
+          {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
         </View>
       ))}
     </View>
@@ -113,6 +102,48 @@ const ExerciseSection = ({
 
 const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
+  const route = useRoute<RouteProp<HomeStackParamList, "ExerciseList">>();
+  const dispatch = useAppDispatch();
+  const { t, i18n } = useTranslation();
+  const currentDayDetail = useSelector(selectCurrentDayDetail);
+  const workout = useMemo(
+    () => (currentDayDetail ? mapExerciseList(currentDayDetail, i18n.language) : null),
+    [currentDayDetail, i18n.language],
+  );
+  const workoutStatus = useSelector(selectWorkoutStatus);
+  const workoutError = useSelector(selectWorkoutError);
+  const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
+  const requestedDayId = route.params?.programDayId;
+  const shouldLoadRequestedDay = Boolean(
+    requestedDayId && currentDayDetail?.day.id !== requestedDayId,
+  );
+  const handleStartNow = () => undefined;
+  const isLoading =
+    workoutStatus === "idle" ||
+    workoutStatus === "loading" ||
+    (shouldLoadRequestedDay && workoutStatus !== "failed");
+  const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+
+  useEffect(() => {
+    const shouldLoad = !hasWorkoutBootstrap || shouldLoadRequestedDay;
+    const canLoad =
+      workoutStatus === "idle" ||
+      (shouldLoadRequestedDay && workoutStatus === "succeeded");
+
+    if (shouldLoad && canLoad) {
+      dispatch(loadWorkoutBootstrap({
+        programId: route.params?.programId,
+        programDayId: route.params?.programDayId,
+      }));
+    }
+  }, [
+    dispatch,
+    hasWorkoutBootstrap,
+    route.params?.programDayId,
+    route.params?.programId,
+    shouldLoadRequestedDay,
+    workoutStatus,
+  ]);
 
   return (
     <View style={styles.root}>
@@ -127,40 +158,39 @@ const ExerciseListScreen = () => {
           },
         ]}
       >
-        <View style={styles.statsRow}>
-          <StatCard value="5" label="exercises" />
-          <StatCard value="75" label="minutes" />
-        </View>
+        {workout && !shouldLoadRequestedDay ? (
+          <>
+            <View style={styles.statsRow}>
+              <StatCard value={String(workout.exerciseCount)} label={t("workout.ui.exercisesLabel")} />
+              <StatCard value={String(workout.estimatedMinutes)} label={t("workout.ui.minutesLabel")} />
+            </View>
 
-        <ExerciseSection title="Exercises" exercises={PRIMARY_EXERCISES} showEdit />
-        <ExerciseSection title="Core Finisher" exercises={CORE_EXERCISES} />
-        <ExerciseSection title="Treadmill Walk" exercises={CARDIO_EXERCISES} />
+            {workout.sections.map((section) => (
+              <ExerciseSection key={section.id} section={section} />
+            ))}
+          </>
+        ) : (
+          <View style={styles.statusBox}>
+            <Text style={styles.statusText}>
+              {isLoading ? t("workout.ui.loadingWorkout") : errorMessage}
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
-      <LinearGradient
-        pointerEvents="none"
-        colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.92)"]}
-        locations={[0, 0.58]}
-        style={styles.bottomFade}
-      />
-      <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable>
+      {workout && !shouldLoadRequestedDay ? (
+        <>
           <LinearGradient
-            colors={GRADIENTS.primary60}
-            start={{ x: 1, y: 0.5 }}
-            end={{ x: 0, y: 0.5 }}
-            style={styles.startButton}
-          >
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={styles.buttonGlass}
-            />
-            <Text style={styles.startButtonText}>Start Now</Text>
-          </LinearGradient>
-        </Pressable>
-      </View>
+            pointerEvents="none"
+            colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.92)"]}
+            locations={[0, 0.58]}
+            style={styles.bottomFade}
+          />
+          <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
+            <PrimaryButton label={t("workout.ui.startNow")} onPress={handleStartNow} />
+          </View>
+        </>
+      ) : null}
     </View>
   );
 };
@@ -330,6 +360,19 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: COLORS.neutral.charcoal,
   },
+  statusBox: {
+    minHeight: verticalScale(260),
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  statusText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(240,240,240,0.72)",
+    textAlign: "center",
+  },
   bottomFade: {
     position: "absolute",
     left: 0,
@@ -342,25 +385,5 @@ const styles = StyleSheet.create({
     left: horizontalScale(18),
     right: horizontalScale(18),
     bottom: 0,
-  },
-  startButton: {
-    height: 56,
-    borderRadius: 138,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  buttonGlass: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 138,
-  },
-  startButtonText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 18,
-    fontWeight: "600",
-    lineHeight: 22,
-    color: COLORS.neutral.white,
-    textAlign: "center",
-    letterSpacing: 0.36,
   },
 });

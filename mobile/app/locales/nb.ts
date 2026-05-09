@@ -28,6 +28,7 @@ const nb = {
     passwordResetSuccess: "Passordet er oppdatert!",
     loginSuccess: "Du er logget inn!",
     accountCreated: "Kontoen er opprettet!",
+    logout: "Logg ut",
     errors: {
       invalidEmail: "Vennligst skriv inn en gyldig e-postadresse.",
       passwordTooShort: "Passordet m\u00e5 v\u00e6re minst 6 tegn.",
@@ -138,12 +139,21 @@ const nb = {
         eyebrow: "KROPPSMÅL",
         heading: "Hva er høyden din?",
         description: "Dette hjelper oss å tilpasse treningen til kroppen din.",
+        bmi: {
+          label: "Din BMI",
+          below: "BMI-en din er under normalområdet - du bør gå opp i vekt for bedre helse.",
+          healthy: "BMI-en din er i et sunt område - fortsett slik for en sterkere og sunnere kropp.",
+          overweight: "BMI-en din er i overvektsområdet - et balansert kosthold og trening kan hjelpe.",
+          obese: "BMI-en din er i fedmeområdet - vurder å snakke med helsepersonell.",
+        },
       },
       paywall: {
         title: "Ubegrenset",
         eyebrow: "",
         heading: "Få ubegrenset opplevelse.",
         description: "",
+        placeholderTitle: "Betalingsside",
+        placeholderSubtitle: "Kommer snart",
       },
       calories: {
         title: "Kalorier",
@@ -215,6 +225,7 @@ const nb = {
     actions: {
       generating: "Lager plan",
       ready: "Start trening",
+      retry: "Prøv igjen",
     },
     fallback: {
       notSet: "Ikke valgt",
@@ -228,7 +239,45 @@ const nb = {
   },
   screens: {
     settings: "Innstillinger",
+    profile: "Profil",
     notifications: "Varsler",
+  },
+  profile: {
+    fallbackName: "Bruker",
+  },
+  workout: {
+    ui: {
+      greeting: "Hei,",
+      readyTitle: "Klar for trening i dag?",
+      points: "{{count}} poeng",
+      streak: "{{count}}D rekke",
+      workoutPlan: "Treningsplan",
+      todaysWorkout: "Dagens økt",
+      start: "Start",
+      startNow: "Start nå",
+      exercisesLabel: "øvelser",
+      minutesLabel: "minutter",
+      edit: "Rediger",
+      initialWeight: "Startvekt",
+      weekLabel: "Uke {{number}}",
+      weekBadge: "U{{number}}",
+      dayLabel: "Dag {{number}}",
+      daysCount: "{{completed}}/{{total}} dager",
+      weekInitialNote: "De første dagene justeres i uke 4",
+      weekAdjustedNote: "De første dagene fra uke 1 justeres her.",
+      loadingWorkout: "Laster treningsøkt...",
+      unableToLoadWorkout: "Kunne ikke laste treningsøkten.",
+    },
+    weekdays: {
+      mon: "Man",
+      tue: "Tir",
+      wed: "Ons",
+      thu: "Tor",
+      fri: "Fre",
+      sat: "Lør",
+      sun: "Søn",
+      monday: "Mandag",
+    },
   },
   language: {
     title: "Språk",

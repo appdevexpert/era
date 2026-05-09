@@ -1,25 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { ComponentProps } from 'react'
-import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Feather } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
-import Animated, {
-  Easing,
-  interpolate,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated'
+import { useEffect, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
+import Svg, { Circle } from 'react-native-svg'
 import GradientBackground from '@/app/components/layout/GradientBackground'
-import PrimaryButton from '@/app/components/ui/PrimaryButton'
-import { COLORS, GRADIENTS } from '@/app/constants/colors'
+import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import { PlanGenerationStackParamList } from '@/app/navigation/types'
 import { completePlanGeneration } from '@/app/stores/slice/authSlice'
-import { RootState, useAppDispatch } from '@/app/stores/store'
+import { loadWorkoutBootstrap } from '@/app/stores/slice/workoutSlice'
+import {
+  selectHasWorkoutBootstrap,
+  selectWorkoutError,
+  selectWorkoutStatus,
+} from '@/app/stores/selectors/workoutSelectors'
+import { useAppDispatch } from '@/app/stores/store'
 import { horizontalScale, verticalScale } from '@/app/utils/responsive'
 import type { NativeStackScreenProps } from '@react-navigation/native-stack'
 
@@ -28,235 +23,108 @@ type PlanGenerationProps = NativeStackScreenProps<
   'PlanGeneration'
 >
 
-type FeatherIconName = ComponentProps<typeof Feather>['name']
-
-const GENERATION_STEPS: {
-  key: string
-  icon: FeatherIconName
-  threshold: number
-}[] = [
-  { key: 'profile', icon: 'user-check', threshold: 24 },
-  { key: 'training', icon: 'activity', threshold: 48 },
-  { key: 'schedule', icon: 'calendar', threshold: 72 },
-  { key: 'finish', icon: 'check-circle', threshold: 100 },
-]
-
-const SUMMARY_ICONS: FeatherIconName[] = ['target', 'bar-chart-2', 'crosshair', 'trending-up']
-
-const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0
+const PROGRESS_STEP = 4
+const PROGRESS_INTERVAL_MS = 160
+const CIRCLE_SIZE = 184
+const CIRCLE_STROKE_WIDTH = 10
+const CIRCLE_RADIUS = (CIRCLE_SIZE - CIRCLE_STROKE_WIDTH) / 2
+const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS
 
 const PlanGeneration = (_props: PlanGenerationProps) => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
-  const goalData = useSelector((state: RootState) => state.onboarding.goalData)
+  const workoutStatus = useSelector(selectWorkoutStatus)
+  const workoutError = useSelector(selectWorkoutError)
+  const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap)
   const [progress, setProgress] = useState(0)
   const [completed, setCompleted] = useState(false)
-  const pulse = useSharedValue(0)
-  const sweep = useSharedValue(0)
+
+  const isFailed = workoutStatus === 'failed'
+  const isReady = completed && hasWorkoutBootstrap
+  const progressOffset =
+    CIRCLE_CIRCUMFERENCE - (progress / 100) * CIRCLE_CIRCUMFERENCE
 
   useEffect(() => {
-    pulse.value = withRepeat(
-      withTiming(1, { duration: 1600, easing: Easing.inOut(Easing.cubic) }),
-      -1,
-      true,
-    )
-    sweep.value = withRepeat(
-      withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.cubic) }),
-      -1,
-      false,
-    )
-  }, [pulse, sweep])
+    if (!hasWorkoutBootstrap && workoutStatus === 'idle') {
+      dispatch(loadWorkoutBootstrap())
+    }
+  }, [dispatch, hasWorkoutBootstrap, workoutStatus])
 
   useEffect(() => {
+    if (completed || isFailed) return
+
     const timer = setInterval(() => {
       setProgress((currentProgress) => {
-        const nextProgress = Math.min(currentProgress + 4, 100)
+        const nextProgress = Math.min(currentProgress + PROGRESS_STEP, 100)
 
         if (nextProgress === 100) {
           setCompleted(true)
-          clearInterval(timer)
         }
 
         return nextProgress
       })
-    }, 160)
+    }, PROGRESS_INTERVAL_MS)
 
     return () => clearInterval(timer)
-  }, [])
+  }, [completed, isFailed])
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(pulse.value, [0, 1], [0.18, 0.38]),
-    transform: [
-      {
-        scale: interpolate(pulse.value, [0, 1], [0.92, 1.08]),
-      },
-    ],
-  }))
+  useEffect(() => {
+    if (isReady) {
+      dispatch(completePlanGeneration())
+    }
+  }, [dispatch, isReady])
 
-  const sweepStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(sweep.value, [0, 1], [-120, 120]),
-      },
-    ],
-  }))
-
-  const summaryItems = useMemo(() => {
-    const goal = isText(goalData.goal)
-      ? t(`onboarding.steps.goal.options.${goalData.goal}`)
-      : t('planGeneration.fallback.notSet')
-
-    const level = isText(goalData.level)
-      ? t(`onboarding.steps.level.options.${goalData.level}`)
-      : t('planGeneration.fallback.notSet')
-
-    const focusData = goalData.focus
-    const focus = Array.isArray(focusData)
-      ? focusData.length > 0
-        ? focusData
-          .slice(0, 2)
-          .map((focusKey) => t(`onboarding.steps.advancedFocus.options.${focusKey}`))
-          .join(', ')
-        : t('planGeneration.fallback.notSet')
-      : isText(focusData)
-        ? t(`onboarding.steps.focus.options.${focusData}`)
-        : t('planGeneration.fallback.notSet')
-
-    const weight = typeof goalData.weight === 'number' ? Math.round(goalData.weight) : 65
-    const weightUnit = isText(goalData.weightUnit) ? goalData.weightUnit : 'kg'
-    const height = typeof goalData.height === 'number' ? Math.round(goalData.height) : 180
-    const heightUnit = isText(goalData.heightUnit) ? goalData.heightUnit : 'cm'
-
-    return [
-      { key: 'goal', label: t('planGeneration.summary.goal'), value: goal },
-      { key: 'level', label: t('planGeneration.summary.level'), value: level },
-      { key: 'focus', label: t('planGeneration.summary.focus'), value: focus },
-      {
-        key: 'metrics',
-        label: t('planGeneration.summary.metrics'),
-        value: `${weight} ${weightUnit} / ${height} ${heightUnit}`,
-      },
-    ]
-  }, [goalData, t])
-
-  const activeStepIndex = Math.min(
-    GENERATION_STEPS.length - 1,
-    Math.floor(progress / (100 / GENERATION_STEPS.length)),
-  )
-
-  const handleContinue = () => {
-    if (!completed) return
-    dispatch(completePlanGeneration())
+  const handleRetry = () => {
+    setProgress(0)
+    setCompleted(false)
+    dispatch(loadWorkoutBootstrap())
   }
 
   return (
     <GradientBackground>
       <View style={styles.screen}>
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          <View style={styles.header}>
-            <Text style={styles.eyebrow}>{t('planGeneration.eyebrow')}</Text>
-            <Text style={styles.heading}>{t('planGeneration.heading')}</Text>
-            <Text style={styles.description}>{t('planGeneration.description')}</Text>
+        <View style={styles.content}>
+          <Text style={styles.eyebrow}>{t('planGeneration.eyebrow')}</Text>
+          <Text style={styles.heading}>{t('planGeneration.heading')}</Text>
+          <Text style={styles.description}>{t('planGeneration.description')}</Text>
+
+          <View style={styles.progressBlock}>
+            <View style={styles.progressCircle}>
+              <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+                <Circle
+                  cx={CIRCLE_SIZE / 2}
+                  cy={CIRCLE_SIZE / 2}
+                  r={CIRCLE_RADIUS}
+                  stroke={COLORS.alpha.white08}
+                  strokeWidth={CIRCLE_STROKE_WIDTH}
+                  fill="transparent"
+                />
+                <Circle
+                  cx={CIRCLE_SIZE / 2}
+                  cy={CIRCLE_SIZE / 2}
+                  r={CIRCLE_RADIUS}
+                  stroke={COLORS.primary.base}
+                  strokeWidth={CIRCLE_STROKE_WIDTH}
+                  strokeDasharray={`${CIRCLE_CIRCUMFERENCE} ${CIRCLE_CIRCUMFERENCE}`}
+                  strokeDashoffset={progressOffset}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  transform={`rotate(-90 ${CIRCLE_SIZE / 2} ${CIRCLE_SIZE / 2})`}
+                />
+              </Svg>
+              <Text style={styles.progressValue}>{progress}%</Text>
+            </View>
+
+            {isFailed ? (
+              <Pressable onPress={handleRetry} style={styles.retryButton}>
+                <Text style={styles.retryText}>{t('planGeneration.actions.retry')}</Text>
+              </Pressable>
+            ) : null}
+
+            {isFailed && workoutError ? (
+              <Text style={styles.errorText}>{workoutError}</Text>
+            ) : null}
           </View>
-
-          <View style={styles.meterSection}>
-            <Animated.View pointerEvents="none" style={[styles.pulseRing, pulseStyle]} />
-
-            <LinearGradient
-              colors={GRADIENTS.primary}
-              start={{ x: 1, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={styles.meterDisc}
-            >
-              <Feather
-                name={completed ? 'check' : 'zap'}
-                size={32}
-                color={COLORS.neutral.black2}
-              />
-            </LinearGradient>
-
-            <Text style={styles.progressValue}>{progress}%</Text>
-            <Text style={styles.progressLabel}>
-              {completed
-                ? t('planGeneration.status.ready')
-                : t('planGeneration.status.generating')}
-            </Text>
-          </View>
-
-          <View style={styles.progressTrack}>
-            <LinearGradient
-              colors={GRADIENTS.primary}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={[styles.progressFill, { width: `${progress}%` }]}
-            />
-            <Animated.View pointerEvents="none" style={[styles.progressSweep, sweepStyle]} />
-          </View>
-
-          <View style={styles.summaryGrid}>
-            {summaryItems.map((item, index) => (
-              <View key={item.key} style={styles.summaryItem}>
-                <View style={styles.summaryIconWrap}>
-                  <Feather
-                    name={SUMMARY_ICONS[index]}
-                    size={18}
-                    color={COLORS.primary.base}
-                  />
-                </View>
-                <View style={styles.summaryCopy}>
-                  <Text style={styles.summaryLabel}>{item.label}</Text>
-                  <Text numberOfLines={2} style={styles.summaryValue}>
-                    {item.value}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.stepList}>
-            {GENERATION_STEPS.map((step, index) => {
-              const isDone = progress >= step.threshold
-              const isActive = !isDone && index === activeStepIndex
-
-              return (
-                <View
-                  key={step.key}
-                  style={[
-                    styles.stepRow,
-                    isActive && styles.stepRowActive,
-                    isDone && styles.stepRowDone,
-                  ]}
-                >
-                  <View style={[styles.stepIcon, isDone && styles.stepIconDone]}>
-                    <Feather
-                      name={isDone ? 'check' : step.icon}
-                      size={18}
-                      color={isDone ? COLORS.neutral.black2 : COLORS.primary.dark}
-                    />
-                  </View>
-                  <View style={styles.stepCopy}>
-                    <Text style={styles.stepTitle}>
-                      {t(`planGeneration.steps.${step.key}.title`)}
-                    </Text>
-                    <Text style={styles.stepDescription}>
-                      {t(`planGeneration.steps.${step.key}.description`)}
-                    </Text>
-                  </View>
-                </View>
-              )
-            })}
-          </View>
-        </ScrollView>
-
-        <View style={styles.buttonContainer}>
-          <PrimaryButton
-            label={completed ? t('planGeneration.actions.ready') : t('planGeneration.actions.generating')}
-            onPress={handleContinue}
-            disabled={!completed}
-          />
         </View>
       </View>
     </GradientBackground>
@@ -270,185 +138,81 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: horizontalScale(24),
   },
-  scrollContent: {
-    paddingTop: verticalScale(32),
+  content: {
+    flex: 1,
+    justifyContent: 'center',
     paddingBottom: verticalScale(24),
-  },
-  header: {
-    gap: 8,
   },
   eyebrow: {
     fontFamily: FONTS.regular,
     fontWeight: '400',
     fontSize: 12,
     letterSpacing: 0.48,
+    textAlign: 'center',
     textTransform: 'uppercase',
     color: COLORS.primary.dark,
   },
   heading: {
+    marginTop: verticalScale(10),
     fontFamily: FONTS.display,
     fontWeight: '500',
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 30,
+    lineHeight: 36,
+    textAlign: 'center',
     color: COLORS.neutral.white,
   },
   description: {
+    marginTop: verticalScale(12),
     fontFamily: FONTS.regular,
     fontWeight: '400',
     fontSize: 14,
-    lineHeight: 22,
-    color: COLORS.alpha.white50,
+    lineHeight: 21,
+    textAlign: 'center',
+    color: COLORS.alpha.white72,
   },
-  meterSection: {
+  progressBlock: {
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: verticalScale(206),
-    marginTop: verticalScale(22),
+    marginTop: verticalScale(50),
   },
-  pulseRing: {
-    position: 'absolute',
-    width: horizontalScale(154),
-    height: horizontalScale(154),
-    borderRadius: horizontalScale(77),
-    borderWidth: 1,
-    borderColor: COLORS.primary.base,
-    backgroundColor: COLORS.alpha.primary16,
-  },
-  meterDisc: {
-    width: horizontalScale(82),
-    height: horizontalScale(82),
-    borderRadius: horizontalScale(41),
+  progressCircle: {
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   progressValue: {
-    marginTop: verticalScale(18),
+    position: 'absolute',
     fontFamily: FONTS.semiBold,
     fontWeight: '600',
-    fontSize: 34,
-    lineHeight: 38,
+    fontSize: 40,
+    lineHeight: 46,
+    textAlign: 'center',
     color: COLORS.neutral.white,
-    textAlign: 'center',
   },
-  progressLabel: {
-    marginTop: 4,
-    fontFamily: FONTS.regular,
-    fontWeight: '400',
-    fontSize: 14,
-    color: COLORS.alpha.white72,
-    textAlign: 'center',
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 100,
-    overflow: 'hidden',
-    backgroundColor: COLORS.alpha.white08,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 100,
-  },
-  progressSweep: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: horizontalScale(72),
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  retryButton: {
+    minHeight: 42,
     marginTop: verticalScale(24),
-  },
-  summaryItem: {
-    width: '48.4%',
-    minHeight: verticalScale(88),
-    borderRadius: 16,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: COLORS.alpha.white08,
-    backgroundColor: COLORS.alpha.surface08,
-    padding: 14,
-    gap: 10,
-  },
-  summaryIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    borderColor: COLORS.alpha.primary60,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 28,
     backgroundColor: COLORS.alpha.primary16,
   },
-  summaryCopy: {
-    gap: 3,
+  retryText: {
+    fontFamily: FONTS.semiBold,
+    fontWeight: '600',
+    fontSize: 14,
+    color: COLORS.primary.base,
   },
-  summaryLabel: {
+  errorText: {
+    marginTop: verticalScale(10),
     fontFamily: FONTS.regular,
     fontWeight: '400',
     fontSize: 12,
-    color: COLORS.alpha.white50,
-  },
-  summaryValue: {
-    fontFamily: FONTS.medium,
-    fontWeight: '500',
-    fontSize: 15,
-    lineHeight: 19,
-    color: COLORS.neutral.white,
-  },
-  stepList: {
-    gap: verticalScale(12),
-    marginTop: verticalScale(24),
-  },
-  stepRow: {
-    minHeight: verticalScale(72),
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.alpha.white08,
-    backgroundColor: COLORS.neutral.black3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  stepRowActive: {
-    borderColor: COLORS.alpha.primary60,
-    backgroundColor: COLORS.alpha.primary16,
-  },
-  stepRowDone: {
-    borderColor: COLORS.alpha.primary20,
-  },
-  stepIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.alpha.primary16,
-  },
-  stepIconDone: {
-    backgroundColor: COLORS.primary.base,
-  },
-  stepCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 4,
-  },
-  stepTitle: {
-    fontFamily: FONTS.medium,
-    fontWeight: '500',
-    fontSize: 16,
-    lineHeight: 20,
-    color: COLORS.neutral.white,
-  },
-  stepDescription: {
-    fontFamily: FONTS.regular,
-    fontWeight: '400',
-    fontSize: 13,
     lineHeight: 18,
-    color: COLORS.alpha.white50,
-  },
-  buttonContainer: {
-    paddingBottom: verticalScale(16),
+    textAlign: 'center',
+    color: COLORS.semantic.danger,
   },
 })
