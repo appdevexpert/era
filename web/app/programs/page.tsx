@@ -25,7 +25,7 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       <PageHeader
         eyebrow="Program Manager"
         title="Programs"
-        description="Create and manage the 12-week training programs used by the mobile workout experience."
+        description="Create and manage the  12-week training programs used by the mobile workout experience."
         action={
           <ProgramFormDialog
             program={null}
