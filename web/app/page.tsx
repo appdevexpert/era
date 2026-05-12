@@ -1,65 +1,134 @@
-import Image from "next/image";
+import Link from "next/link";
+import {
+  Activity,
+  Dumbbell,
+  FileStack,
+  ListChecks,
+  UsersRound,
+} from "lucide-react";
 
-export default function Home() {
+import { ConfigWarning } from "@/components/admin/config-warning";
+import { PageHeader } from "@/components/admin/page-header";
+import { StatCard } from "@/components/admin/stat-card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getDashboardStats, getPrograms } from "@/lib/admin/data";
+import { dateText, translation } from "@/lib/admin/format";
+
+export default async function DashboardPage() {
+  const [statsState, programsState] = await Promise.all([
+    getDashboardStats(),
+    getPrograms(),
+  ]);
+  const stats = statsState.data;
+  const recentPrograms = programsState.data.slice(0, 4);
+  const configError = statsState.configError ?? programsState.configError;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      <PageHeader
+        eyebrow="Owner Dashboard"
+        title="ERA admin"
+        description="Manage workout programs, exercise content, and the users connected to the app."
+        action={
+          <Link
+            href="/programs"
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-era-gold-light"
+          >
+            Manage programs
+          </Link>
+        }
+      />
+
+      <ConfigWarning message={configError} />
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <StatCard
+          title="Total users"
+          value={stats.totalUsers}
+          description="Rows in profiles"
+          icon={UsersRound}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+        <StatCard
+          title="Active users"
+          value={stats.activeUsers}
+          description="Users with sessions in last 30 days"
+          icon={Activity}
+        />
+        <StatCard
+          title="Exercises"
+          value={stats.totalExercises}
+          description="Exercise library entries"
+          icon={Dumbbell}
+        />
+        <StatCard
+          title="Programs"
+          value={stats.totalPrograms}
+          description="All workout programs"
+          icon={FileStack}
+        />
+        <StatCard
+          title="Active programs"
+          value={stats.activePrograms}
+          description="Published for use"
+          icon={ListChecks}
+        />
+        <StatCard
+          title="Draft programs"
+          value={stats.draftPrograms}
+          description="Still being built"
+          icon={FileStack}
+        />
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <Card className="rounded-lg border-border">
+          <CardHeader>
+            <CardTitle className="font-sans">Recent programs</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {recentPrograms.length ? (
+              recentPrograms.map((program) => (
+                <Link
+                  key={program.id}
+                  href={`/programs/${program.id}`}
+                  className="flex items-center justify-between rounded-lg border border-border bg-era-black-2 p-3 transition-colors hover:border-era-gold-60"
+                >
+                  <div>
+                    <p className="font-medium text-era-white">
+                      {translation(program.title_translations, "en", program.title)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {program.weekCount ?? 0} weeks, {program.dayCount ?? 0} days
+                    </p>
+                  </div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-era-gold-dark">
+                    {program.status}
+                  </p>
+                </Link>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">No programs created yet.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-lg border-border">
+          <CardHeader>
+            <CardTitle className="font-sans">Build order</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="grid gap-3 text-sm text-muted-foreground">
+              <li>1. Add exercises with English and Norwegian names.</li>
+              <li>2. Create the 12-week program shell.</li>
+              <li>3. Add weeks, days, sections, exercises, and sets.</li>
+              <li>4. Assign the active program to users when ready.</li>
+            </ol>
+            <p className="mt-5 text-xs text-muted-foreground">
+              Last refreshed {dateText(new Date().toISOString())}
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+    </>
   );
 }

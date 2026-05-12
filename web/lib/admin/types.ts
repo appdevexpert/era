@@ -1,0 +1,158 @@
+export type TranslationMap = Record<string, string>;
+
+export type AdminDataState<T> = {
+  data: T;
+  configError: string | null;
+};
+
+export type PaginatedDataState<T> = AdminDataState<T> & {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
+export type DashboardStats = {
+  totalUsers: number;
+  activeUsers: number;
+  totalExercises: number;
+  totalPrograms: number;
+  activePrograms: number;
+  draftPrograms: number;
+};
+
+export type ExerciseRow = {
+  id: string;
+  slug: string;
+  name: string;
+  name_translations: TranslationMap;
+  modality: string;
+  category: string;
+  equipment: string | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
+  instructions: string | null;
+  instructions_translations: TranslationMap;
+  coaching_cues: string | null;
+  coaching_cues_translations: TranslationMap;
+  thumbnail_url: string | null;
+  default_rest_seconds: number | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
+export type ProgramRow = {
+  id: string;
+  title: string;
+  title_translations: TranslationMap;
+  subtitle: string | null;
+  subtitle_translations: TranslationMap;
+  description: string | null;
+  description_translations: TranslationMap;
+  duration_weeks: number;
+  days_per_week: number;
+  program_goal: string | null;
+  program_goal_translations: TranslationMap;
+  status: "draft" | "active" | "archived";
+  is_template: boolean;
+  created_at: string;
+  updated_at: string;
+  weekCount?: number;
+  dayCount?: number;
+};
+
+export type ProfileRow = {
+  id: string;
+  email?: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  created_at: string;
+  updated_at: string;
+  active_assignment_count?: number;
+};
+
+export type ProgramWeekRow = {
+  id: string;
+  program_id: string;
+  week_number: number;
+  title: string;
+  title_translations: TranslationMap;
+  focus: string | null;
+  focus_translations: TranslationMap;
+  notes: string | null;
+  notes_translations: TranslationMap;
+  is_deload: boolean;
+  updated_at: string;
+};
+
+export type ProgramDayRow = {
+  id: string;
+  program_id: string;
+  week_id: string;
+  day_number: number;
+  weekday: number | null;
+  workout_kind: string;
+  title: string;
+  title_translations: TranslationMap;
+  subtitle: string | null;
+  subtitle_translations: TranslationMap;
+  target_muscles: string[];
+  estimated_minutes: number | null;
+  is_rest_day: boolean;
+  sort_order: number;
+  updated_at: string;
+};
+
+export type DaySectionRow = {
+  id: string;
+  program_day_id: string;
+  section_kind: string;
+  title: string;
+  title_translations: TranslationMap;
+  sort_order: number;
+};
+
+export type DayExerciseRow = {
+  id: string;
+  program_day_id: string;
+  section_id: string;
+  exercise_id: string;
+  sort_order: number;
+  display_name: string | null;
+  display_name_translations: TranslationMap;
+  target_summary: string | null;
+  target_summary_translations: TranslationMap;
+  initial_weight_value: number | null;
+  initial_weight_unit: string;
+  default_rest_seconds: number | null;
+  exercise_library?: {
+    name: string;
+    name_translations: TranslationMap;
+  } | null;
+};
+
+export type PlannedSetRow = {
+  id: string;
+  program_day_exercise_id: string;
+  set_number: number;
+  set_kind: string;
+  target_weight_value: number | null;
+  target_reps_exact: number | null;
+  target_reps_min: number | null;
+  target_reps_max: number | null;
+  target_duration_seconds: number | null;
+  rest_seconds: number | null;
+  display_label: string | null;
+  display_label_translations: TranslationMap;
+};
+
+export type ProgramDetail = {
+  program: ProgramRow | null;
+  weeks: ProgramWeekRow[];
+  days: ProgramDayRow[];
+  sections: DaySectionRow[];
+  dayExercises: DayExerciseRow[];
+  sets: PlannedSetRow[];
+  exercises: ExerciseRow[];
+};

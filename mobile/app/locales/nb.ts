@@ -108,11 +108,18 @@ const nb = {
         },
         options: {
           shoulders: "Skuldre",
+          back: "Rygg",
           triceps: "Triceps",
+          traps: "Trapezius",
           biceps: "Biceps",
           chest: "Bryst",
+          forearms: "Underarmer",
+          glutes: "Setemuskler",
+          hamstrings: "Bakside lår",
+          calves: "Legger",
           neck: "Nakke",
           legs: "Bein",
+          quads: "Forside lår",
           abs: "Mage",
         },
       },
@@ -191,44 +198,20 @@ const nb = {
   },
   planGeneration: {
     title: "Planlegging",
-    eyebrow: "PLANLEGGING",
-    heading: "Vi bygger ERA-planen din.",
-    description: "Vi gjør svarene dine om til tydelig treningsstruktur, ukesrytme og de første treningsmålene.",
-    status: {
-      generating: "Tilpasser planen din",
-      ready: "Planen din er klar",
-    },
-    summary: {
-      goal: "Mål",
-      level: "Nivå",
-      focus: "Fokus",
-      metrics: "Målinger",
-    },
+    headingLine1: "Din reise til en sterkere, sunnere deg ",
+    headingLine2: "Starter her.",
+    description: "Din personlige plan er på vei, skreddersydd for din treningsreise.",
+    estimatedTime: "Estimert tid",
     steps: {
-      profile: {
-        title: "Leser profilen din",
-        description: "Mål, nivå, kroppsmål og hindringer.",
-      },
-      training: {
-        title: "Kartlegger treningsfokus",
-        description: "Matcher muskelgrupper med riktig belastning.",
-      },
-      schedule: {
-        title: "Bygger ukesrytme",
-        description: "Balanserer intensitet, restitusjon og kontinuitet.",
-      },
-      finish: {
-        title: "Fullfører første mål",
-        description: "Klargjør startplanen din for i dag.",
-      },
+      analysingLevel: "Analyserer treningsnivået ditt",
+      creatingProgram: "Lager skreddersydd program for deg",
+      buildingStructure: "Bygger din 12-ukers struktur",
+      calculatingWeights: "Beregner startvektene dine",
+      preparingDiet: "Forbereder kostholdsplanen din",
+      programReady: "ERA-programmet ditt er klart",
     },
     actions: {
-      generating: "Lager plan",
-      ready: "Start trening",
       retry: "Prøv igjen",
-    },
-    fallback: {
-      notSet: "Ikke valgt",
     },
   },
   tabs: {

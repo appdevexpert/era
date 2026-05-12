@@ -108,11 +108,18 @@ const en = {
         },
         options: {
           shoulders: "Shoulders",
+          back: "Back",
           triceps: "Triceps",
+          traps: "Traps",
           biceps: "Biceps",
           chest: "Chest",
+          forearms: "Forearms",
+          glutes: "Glutes",
+          hamstrings: "Hamstrings",
+          calves: "Calves",
           neck: "Neck",
           legs: "Legs",
+          quads: "Quads",
           abs: "Abs",
         },
       },
@@ -191,44 +198,20 @@ const en = {
   },
   planGeneration: {
     title: "Plan Generation",
-    eyebrow: "PLAN GENERATION",
-    heading: "Building your ERA plan.",
-    description: "We are turning your answers into a clear training structure, weekly rhythm, and first workout targets.",
-    status: {
-      generating: "Personalizing your plan",
-      ready: "Your plan is ready",
-    },
-    summary: {
-      goal: "Goal",
-      level: "Level",
-      focus: "Focus",
-      metrics: "Metrics",
-    },
+    headingLine1: "Your Journey to a Stronger, Healthier You ",
+    headingLine2: "Starts Here.",
+    description: "Our personalized plan is on the way, tailored to your fitness journey.",
+    estimatedTime: "Estimated Time",
     steps: {
-      profile: {
-        title: "Reading your profile",
-        description: "Goal, level, body metrics, and friction points.",
-      },
-      training: {
-        title: "Mapping training focus",
-        description: "Matching muscle groups with the right workload.",
-      },
-      schedule: {
-        title: "Building weekly rhythm",
-        description: "Balancing intensity, recovery, and consistency.",
-      },
-      finish: {
-        title: "Finalizing first targets",
-        description: "Preparing your starting plan for today.",
-      },
+      analysingLevel: "Analysing your Training Level",
+      creatingProgram: "Creating Tailored Program for you",
+      buildingStructure: "Building your 12 week Structure",
+      calculatingWeights: "Calculating Your Starting Weights",
+      preparingDiet: "Preparing Your Diet Plan",
+      programReady: "Your ERA Program is Ready",
     },
     actions: {
-      generating: "Generating plan",
-      ready: "Start training",
       retry: "Retry",
-    },
-    fallback: {
-      notSet: "Not set",
     },
   },
   tabs: {

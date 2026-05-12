@@ -157,6 +157,7 @@ const Onboarding = () => {
       {currentStepKey === 'focus' && (
         isAdvancedFocusStep ? (
           <AdvancedFocusStep
+            gender={selections.gender}
             value={selections.advancedFocus}
             onToggle={handleAdvancedFocusToggle}
           />

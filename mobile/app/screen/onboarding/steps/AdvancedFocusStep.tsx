@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { type FC, useEffect, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { GlassView } from 'expo-glass-effect'
 import { LinearGradient } from 'expo-linear-gradient'
+import type { SvgProps } from 'react-native-svg'
 import Animated, {
   Easing,
   interpolate,
@@ -13,22 +14,71 @@ import Animated, {
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import { horizontalScale, verticalScale } from '@/app/utils/responsive'
-import { FocusChipSelected, FocusChipUnselected, FocusMuscleFront } from '@/assets/icons'
+import {
+  FocusChipSelected,
+  FocusChipUnselected,
+  MuscleAbsHighlight,
+  MuscleBackBase,
+  MuscleBackHighlight,
+  MuscleBicepsHighlight,
+  MuscleCalvesHighlight,
+  MuscleChestHighlight,
+  MuscleFemaleAbsHighlight,
+  MuscleFemaleBackBase,
+  MuscleFemaleBackHighlight,
+  MuscleFemaleBicepsHighlight,
+  MuscleFemaleCalvesHighlight,
+  MuscleFemaleChestHighlight,
+  MuscleFemaleForearmsHighlight,
+  MuscleFemaleFrontBase,
+  MuscleFemaleGlutesHighlight,
+  MuscleFemaleHamstringsHighlight,
+  MuscleFemaleNeckHighlight,
+  MuscleFemaleQuadsHighlight,
+  MuscleFemaleShouldersHighlight,
+  MuscleFemaleTrapsHighlight,
+  MuscleFemaleTricepsHighlight,
+  MuscleForearmsHighlight,
+  MuscleFrontBase,
+  MuscleGlutesHighlight,
+  MuscleHamstringsHighlight,
+  MuscleNeckHighlight,
+  MuscleQuadsHighlight,
+  MuscleShouldersHighlight,
+  MuscleTrapsHighlight,
+  MuscleTricepsHighlight,
+} from '@/assets/icons'
 
 interface AdvancedFocusStepProps {
+  gender: string | null
   value: string[]
   onToggle: (focus: string) => void
 }
 
-const FOCUS_AREAS = [
+const FRONT_FOCUS_AREAS = [
   'shoulders',
-  'triceps',
   'biceps',
   'chest',
+  'forearms',
   'neck',
-  'legs',
+  'quads',
   'abs',
 ] as const
+
+const BACK_FOCUS_AREAS = [
+  'back',
+  'triceps',
+  'traps',
+  'forearms',
+  'glutes',
+  'hamstrings',
+  'calves',
+] as const
+
+const FOCUS_AREAS_BY_SIDE = {
+  front: FRONT_FOCUS_AREAS,
+  back: BACK_FOCUS_AREAS,
+} as const
 
 const SEGMENT_SELECTED_COLORS = [
   'rgba(201, 168, 76, 0.3)',
@@ -40,8 +90,74 @@ const CHIP_ANIMATION = {
   easing: Easing.out(Easing.cubic),
 } as const
 
-type FocusArea = (typeof FOCUS_AREAS)[number]
+type FrontFocusArea = (typeof FRONT_FOCUS_AREAS)[number]
+type BackFocusArea = (typeof BACK_FOCUS_AREAS)[number]
+type FocusArea = FrontFocusArea | BackFocusArea
 type BodySide = 'front' | 'back'
+type BodyGender = 'male' | 'female'
+type MuscleHighlightMap = Partial<Record<FocusArea, FC<SvgProps>>>
+
+interface MuscleBodyAssetSet {
+  frontBase: FC<SvgProps>
+  backBase: FC<SvgProps>
+  frontHighlights: MuscleHighlightMap
+  backHighlights: MuscleHighlightMap
+}
+
+const MALE_FRONT_HIGHLIGHTS: MuscleHighlightMap = {
+  shoulders: MuscleShouldersHighlight,
+  biceps: MuscleBicepsHighlight,
+  chest: MuscleChestHighlight,
+  forearms: MuscleForearmsHighlight,
+  neck: MuscleNeckHighlight,
+  quads: MuscleQuadsHighlight,
+  abs: MuscleAbsHighlight,
+}
+
+const MALE_BACK_HIGHLIGHTS: MuscleHighlightMap = {
+  back: MuscleBackHighlight,
+  triceps: MuscleTricepsHighlight,
+  traps: MuscleTrapsHighlight,
+  forearms: MuscleForearmsHighlight,
+  glutes: MuscleGlutesHighlight,
+  hamstrings: MuscleHamstringsHighlight,
+  calves: MuscleCalvesHighlight,
+}
+
+const FEMALE_FRONT_HIGHLIGHTS: MuscleHighlightMap = {
+  shoulders: MuscleFemaleShouldersHighlight,
+  biceps: MuscleFemaleBicepsHighlight,
+  chest: MuscleFemaleChestHighlight,
+  forearms: MuscleFemaleForearmsHighlight,
+  neck: MuscleFemaleNeckHighlight,
+  quads: MuscleFemaleQuadsHighlight,
+  abs: MuscleFemaleAbsHighlight,
+}
+
+const FEMALE_BACK_HIGHLIGHTS: MuscleHighlightMap = {
+  back: MuscleFemaleBackHighlight,
+  triceps: MuscleFemaleTricepsHighlight,
+  traps: MuscleFemaleTrapsHighlight,
+  forearms: MuscleFemaleForearmsHighlight,
+  glutes: MuscleFemaleGlutesHighlight,
+  hamstrings: MuscleFemaleHamstringsHighlight,
+  calves: MuscleFemaleCalvesHighlight,
+}
+
+const BODY_ASSETS: Record<BodyGender, MuscleBodyAssetSet> = {
+  male: {
+    frontBase: MuscleFrontBase,
+    backBase: MuscleBackBase,
+    frontHighlights: MALE_FRONT_HIGHLIGHTS,
+    backHighlights: MALE_BACK_HIGHLIGHTS,
+  },
+  female: {
+    frontBase: MuscleFemaleFrontBase,
+    backBase: MuscleFemaleBackBase,
+    frontHighlights: FEMALE_FRONT_HIGHLIGHTS,
+    backHighlights: FEMALE_BACK_HIGHLIGHTS,
+  },
+}
 
 interface MuscleChipProps {
   focus: FocusArea
@@ -53,6 +169,12 @@ interface BodySegmentProps {
   side: BodySide
   activeSide: BodySide
   onPress: () => void
+}
+
+interface MuscleBodyLayerProps {
+  gender: BodyGender
+  side: BodySide
+  selectedAreas: string[]
 }
 
 const MuscleChip = ({ focus, selected, onPress }: MuscleChipProps) => {
@@ -194,8 +316,41 @@ const BodySegment = ({ side, activeSide, onPress }: BodySegmentProps) => {
   )
 }
 
-const AdvancedFocusStep = ({ value, onToggle }: AdvancedFocusStepProps) => {
+const MuscleBodyLayer = ({ gender, side, selectedAreas }: MuscleBodyLayerProps) => {
+  const bodyAssets = BODY_ASSETS[gender]
+  const BaseBody = side === 'front' ? bodyAssets.frontBase : bodyAssets.backBase
+  const highlights = side === 'front' ? bodyAssets.frontHighlights : bodyAssets.backHighlights
+
+  return (
+    <View style={styles.muscleBody}>
+      <BaseBody
+        width={horizontalScale(184)}
+        height={verticalScale(320)}
+        preserveAspectRatio="xMidYMid meet"
+      />
+      {FOCUS_AREAS_BY_SIDE[side].map((focus) => {
+        if (!selectedAreas.includes(focus)) return null
+
+        const Highlight = highlights[focus]
+        if (!Highlight) return null
+
+        return (
+          <View key={focus} pointerEvents="none" style={styles.muscleOverlay}>
+            <Highlight
+              width={horizontalScale(184)}
+              height={verticalScale(320)}
+              preserveAspectRatio="xMidYMid meet"
+            />
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+const AdvancedFocusStep = ({ gender, value, onToggle }: AdvancedFocusStepProps) => {
   const [bodySide, setBodySide] = useState<BodySide>('front')
+  const bodyGender: BodyGender = gender === 'female' ? 'female' : 'male'
   const bodySideProgress = useSharedValue(0)
 
   useEffect(() => {
@@ -217,6 +372,14 @@ const AdvancedFocusStep = ({ value, onToggle }: AdvancedFocusStepProps) => {
     ],
   }))
 
+  const frontBodyStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(bodySideProgress.value, [0, 0.45, 0.55, 1], [1, 1, 0, 0]),
+  }))
+
+  const backBodyStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(bodySideProgress.value, [0, 0.45, 0.55, 1], [0, 0, 1, 1]),
+  }))
+
   return (
     <View style={styles.container}>
       <View style={styles.segmentedControl}>
@@ -232,7 +395,7 @@ const AdvancedFocusStep = ({ value, onToggle }: AdvancedFocusStepProps) => {
 
       <View style={styles.selectorStage}>
         <View style={styles.chipColumn}>
-          {FOCUS_AREAS.map((focus) => (
+          {FOCUS_AREAS_BY_SIDE[bodySide].map((focus) => (
             <MuscleChip
               key={focus}
               focus={focus}
@@ -243,12 +406,13 @@ const AdvancedFocusStep = ({ value, onToggle }: AdvancedFocusStepProps) => {
         </View>
 
         <View style={styles.bodyPreview}>
-          <Animated.View style={bodyAnimatedStyle}>
-            <FocusMuscleFront
-              width={horizontalScale(184)}
-              height={verticalScale(320)}
-              preserveAspectRatio="xMidYMid meet"
-            />
+          <Animated.View style={[styles.bodyFlipStage, bodyAnimatedStyle]}>
+            <Animated.View style={[styles.bodyLayer, frontBodyStyle]}>
+              <MuscleBodyLayer gender={bodyGender} side="front" selectedAreas={value} />
+            </Animated.View>
+            <Animated.View style={[styles.bodyLayer, styles.bodyBackLayer, backBodyStyle]}>
+              <MuscleBodyLayer gender={bodyGender} side="back" selectedAreas={value} />
+            </Animated.View>
           </Animated.View>
         </View>
       </View>
@@ -359,5 +523,30 @@ const styles = StyleSheet.create({
     height: verticalScale(320),
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bodyFlipStage: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muscleBody: {
+    width: horizontalScale(184),
+    height: verticalScale(320),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muscleOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bodyLayer: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bodyBackLayer: {
+    transform: [{ scaleX: -1 }],
   },
 })

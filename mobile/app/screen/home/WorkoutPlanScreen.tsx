@@ -16,11 +16,12 @@ import type {
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapWorkoutPlan } from "@/app/utils/workoutMappers";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from "react-native";
+import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import Svg, { Line } from "react-native-svg";
@@ -88,12 +89,13 @@ const getDayPillColors = (status: WorkoutDayStatus) => {
   }
 };
 
-const DayPillItem = ({ pill }: { pill: DayPill }) => {
+const DayPillItem = ({ pill, onPress }: { pill: DayPill; onPress?: () => void }) => {
   const colors = getDayPillColors(pill.status);
   const hasGradient = pill.status !== "future";
+  const Wrapper = onPress ? Pressable : View;
 
   return (
-    <View style={styles.dayPillShadow}>
+    <Wrapper style={styles.dayPillShadow} onPress={onPress}>
       <View style={styles.dayPillOuter}>
         <GlassView
           pointerEvents="none"
@@ -117,7 +119,7 @@ const DayPillItem = ({ pill }: { pill: DayPill }) => {
           </Text>
         </View>
       </View>
-    </View>
+    </Wrapper>
   );
 };
 
@@ -142,7 +144,7 @@ const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
   );
 };
 
-const WeekSection = ({ week }: { week: WorkoutPlanWeekView }) => {
+const WeekSection = ({ week, onDayPress }: { week: WorkoutPlanWeekView; onDayPress: (pill: DayPill) => void }) => {
   const { t } = useTranslation();
   const firstRow = week.days.slice(0, 4);
   const secondRow = week.days.slice(4);
@@ -170,13 +172,21 @@ const WeekSection = ({ week }: { week: WorkoutPlanWeekView }) => {
         <View style={styles.daysCard}>
           <View style={styles.daysRow}>
             {firstRow.map((pill) => (
-              <DayPillItem key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`} pill={pill} />
+              <DayPillItem
+                key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
+                pill={pill}
+                onPress={pill.isRestDay ? undefined : () => onDayPress(pill)}
+              />
             ))}
           </View>
 
           <View style={styles.daysRow2}>
             {secondRow.map((pill) => (
-              <DayPillItem key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`} pill={pill} />
+              <DayPillItem
+                key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
+                pill={pill}
+                onPress={pill.isRestDay ? undefined : () => onDayPress(pill)}
+              />
             ))}
             <WeekBadge weekNumber={week.weekNumber} />
           </View>
@@ -202,6 +212,7 @@ const WeekSection = ({ week }: { week: WorkoutPlanWeekView }) => {
 const WorkoutPlanScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutPlan">>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
   const overview = useSelector(selectWorkoutOverview);
@@ -221,6 +232,16 @@ const WorkoutPlanScreen = () => {
     }
   }, [dispatch, hasWorkoutBootstrap, route.params?.programId, workoutStatus]);
 
+  const handleDayPress = useCallback((pill: DayPill) => {
+    navigation.navigate("ExerciseList", {
+      programId: route.params?.programId,
+      programDayId: pill.programDayId,
+      title: pill.title,
+      subtitle: pill.subtitle,
+      muscles: pill.muscles,
+    });
+  }, [navigation, route.params?.programId]);
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -237,7 +258,7 @@ const WorkoutPlanScreen = () => {
             </View>
 
             {plan.weeks.map((week) => (
-              <WeekSection key={week.weekNumber} week={week} />
+              <WeekSection key={week.weekNumber} week={week} onDayPress={handleDayPress} />
             ))}
           </>
         ) : (

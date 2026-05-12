@@ -33,10 +33,16 @@ const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
     cardio: "Cardio",
     chest: "Chest",
     core: "Core",
+    calves: "Calves",
+    forearms: "Forearms",
+    glutes: "Glutes",
+    hamstrings: "Hamstrings",
     legs: "Legs",
     neck: "Neck",
+    quads: "Quads",
     recovery: "Recovery",
     shoulders: "Shoulders",
+    traps: "Traps",
     triceps: "Triceps",
   },
   nb: {
@@ -44,12 +50,18 @@ const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
     back: "Rygg",
     biceps: "Biceps",
     cardio: "Kondisjon",
+    calves: "Legger",
     chest: "Bryst",
     core: "Kjerne",
+    forearms: "Underarmer",
+    glutes: "Setemuskler",
+    hamstrings: "Bakside lår",
     legs: "Bein",
     neck: "Nakke",
+    quads: "Forside lår",
     recovery: "Restitusjon",
     shoulders: "Skuldre",
+    traps: "Trapezius",
     triceps: "Triceps",
   },
 };
@@ -76,7 +88,7 @@ export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
   muscles.forEach((muscle) => {
     let icon: MuscleGroup | null = null;
 
-    if (muscle === "triceps" || muscle === "biceps") {
+    if (muscle === "triceps" || muscle === "biceps" || muscle === "forearms") {
       icon = "arm";
     }
 
@@ -84,7 +96,13 @@ export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
       icon = "abs";
     }
 
-    if (muscle === "legs") {
+    if (
+      muscle === "legs" ||
+      muscle === "quads" ||
+      muscle === "hamstrings" ||
+      muscle === "calves" ||
+      muscle === "glutes"
+    ) {
       icon = "leg";
     }
 
@@ -285,9 +303,14 @@ function mapPlanWeek({
     completedDays: 0,
     totalDays: orderedDays.filter((day) => !day.is_rest_day).length,
     days: orderedDays.map((day) => ({
+      programDayId: day.id,
+      isRestDay: day.is_rest_day,
       date: padDayNumber(day.day_number),
       dayLabel: getWeekdayLabel(day.weekday, language),
       status: day.id === currentDay.id ? "active" : "future",
+      title: getLocalizedText(day.title_translations, language, day.title),
+      subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
+      muscles: mapMusclesToIcons(day.target_muscles),
     })),
     isCurrentWeek,
   };

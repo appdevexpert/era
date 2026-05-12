@@ -1,3 +1,5 @@
+import type { MuscleGroup } from "@/app/navigation/types";
+
 export type TranslationMap = Record<string, string> | null;
 
 export type WorkoutDayStatus = "completed" | "missed" | "active" | "future";
@@ -150,9 +152,14 @@ export interface WorkoutPlanWeekView {
   completedDays: number;
   totalDays: number;
   days: {
+    programDayId: string;
+    isRestDay: boolean;
     date: string;
     dayLabel: string;
     status: WorkoutDayStatus;
+    title: string;
+    subtitle: string;
+    muscles: MuscleGroup[];
   }[];
   isCurrentWeek: boolean;
 }
