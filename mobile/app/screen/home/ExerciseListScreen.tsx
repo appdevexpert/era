@@ -3,12 +3,17 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import {
+  selectActiveSessionError,
+  selectActiveSessionStatus,
   selectCurrentDayDetail,
   selectHasWorkoutBootstrap,
   selectWorkoutError,
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
-import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import {
+  loadWorkoutBootstrap,
+  startOrResumeActiveWorkoutSession,
+} from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import type {
   ExerciseListExerciseView,
@@ -16,9 +21,10 @@ import type {
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapExerciseList } from "@/app/utils/workoutMappers";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -103,6 +109,7 @@ const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
 const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseList">>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
@@ -112,17 +119,21 @@ const ExerciseListScreen = () => {
   );
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);
+  const activeSessionStatus = useSelector(selectActiveSessionStatus);
+  const activeSessionError = useSelector(selectActiveSessionError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
   const requestedDayId = route.params?.programDayId;
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && currentDayDetail?.day.id !== requestedDayId,
   );
-  const handleStartNow = () => undefined;
+  const isStartingSession = activeSessionStatus === "loading";
   const isLoading =
     workoutStatus === "idle" ||
     workoutStatus === "loading" ||
     (shouldLoadRequestedDay && workoutStatus !== "failed");
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+  const startErrorMessage =
+    activeSessionError ?? t("workout.session.unableToStart");
 
   useEffect(() => {
     const shouldLoad = !hasWorkoutBootstrap || shouldLoadRequestedDay;
@@ -144,6 +155,22 @@ const ExerciseListScreen = () => {
     shouldLoadRequestedDay,
     workoutStatus,
   ]);
+
+  const handleStartNow = useCallback(() => {
+    if (!workout || isStartingSession) {
+      return;
+    }
+
+    dispatch(startOrResumeActiveWorkoutSession({ programDayId: workout.id }))
+      .unwrap()
+      .then((snapshot) => {
+        navigation.navigate("WorkoutSession", {
+          sessionId: snapshot.session.id,
+          programDayId: snapshot.session.program_day_id ?? workout.id,
+        });
+      })
+      .catch(() => undefined);
+  }, [dispatch, isStartingSession, navigation, workout]);
 
   return (
     <View style={styles.root}>
@@ -187,7 +214,14 @@ const ExerciseListScreen = () => {
             style={styles.bottomFade}
           />
           <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
-            <PrimaryButton label={t("workout.ui.startNow")} onPress={handleStartNow} />
+            {activeSessionStatus === "failed" ? (
+              <Text style={styles.startError}>{startErrorMessage}</Text>
+            ) : null}
+            <PrimaryButton
+              label={t("workout.ui.startNow")}
+              loading={isStartingSession}
+              onPress={handleStartNow}
+            />
           </View>
         </>
       ) : null}
@@ -385,5 +419,13 @@ const styles = StyleSheet.create({
     left: horizontalScale(18),
     right: horizontalScale(18),
     bottom: 0,
+    gap: 10,
+  },
+  startError: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.semantic.danger,
+    textAlign: "center",
   },
 });

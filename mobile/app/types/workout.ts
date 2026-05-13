@@ -101,6 +101,63 @@ export interface PlannedExerciseSetRow {
   rest_seconds: number | null;
 }
 
+export type WorkoutSessionStatus =
+  | "scheduled"
+  | "in_progress"
+  | "completed"
+  | "skipped"
+  | "missed";
+
+export type SessionExerciseStatus =
+  | "pending"
+  | "in_progress"
+  | "completed"
+  | "skipped";
+
+export interface WorkoutSessionRow {
+  id: string;
+  user_id: string;
+  scheduled_workout_id: string | null;
+  program_day_id: string | null;
+  status: WorkoutSessionStatus;
+  started_at: string;
+  completed_at: string | null;
+  duration_seconds: number | null;
+  current_exercise_index: number;
+  total_exercises: number;
+  exercises_completed: number;
+  sets_logged: number;
+  points_awarded: number;
+  session_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionExerciseRow {
+  id: string;
+  session_id: string;
+  program_day_exercise_id: string | null;
+  exercise_id: string;
+  section_kind: string | null;
+  sort_order: number;
+  display_name_snapshot: string;
+  category_snapshot: string | null;
+  muscle_snapshot: string[];
+  status: SessionExerciseStatus;
+  started_at: string | null;
+  completed_at: string | null;
+  skipped_reason: string | null;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActiveWorkoutSessionSnapshot {
+  session: WorkoutSessionRow;
+  sessionExercises: SessionExerciseRow[];
+  programDayDetail: ProgramDayDetailData | null;
+}
+
 export interface WorkoutOverviewData {
   program: WorkoutProgramRow;
   weeks: ProgramWeekRow[];
@@ -191,4 +248,36 @@ export interface ExerciseListView {
   exerciseCount: number;
   estimatedMinutes: number;
   sections: ExerciseListSectionView[];
+}
+
+export interface WorkoutSessionSetView {
+  id: string;
+  setNumber: number;
+  target: string;
+  isCurrent: boolean;
+}
+
+export interface WorkoutSessionExerciseView {
+  id: string;
+  name: string;
+  target: string;
+  weight?: string;
+  sectionTitle: string;
+  sectionKind: string | null;
+  plannedSets: WorkoutSessionSetView[];
+}
+
+export interface WorkoutSessionView {
+  sessionId: string;
+  programDayId: string | null;
+  dayHeading: string;
+  workoutTitle: string;
+  workoutSubtitle: string;
+  startedAt: string;
+  initialDurationSeconds: number;
+  currentPosition: number;
+  totalExercises: number;
+  progress: number;
+  currentExercise: WorkoutSessionExerciseView | null;
+  nextExerciseName: string | null;
 }

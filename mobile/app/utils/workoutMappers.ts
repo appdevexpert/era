@@ -1,19 +1,23 @@
 import type { MuscleGroup } from "@/app/navigation/types";
 import type {
+  ActiveWorkoutSessionSnapshot,
   ExerciseListView,
   PlannedExerciseSetRow,
   ProgramDayDetailData,
   ProgramDayRow,
   ProgramWeekRow,
+  SessionExerciseRow,
   WorkoutHomeView,
   WorkoutPlanPhaseView,
   WorkoutPlanView,
   WorkoutPlanWeekView,
+  WorkoutSessionView,
   WorkoutOverviewData,
 } from "@/app/types/workout";
 import { getLocalizedText, normalizeLanguage, type AppLanguage } from "@/app/utils/localization";
 import {
   formatDayLabel,
+  formatDuration,
   formatSetSummary,
   formatWeekProgress,
   formatWeight,
@@ -23,6 +27,11 @@ import {
 const WEEKDAY_LABELS = {
   en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   nb: ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"],
+};
+
+const WEEKDAY_FULL_LABELS = {
+  en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  nb: ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"],
 };
 
 const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
@@ -73,6 +82,12 @@ const padDayNumber = (value: number) => String(value).padStart(2, "0");
 
 const getWeekdayLabel = (weekday: number | null, language: string) => {
   const labels = WEEKDAY_LABELS[normalizeLanguage(language)];
+  const index = typeof weekday === "number" ? weekday - 1 : 0;
+  return labels[index] ?? labels[0];
+};
+
+const getWeekdayFullLabel = (weekday: number | null, language: string) => {
+  const labels = WEEKDAY_FULL_LABELS[normalizeLanguage(language)];
   const index = typeof weekday === "number" ? weekday - 1 : 0;
   return labels[index] ?? labels[0];
 };
@@ -242,6 +257,66 @@ export function mapExerciseList(
   };
 }
 
+export function mapWorkoutSession(
+  snapshot: ActiveWorkoutSessionSnapshot,
+  language: string,
+): WorkoutSessionView {
+  const dayDetail = snapshot.programDayDetail;
+  const orderedExercises = [...snapshot.sessionExercises].sort(
+    (a, b) => a.sort_order - b.sort_order,
+  );
+  const totalExercises = snapshot.session.total_exercises || orderedExercises.length;
+  const currentPosition = Math.min(
+    Math.max(snapshot.session.current_exercise_index, 1),
+    Math.max(totalExercises, 1),
+  );
+  const currentSessionExercise = orderedExercises[currentPosition - 1] ?? orderedExercises[0];
+  const nextSessionExercise = orderedExercises[currentPosition] ?? null;
+  const currentExercise = currentSessionExercise && dayDetail
+    ? mapSessionExercise(currentSessionExercise, dayDetail, language)
+    : currentSessionExercise
+      ? {
+          id: currentSessionExercise.id,
+          name: currentSessionExercise.display_name_snapshot,
+          target: "",
+          sectionTitle: "",
+          sectionKind: currentSessionExercise.section_kind,
+          plannedSets: [],
+        }
+      : null;
+  const currentWeek = dayDetail ? dayDetail.week : null;
+  const currentDay = dayDetail ? dayDetail.day : null;
+  const appLanguage = normalizeLanguage(language);
+  const weekLabel = appLanguage === "nb" ? "Uke" : "Week";
+
+  return {
+    sessionId: snapshot.session.id,
+    programDayId: snapshot.session.program_day_id,
+    dayHeading: currentWeek && currentDay
+      ? `${weekLabel} ${currentWeek.week_number} - ${getWeekdayFullLabel(currentDay.weekday, language)}`
+      : "",
+    workoutTitle: currentDay
+      ? getLocalizedText(currentDay.title_translations, language, currentDay.title)
+      : "",
+    workoutSubtitle: currentDay
+      ? getLocalizedText(
+          currentDay.subtitle_translations,
+          language,
+          currentDay.subtitle ?? "",
+        )
+      : "",
+    startedAt: snapshot.session.started_at,
+    initialDurationSeconds: snapshot.session.duration_seconds ?? 0,
+    currentPosition,
+    totalExercises,
+    progress: totalExercises > 0 ? currentPosition / totalExercises : 0,
+    currentExercise,
+    nextExerciseName: nextSessionExercise
+      ? mapSessionExerciseName(nextSessionExercise, dayDetail, language)
+      : null,
+  };
+}
+
 function buildPhases(
   weeks: ProgramWeekRow[],
   currentWeek: ProgramWeekRow | undefined,
@@ -274,6 +349,96 @@ function buildPhases(
       progress: isActive ? Math.max((currentIndex + 1) / phaseWeeks.length, 0.12) : 0,
     };
   });
+}
+
+function mapSessionExercise(
+  sessionExercise: SessionExerciseRow,
+  dayDetail: ProgramDayDetailData,
+  language: string,
+) {
+  const plannedExercise = dayDetail.exercises.find(
+    (exercise) => exercise.id === sessionExercise.program_day_exercise_id,
+  );
+  const section = dayDetail.sections.find(
+    (item) => item.id === plannedExercise?.section_id,
+  );
+  const libraryExercise = dayDetail.libraryExercises.find(
+    (exercise) => exercise.id === sessionExercise.exercise_id,
+  );
+  const plannedSets = plannedExercise
+    ? dayDetail.sets
+        .filter((set) => set.program_day_exercise_id === plannedExercise.id)
+        .sort((a, b) => a.set_number - b.set_number)
+    : [];
+  const firstWeightedSet = plannedSets.find((set) => set.target_weight_value);
+  const name = plannedExercise
+    ? getLocalizedText(
+        plannedExercise.display_name_translations,
+        language,
+        plannedExercise.display_name ??
+          getLocalizedText(
+            libraryExercise?.name_translations ?? null,
+            language,
+            libraryExercise?.name ?? sessionExercise.display_name_snapshot,
+          ),
+      )
+    : sessionExercise.display_name_snapshot;
+
+  return {
+    id: sessionExercise.id,
+    name,
+    target: plannedExercise
+      ? getLocalizedText(
+          plannedExercise.target_summary_translations,
+          language,
+          plannedExercise.target_summary ?? formatSetSummary(plannedSets, language),
+        )
+      : "",
+    weight: plannedExercise
+      ? formatWeight(
+          plannedExercise.initial_weight_value ?? firstWeightedSet?.target_weight_value,
+          plannedExercise.initial_weight_unit ?? firstWeightedSet?.target_weight_unit ?? "kg",
+        ) || undefined
+      : undefined,
+    sectionTitle: section
+      ? getLocalizedText(section.title_translations, language, section.title)
+      : "",
+    sectionKind: sessionExercise.section_kind,
+    plannedSets: plannedSets.map((set, index) => ({
+      id: set.id,
+      setNumber: set.set_number,
+      target: formatPlannedSetTarget(set, language),
+      isCurrent: index === 0,
+    })),
+  };
+}
+
+function mapSessionExerciseName(
+  sessionExercise: SessionExerciseRow,
+  dayDetail: ProgramDayDetailData | null,
+  language: string,
+) {
+  if (!dayDetail) {
+    return sessionExercise.display_name_snapshot;
+  }
+
+  return mapSessionExercise(sessionExercise, dayDetail, language).name;
+}
+
+function formatPlannedSetTarget(set: PlannedExerciseSetRow, language: string) {
+  const weight = formatWeight(set.target_weight_value, set.target_weight_unit);
+  const reps = set.target_reps_exact ??
+    (set.target_reps_min && set.target_reps_max
+      ? `${set.target_reps_min}-${set.target_reps_max}`
+      : null);
+  const duration = formatDuration(set.target_duration_seconds, language);
+  const parts = [
+    weight,
+    reps ? `${reps} reps` : "",
+    duration,
+  ].filter(Boolean);
+
+  return parts.join(" • ");
 }
 
 function mapPlanWeek({

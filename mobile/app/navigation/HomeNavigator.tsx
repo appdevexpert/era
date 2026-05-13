@@ -4,6 +4,7 @@ import NotificationScreen from "@/app/screen/home/NotificationScreen";
 import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
 import WorkoutPlanScreen from "@/app/screen/home/WorkoutPlanScreen";
+import WorkoutSessionScreen from "@/app/screen/workoutSession/WorkoutSessionScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import BottomTabNavigator from "./BottomTabNavigator";
 import { HomeStackParamList } from "./types";
@@ -34,6 +35,7 @@ const HomeNavigator = () => (
         headerTransparent: true,
       }}
     />
+    <Stack.Screen name="WorkoutSession" component={WorkoutSessionScreen} />
   </Stack.Navigator>
 );
 

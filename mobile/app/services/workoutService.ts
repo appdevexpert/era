@@ -1,4 +1,5 @@
 import type {
+  ActiveWorkoutSessionSnapshot,
   ExerciseLibraryRow,
   PlannedExerciseSetRow,
   ProgramDayDetailData,
@@ -6,6 +7,8 @@ import type {
   ProgramDayRow,
   ProgramDaySectionRow,
   ProgramWeekRow,
+  SessionExerciseRow,
+  WorkoutSessionRow,
   WorkoutOverviewData,
   WorkoutProgramRow,
 } from "@/app/types/workout";
@@ -49,6 +52,12 @@ const requireList = <T>(
 
   return data ?? [];
 };
+
+const WORKOUT_SESSION_SELECT =
+  "id,user_id,scheduled_workout_id,program_day_id,status,started_at,completed_at,duration_seconds,current_exercise_index,total_exercises,exercises_completed,sets_logged,points_awarded,session_notes,created_at,updated_at";
+
+const SESSION_EXERCISE_SELECT =
+  "id,session_id,program_day_exercise_id,exercise_id,section_kind,sort_order,display_name_snapshot,category_snapshot,muscle_snapshot,status,started_at,completed_at,skipped_reason,comment,created_at,updated_at";
 
 export async function getWorkoutOverview(
   programId = RAMI_TEMPLATE_PROGRAM_ID,
@@ -203,6 +212,73 @@ export async function getProgramDayDetail(
   };
 }
 
+export async function startOrResumeWorkoutSession(
+  programDayId: string,
+): Promise<ActiveWorkoutSessionSnapshot> {
+  const userId = await getCurrentUserId();
+  const dayDetail = await getProgramDayDetail(programDayId);
+  const orderedExercises = getOrderedPlannedExercises(dayDetail);
+  const existingSession = await findActiveWorkoutSession(userId, programDayId);
+
+  let session = existingSession ??
+    await createWorkoutSession(userId, programDayId, orderedExercises.length);
+  const sessionExercises = await hydrateSessionExercises(session.id, dayDetail);
+
+  if (session.total_exercises !== sessionExercises.length) {
+    session = await updateWorkoutSessionTotal(session.id, sessionExercises.length);
+  }
+
+  return {
+    session,
+    sessionExercises,
+    programDayDetail: dayDetail,
+  };
+}
+
+export async function getActiveWorkoutSessionSnapshot(
+  programDayId: string,
+): Promise<ActiveWorkoutSessionSnapshot | null> {
+  const userId = await getCurrentUserId();
+  const session = await findActiveWorkoutSession(userId, programDayId);
+
+  if (!session) {
+    return null;
+  }
+
+  const dayDetail = await getProgramDayDetail(programDayId);
+  const sessionExercises = await hydrateSessionExercises(session.id, dayDetail);
+  const hydratedSession = session.total_exercises === sessionExercises.length
+    ? session
+    : await updateWorkoutSessionTotal(session.id, sessionExercises.length);
+
+  return {
+    session: hydratedSession,
+    sessionExercises,
+    programDayDetail: dayDetail,
+  };
+}
+
+export async function getWorkoutSessionSnapshot(
+  sessionId: string,
+): Promise<ActiveWorkoutSessionSnapshot> {
+  const session = await getWorkoutSession(sessionId);
+
+  if (!session) {
+    throw new Error("Workout session was not found.");
+  }
+
+  const [sessionExercises, programDayDetail] = await Promise.all([
+    getSessionExercises(session.id),
+    session.program_day_id ? getProgramDayDetail(session.program_day_id) : null,
+  ]);
+
+  return {
+    session,
+    sessionExercises,
+    programDayDetail,
+  };
+}
+
 async function getPlannedSets(exerciseIds: string[]) {
   const result = await supabase
     .from("planned_exercise_sets")
@@ -251,4 +327,168 @@ async function getExerciseCount(programDayId: string, sectionIds: string[]) {
   }
 
   return result.count ?? 0;
+}
+
+async function getCurrentUserId() {
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data.user) {
+    throw new Error("You must be signed in to start a workout.");
+  }
+
+  return data.user.id;
+}
+
+async function findActiveWorkoutSession(userId: string, programDayId: string) {
+  const result = await supabase
+    .from("workout_sessions")
+    .select(WORKOUT_SESSION_SELECT)
+    .eq("user_id", userId)
+    .eq("program_day_id", programDayId)
+    .eq("status", "in_progress")
+    .order("started_at", { ascending: false })
+    .limit(1);
+
+  const sessions = requireList(
+    result.data as WorkoutSessionRow[] | null,
+    result.error,
+    "Active workout session could not be loaded.",
+  );
+
+  return sessions[0] ?? null;
+}
+
+async function getWorkoutSession(sessionId: string) {
+  const result = await supabase
+    .from("workout_sessions")
+    .select(WORKOUT_SESSION_SELECT)
+    .eq("id", sessionId)
+    .limit(1);
+
+  const sessions = requireList(
+    result.data as WorkoutSessionRow[] | null,
+    result.error,
+    "Workout session could not be loaded.",
+  );
+
+  return sessions[0] ?? null;
+}
+
+async function createWorkoutSession(
+  userId: string,
+  programDayId: string,
+  totalExercises: number,
+) {
+  const result = await supabase
+    .from("workout_sessions")
+    .insert({
+      user_id: userId,
+      program_day_id: programDayId,
+      status: "in_progress",
+      current_exercise_index: 1,
+      total_exercises: totalExercises,
+    })
+    .select(WORKOUT_SESSION_SELECT)
+    .single();
+
+  return requireData(
+    result.data as WorkoutSessionRow | null,
+    result.error,
+    "Workout session could not be created.",
+  );
+}
+
+async function updateWorkoutSessionTotal(sessionId: string, totalExercises: number) {
+  const result = await supabase
+    .from("workout_sessions")
+    .update({ total_exercises: totalExercises })
+    .eq("id", sessionId)
+    .select(WORKOUT_SESSION_SELECT)
+    .single();
+
+  return requireData(
+    result.data as WorkoutSessionRow | null,
+    result.error,
+    "Workout session could not be updated.",
+  );
+}
+
+async function getSessionExercises(sessionId: string) {
+  const result = await supabase
+    .from("session_exercises")
+    .select(SESSION_EXERCISE_SELECT)
+    .eq("session_id", sessionId)
+    .order("sort_order", { ascending: true });
+
+  return requireList(
+    result.data as SessionExerciseRow[] | null,
+    result.error,
+    "Workout session exercises could not be loaded.",
+  );
+}
+
+async function hydrateSessionExercises(
+  sessionId: string,
+  dayDetail: ProgramDayDetailData,
+) {
+  const existingExercises = await getSessionExercises(sessionId);
+
+  if (existingExercises.length > 0) {
+    return existingExercises;
+  }
+
+  const orderedExercises = getOrderedPlannedExercises(dayDetail);
+
+  if (orderedExercises.length === 0) {
+    return [];
+  }
+
+  const libraryById = new Map(
+    dayDetail.libraryExercises.map((exercise) => [exercise.id, exercise]),
+  );
+  const startedAt = new Date().toISOString();
+  const rows = orderedExercises.map(({ exercise, section }, index) => {
+    const libraryExercise = libraryById.get(exercise.exercise_id);
+
+    return {
+      session_id: sessionId,
+      program_day_exercise_id: exercise.id,
+      exercise_id: exercise.exercise_id,
+      section_kind: section.section_kind,
+      sort_order: index + 1,
+      display_name_snapshot:
+        exercise.display_name ?? libraryExercise?.name ?? "Exercise",
+      category_snapshot: libraryExercise?.category ?? null,
+      muscle_snapshot: libraryExercise?.primary_muscles ?? [],
+      status: index === 0 ? "in_progress" : "pending",
+      started_at: index === 0 ? startedAt : null,
+    };
+  });
+
+  const result = await supabase
+    .from("session_exercises")
+    .insert(rows)
+    .select(SESSION_EXERCISE_SELECT)
+    .order("sort_order", { ascending: true });
+
+  return requireList(
+    result.data as SessionExerciseRow[] | null,
+    result.error,
+    "Workout session exercises could not be created.",
+  );
+}
+
+function getOrderedPlannedExercises(dayDetail: ProgramDayDetailData) {
+  const sections = [...dayDetail.sections].sort((a, b) => a.sort_order - b.sort_order);
+
+  return sections.flatMap((section) =>
+    dayDetail.exercises
+      .filter((exercise) => exercise.section_id === section.id)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((exercise) => ({ exercise, section })),
+  );
 }

@@ -52,6 +52,20 @@ export const formatDuration = (seconds: number | null | undefined, language: str
 export const formatWorkoutDuration = (minutes: number | null | undefined) =>
   minutes ? `${minutes}min` : "";
 
+export const formatElapsedTime = (seconds: number | null | undefined) => {
+  const safeSeconds = Math.max(Math.floor(seconds ?? 0), 0);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remainingSeconds = safeSeconds % 60;
+  const pad = (value: number) => String(value).padStart(2, "0");
+
+  if (hours > 0) {
+    return `${hours}:${pad(minutes)}:${pad(remainingSeconds)}`;
+  }
+
+  return `${pad(minutes)}:${pad(remainingSeconds)}`;
+};
+
 export const formatWeekProgress = (
   weekNumber: number,
   totalWeeks: number,
