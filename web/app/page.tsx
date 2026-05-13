@@ -3,8 +3,6 @@ import {
   Activity,
   Dumbbell,
   FileStack,
-  ListChecks,
-  UsersRound,
 } from "lucide-react";
 
 import { ConfigWarning } from "@/components/admin/config-warning";
@@ -41,42 +39,27 @@ export default async function DashboardPage() {
 
       <ConfigWarning message={configError} />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <StatCard
-          title="Total users"
-          value={stats.totalUsers}
-          description="Rows in profiles"
-          icon={UsersRound}
-        />
+      <section className="grid gap-4 md:grid-cols-3">
         <StatCard
           title="Active users"
           value={stats.activeUsers}
           description="Users with sessions in last 30 days"
           icon={Activity}
+          href="/users"
         />
         <StatCard
           title="Exercises"
           value={stats.totalExercises}
           description="Exercise library entries"
           icon={Dumbbell}
+          href="/exercises"
         />
         <StatCard
           title="Programs"
           value={stats.totalPrograms}
           description="All workout programs"
           icon={FileStack}
-        />
-        <StatCard
-          title="Active programs"
-          value={stats.activePrograms}
-          description="Published for use"
-          icon={ListChecks}
-        />
-        <StatCard
-          title="Draft programs"
-          value={stats.draftPrograms}
-          description="Still being built"
-          icon={FileStack}
+          href="/programs"
         />
       </section>
 
