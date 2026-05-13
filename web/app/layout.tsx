@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { AdminShell } from "@/components/admin/admin-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
 import "./globals.css";
@@ -35,7 +34,7 @@ export default function RootLayout({
       <body className="min-h-full">
         <ToastProvider>
           <TooltipProvider>
-            <AdminShell>{children}</AdminShell>
+            {children}
           </TooltipProvider>
           <Toaster />
         </ToastProvider>

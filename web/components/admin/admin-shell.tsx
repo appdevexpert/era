@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useFormStatus } from "react-dom";
 import {
   Activity,
   Dumbbell,
   LayoutDashboard,
+  LogOut,
+  Mail,
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
@@ -27,6 +30,8 @@ import {
   SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import type { AdminRole } from "@/lib/admin/auth-paths";
+import { signOut } from "@/lib/admin/auth-actions";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -35,10 +40,16 @@ const NAV_ITEMS = [
   { href: "/users", label: "Users", icon: UsersRound },
 ];
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+type AdminShellProps = {
+  children: React.ReactNode;
+  userEmail: string;
+  userRole: AdminRole;
+};
+
+export function AdminShell({ children, userEmail, userRole }: AdminShellProps) {
   return (
     <SidebarProvider className="bg-background">
-      <AdminSidebar />
+      <AdminSidebar userEmail={userEmail} userRole={userRole} />
 
       <SidebarInset className="min-h-screen min-w-0 overflow-x-hidden text-foreground">
         <header className="sticky top-0 z-20 border-b border-border bg-background/88 px-4 py-3 backdrop-blur md:px-8">
@@ -55,8 +66,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 </p>
               </div>
             </div>
-            <div className="hidden rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground sm:block">
-              Owner access
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="hidden min-w-0 text-right sm:block">
+                <p className="truncate text-sm font-medium text-era-white">{userEmail}</p>
+                <p className="text-xs uppercase text-era-gold-dark">
+                  {userRole} access
+                </p>
+              </div>
+              <form action={signOut}>
+                <SignOutButton />
+              </form>
             </div>
           </div>
         </header>
@@ -69,7 +88,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AdminSidebar() {
+function AdminSidebar({
+  userEmail,
+  userRole,
+}: {
+  userEmail: string;
+  userRole: AdminRole;
+}) {
   const pathname = usePathname();
 
   return (
@@ -135,20 +160,36 @@ function AdminSidebar() {
         <SidebarMenu className="gap-1">
           <SidebarMenuItem>
             <SidebarMenuButton
-              tooltip="Owner access"
+              tooltip={userEmail}
               className="h-10 gap-3 rounded-lg px-3 text-sidebar-foreground/82"
             >
-              <ShieldCheck />
-              <span>Owner access</span>
+              <Mail />
+              <span>{userEmail}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
         <p className="px-2 text-xs leading-5 text-muted-foreground group-data-[collapsible=icon]:hidden">
-          Owner dashboard for managing ERA workout content.
+          Signed in with {userRole} access.
         </p>
       </SidebarFooter>
 
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function SignOutButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+      aria-label={pending ? "Signing out" : "Sign out"}
+      title={pending ? "Signing out" : "Sign out"}
+    >
+      <LogOut className="size-4" />
+    </button>
   );
 }

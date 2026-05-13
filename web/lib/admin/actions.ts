@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdminClient } from "@/lib/admin/supabase";
+import { requireAuthorizedAdminClient } from "@/lib/admin/auth";
 
 function value(formData: FormData, key: string) {
   const raw = formData.get(key);
@@ -47,7 +47,7 @@ function slugify(text: string) {
 }
 
 export async function saveExercise(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const nameEn = value(formData, "name_en");
   const nameNb = value(formData, "name_nb");
@@ -93,7 +93,7 @@ export async function saveExercise(formData: FormData) {
 }
 
 export async function saveProgram(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const titleEn = value(formData, "title_en");
   const titleNb = value(formData, "title_nb");
@@ -139,7 +139,7 @@ export async function saveProgram(formData: FormData) {
 }
 
 export async function saveProgramWeek(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const weekNumber = intValue(formData, "week_number", 1);
   const title = value(formData, "title") || `Week ${weekNumber}`;
@@ -165,7 +165,7 @@ export async function saveProgramWeek(formData: FormData) {
 }
 
 export async function saveProgramDay(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const weekId = value(formData, "week_id");
   const dayNumber = intValue(formData, "day_number", 1);
@@ -201,7 +201,7 @@ export async function saveProgramDay(formData: FormData) {
 }
 
 export async function saveDaySection(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const programDayId = value(formData, "program_day_id");
   const titleEn = value(formData, "title_en");
@@ -222,7 +222,7 @@ export async function saveDaySection(formData: FormData) {
 }
 
 export async function assignExerciseToDay(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const exerciseId = value(formData, "exercise_id");
   const displayNameEn = value(formData, "display_name_en");
@@ -251,7 +251,7 @@ export async function assignExerciseToDay(formData: FormData) {
 }
 
 export async function addPlannedSet(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
 
   const { error } = await supabase.from("planned_exercise_sets").insert({
@@ -277,7 +277,7 @@ export async function addPlannedSet(formData: FormData) {
 }
 
 export async function addDefaultSections(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const programDayId = value(formData, "program_day_id");
 
@@ -303,7 +303,7 @@ export async function addDefaultSections(formData: FormData) {
 }
 
 export async function addBulkSets(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const exerciseId = value(formData, "program_day_exercise_id");
   const count = intValue(formData, "set_count", 3);
@@ -336,7 +336,7 @@ export async function addBulkSets(formData: FormData) {
 }
 
 export async function duplicateDay(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const programId = value(formData, "program_id");
   const sourceDayId = value(formData, "source_day_id");
   const targetDayId = value(formData, "target_day_id");
@@ -470,7 +470,7 @@ export async function duplicateDay(formData: FormData) {
 // ============================================================
 
 export async function deleteExercise(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
 
   const { error } = await supabase.from("exercise_library").delete().eq("id", id);
@@ -480,7 +480,7 @@ export async function deleteExercise(formData: FormData) {
 }
 
 export async function deleteProgram(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
 
   const { error } = await supabase.from("workout_programs").delete().eq("id", id);
@@ -490,7 +490,7 @@ export async function deleteProgram(formData: FormData) {
 }
 
 export async function deleteProgramWeek(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
 
@@ -501,7 +501,7 @@ export async function deleteProgramWeek(formData: FormData) {
 }
 
 export async function deleteProgramDay(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
 
@@ -512,7 +512,7 @@ export async function deleteProgramDay(formData: FormData) {
 }
 
 export async function deleteDaySection(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
 
@@ -523,7 +523,7 @@ export async function deleteDaySection(formData: FormData) {
 }
 
 export async function deleteDayExercise(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
 
@@ -534,7 +534,7 @@ export async function deleteDayExercise(formData: FormData) {
 }
 
 export async function deletePlannedSet(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
 
@@ -549,7 +549,7 @@ export async function deletePlannedSet(formData: FormData) {
 // ============================================================
 
 export async function updateDaySection(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
   const titleEn = value(formData, "title_en");
@@ -572,7 +572,7 @@ export async function updateDaySection(formData: FormData) {
 }
 
 export async function updateDayExercise(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
   const displayNameEn = value(formData, "display_name_en");
@@ -603,7 +603,7 @@ export async function updateDayExercise(formData: FormData) {
 }
 
 export async function updatePlannedSet(formData: FormData) {
-  const supabase = requireAdminClient();
+  const supabase = await requireAuthorizedAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
 

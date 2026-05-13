@@ -7,9 +7,13 @@ import {
 } from "@/lib/supabase/config"
 
 export async function updateSession(request: NextRequest) {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set("x-era-pathname", request.nextUrl.pathname)
+  requestHeaders.set("x-era-search", request.nextUrl.search)
+
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   })
 
@@ -31,7 +35,7 @@ export async function updateSession(request: NextRequest) {
 
         response = NextResponse.next({
           request: {
-            headers: request.headers,
+            headers: requestHeaders,
           },
         })
 
