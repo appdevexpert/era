@@ -8,15 +8,12 @@ import { translation } from "@/lib/admin/format";
 
 type ProgramDetailPageProps = {
   params: Promise<{ programId: string }>;
-  searchParams: Promise<{ day?: string }>;
 };
 
 export default async function ProgramDetailPage({
   params,
-  searchParams,
 }: ProgramDetailPageProps) {
   const { programId } = await params;
-  const { day } = await searchParams;
   const detailState = await getProgramDetail(programId);
   const program = detailState.data.program;
 
@@ -37,7 +34,7 @@ export default async function ProgramDetailPage({
       />
 
       <ConfigWarning message={detailState.configError} />
-      <ProgramBuilder detail={detailState.data} selectedDayId={day} />
+      <ProgramBuilder detail={detailState.data} />
     </>
   );
 }

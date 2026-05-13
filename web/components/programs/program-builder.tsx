@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import React, { type ReactElement, type ReactNode, useState } from "react";
-import { ChevronDown, ChevronUp, Copy, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { FormField, OptionSelectField, SelectField } from "@/components/admin/form-field";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +39,6 @@ import {
   deletePlannedSet,
   deleteProgramDay,
   deleteProgramWeek,
-  duplicateDay,
   saveDaySection,
   saveProgramDay,
   saveProgramWeek,
@@ -210,16 +208,10 @@ function PlannedSetsList({
                         <Hidden name="id" value={set.id} />
                         <Hidden name="program_id" value={programId} />
                         <div className="grid gap-4 lg:grid-cols-2">
-                          <FormField label="Set" name="set_number" type="number" defaultValue={set.set_number} />
+                          <FormField label="Set #" name="set_number" type="number" defaultValue={set.set_number} />
                           <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} defaultValue={set.set_kind} />
-                          <FormField label="Weight" name="target_weight_value" type="number" defaultValue={set.target_weight_value ?? ""} />
-                          <FormField label="Reps exact" name="target_reps_exact" type="number" defaultValue={set.target_reps_exact ?? ""} />
-                          <FormField label="Reps min" name="target_reps_min" type="number" defaultValue={set.target_reps_min ?? ""} />
-                          <FormField label="Reps max" name="target_reps_max" type="number" defaultValue={set.target_reps_max ?? ""} />
-                          <FormField label="Duration sec" name="target_duration_seconds" type="number" defaultValue={set.target_duration_seconds ?? ""} />
-                          <FormField label="Rest sec" name="rest_seconds" type="number" defaultValue={set.rest_seconds ?? ""} />
-                          <FormField label="Label EN" name="display_label_en" defaultValue={translation(set.display_label_translations, "en", set.display_label ?? "")} />
-                          <FormField label="Label NO" name="display_label_nb" defaultValue={translation(set.display_label_translations, "nb", "")} />
+                          <FormField label="Weight (kg)" name="target_weight_value" type="number" defaultValue={set.target_weight_value ?? ""} />
+                          <FormField label="Reps" name="target_reps_exact" type="number" defaultValue={set.target_reps_exact ?? ""} />
                         </div>
                         <SubmitRow>
                           <Button type="submit">Save set</Button>
@@ -238,44 +230,296 @@ function PlannedSetsList({
 }
 
 // ---------------------------------------------------------------------------
+// Manage day dialog
+// ---------------------------------------------------------------------------
+
+function ManageDayDialog({
+  day,
+  programId,
+  sections,
+  dayExercises,
+  sets,
+  exercises,
+  sectionKindOptions,
+  exerciseLibraryOptions,
+}: {
+  day: ProgramDetail["days"][number];
+  programId: string;
+  sections: ProgramDetail["sections"];
+  dayExercises: ProgramDetail["dayExercises"];
+  sets: ProgramDetail["sets"];
+  exercises: ProgramDetail["exercises"];
+  sectionKindOptions: { label: string; value: string }[];
+  exerciseLibraryOptions: { label: string; value: string }[];
+}) {
+  const daySections = sections.filter((s) => s.program_day_id === day.id);
+  const dayExs = dayExercises.filter((e) => e.program_day_id === day.id);
+  const sectionOptions = daySections.map((s) => ({
+    label: translation(s.title_translations, "en", s.title),
+    value: s.id,
+  }));
+
+  return (
+    <BuilderDialog
+      title={`${translation(day.title_translations, "en", day.title)} — Day ${day.day_number}`}
+      description={`Sections, exercises, and sets for this workout day${day.estimated_minutes ? ` (${day.estimated_minutes} min)` : ""}.`}
+      trigger={
+        <button type="button" className="text-xs font-medium text-era-gold hover:underline">
+          Manage
+        </button>
+      }
+    >
+      <div className="grid gap-6">
+        {/* Sections */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-medium text-era-white">Sections</h4>
+            <div className="flex gap-2">
+              {!daySections.length ? (
+                <form action={addDefaultSections}>
+                  <Hidden name="program_id" value={programId} />
+                  <Hidden name="program_day_id" value={day.id} />
+                  <Button type="submit" variant="secondary" size="sm">
+                    <Layers />
+                    Add default sections
+                  </Button>
+                </form>
+              ) : null}
+              <BuilderDialog
+                title="Add section"
+                trigger={
+                  <Button type="button" variant="secondary" size="sm">
+                    <Plus />
+                    Add section
+                  </Button>
+                }
+              >
+                <form action={saveDaySection} className="grid gap-4">
+                  <Hidden name="program_id" value={programId} />
+                  <Hidden name="program_day_id" value={day.id} />
+                  <Hidden name="sort_order" value={daySections.length + 1} />
+                  <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} />
+                  <FormField label="Title EN" name="title_en" required />
+                  <FormField label="Title NO" name="title_nb" required />
+                  <SubmitRow>
+                    <Button type="submit">Add section</Button>
+                  </SubmitRow>
+                </form>
+              </BuilderDialog>
+            </div>
+          </div>
+          {daySections.length ? (
+            <div className="grid gap-2">
+              {daySections.map((section) => (
+                <div
+                  key={section.id}
+                  className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-era-white">
+                      {translation(section.title_translations, "en", section.title)}
+                    </p>
+                    <p className="mt-0.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                      {section.section_kind}
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <BuilderDialog
+                      title="Edit section"
+                      trigger={
+                        <Button type="button" variant="ghost" size="icon-sm">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      }
+                    >
+                      <form action={updateDaySection} className="grid gap-4">
+                        <Hidden name="id" value={section.id} />
+                        <Hidden name="program_id" value={programId} />
+                        <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} defaultValue={section.section_kind} />
+                        <FormField label="Title EN" name="title_en" defaultValue={translation(section.title_translations, "en", section.title)} />
+                        <FormField label="Title NO" name="title_nb" defaultValue={translation(section.title_translations, "nb", section.title)} />
+                        <SubmitRow>
+                          <Button type="submit">Save section</Button>
+                        </SubmitRow>
+                      </form>
+                    </BuilderDialog>
+                    <DeleteButton action={deleteDaySection} id={section.id} programId={programId} label="section" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No sections yet.</p>
+          )}
+        </div>
+
+        {/* Exercises */}
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h4 className="text-sm font-medium text-era-white">Exercises</h4>
+            {sectionOptions.length && exerciseLibraryOptions.length ? (
+              <BuilderDialog
+                title="Assign exercise"
+                trigger={
+                  <Button type="button" variant="secondary" size="sm">
+                    <Plus />
+                    Assign exercise
+                  </Button>
+                }
+              >
+                <form action={assignExerciseToDay} className="grid gap-4">
+                  <Hidden name="program_id" value={programId} />
+                  <Hidden name="program_day_id" value={day.id} />
+                  <Hidden name="sort_order" value={dayExs.length + 1} />
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <OptionSelectField label="Section" name="section_id" options={sectionOptions} />
+                    <OptionSelectField label="Exercise" name="exercise_id" options={exerciseLibraryOptions} />
+                    <FormField label="Initial weight (kg)" name="initial_weight_value" type="number" />
+                  </div>
+                  <SubmitRow>
+                    <Button type="submit">Assign exercise</Button>
+                  </SubmitRow>
+                </form>
+              </BuilderDialog>
+            ) : null}
+          </div>
+          {dayExs.length ? (
+            <div className="grid gap-3">
+              {dayExs.map((assignment) => {
+                const exerciseSets = sets.filter(
+                  (set) => set.program_day_exercise_id === assignment.id,
+                );
+                const exerciseName = translation(
+                  assignment.display_name_translations,
+                  "en",
+                  assignment.display_name || assignment.exercise_library?.name || "Exercise",
+                );
+
+                return (
+                  <div key={assignment.id} className="rounded-lg border border-border bg-era-black-2 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-medium text-era-white">{exerciseName}</p>
+                        {assignment.initial_weight_value ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {assignment.initial_weight_value} {assignment.initial_weight_unit}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <BuilderDialog
+                          title="Edit exercise"
+                          trigger={
+                            <Button type="button" variant="ghost" size="icon-sm">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          }
+                        >
+                          <form action={updateDayExercise} className="grid gap-4">
+                            <Hidden name="id" value={assignment.id} />
+                            <Hidden name="program_id" value={programId} />
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              <OptionSelectField label="Section" name="section_id" options={sectionOptions} defaultValue={assignment.section_id} />
+                              <OptionSelectField label="Exercise" name="exercise_id" options={exerciseLibraryOptions} defaultValue={assignment.exercise_id} />
+                              <FormField label="Initial weight (kg)" name="initial_weight_value" type="number" defaultValue={assignment.initial_weight_value ?? ""} />
+                            </div>
+                            <SubmitRow>
+                              <Button type="submit">Save exercise</Button>
+                            </SubmitRow>
+                          </form>
+                        </BuilderDialog>
+                        <DeleteButton action={deleteDayExercise} id={assignment.id} programId={programId} label="exercise" />
+                        <BuilderDialog
+                          title="Add bulk sets"
+                          description="Create multiple identical sets at once."
+                          trigger={
+                            <Button type="button" variant="secondary" size="sm">
+                              <Layers />
+                              Add 3 sets
+                            </Button>
+                          }
+                        >
+                          <form action={addBulkSets} className="grid gap-4">
+                            <Hidden name="program_id" value={programId} />
+                            <Hidden name="program_day_exercise_id" value={assignment.id} />
+                            <Hidden name="start_from" value={exerciseSets.length + 1} />
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              <FormField label="Number of sets" name="set_count" type="number" defaultValue={3} />
+                              <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} />
+                              <FormField label="Weight (kg)" name="target_weight_value" type="number" />
+                              <FormField label="Reps" name="target_reps_exact" type="number" />
+                              <FormField label="Reps min" name="target_reps_min" type="number" />
+                              <FormField label="Reps max" name="target_reps_max" type="number" />
+                              <FormField label="Duration sec" name="target_duration_seconds" type="number" />
+                              <FormField label="Rest sec" name="rest_seconds" type="number" />
+                            </div>
+                            <SubmitRow>
+                              <Button type="submit">Add sets</Button>
+                            </SubmitRow>
+                          </form>
+                        </BuilderDialog>
+                        <BuilderDialog
+                          title="Add set"
+                          description="Add one planned set to this exercise."
+                          trigger={
+                            <Button type="button" variant="secondary" size="sm">
+                              <Plus />
+                              Add set
+                            </Button>
+                          }
+                        >
+                          <form action={addPlannedSet} className="grid gap-4">
+                            <Hidden name="program_id" value={programId} />
+                            <Hidden name="program_day_exercise_id" value={assignment.id} />
+                            <Hidden name="set_number" value={exerciseSets.length + 1} />
+                            <div className="grid gap-4 lg:grid-cols-2">
+                              <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} />
+                              <FormField label="Weight (kg)" name="target_weight_value" type="number" />
+                              <FormField label="Reps" name="target_reps_exact" type="number" />
+                            </div>
+                            <SubmitRow>
+                              <Button type="submit">Add set</Button>
+                            </SubmitRow>
+                          </form>
+                        </BuilderDialog>
+                      </div>
+                    </div>
+                    <PlannedSetsList exerciseSets={exerciseSets} programId={programId} />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {daySections.length ? "No exercises assigned yet." : "Add sections first, then assign exercises."}
+            </p>
+          )}
+        </div>
+      </div>
+    </BuilderDialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function ProgramBuilder({
   detail,
-  selectedDayId,
 }: {
   detail: ProgramDetail;
-  selectedDayId?: string;
 }) {
   const { program, weeks, days, sections, dayExercises, sets, exercises } = detail;
   if (!program) return null;
 
-  const selectedDay = days.find((day) => day.id === selectedDayId) ?? days[0] ?? null;
-  const selectedSections = selectedDay
-    ? sections.filter((section) => section.program_day_id === selectedDay.id)
-    : [];
-  const selectedExercises = selectedDay
-    ? dayExercises.filter((exercise) => exercise.program_day_id === selectedDay.id)
-    : [];
   const weekOptions = weeks.map((week) => ({
     label: `Week ${week.week_number} - ${week.focus || week.title}`,
     value: week.id,
-  }));
-  const sectionOptions = selectedSections.map((section) => ({
-    label: translation(section.title_translations, "en", section.title),
-    value: section.id,
   }));
   const exerciseOptions = exercises.map((exercise) => ({
     label: translation(exercise.name_translations, "en", exercise.name),
     value: exercise.id,
   }));
-  const dayOptions = days
-    .filter((day) => selectedDay && day.id !== selectedDay.id)
-    .map((day) => ({
-      label: `Day ${day.day_number} - ${translation(day.title_translations, "en", day.title)}`,
-      value: day.id,
-    }));
 
   return (
     <div className="grid gap-6">
@@ -295,8 +539,6 @@ export function ProgramBuilder({
                   <Hidden name="program_id" value={program.id} />
                   <FormField label="Week number" name="week_number" type="number" defaultValue={weeks.length + 1} />
                   <SelectField label="Phase" name="focus" options={WORKOUT_PHASES} />
-                  <FormField label="Title" name="title" placeholder="Week 1" />
-                  <FormField label="Notes" name="notes" />
                   <SubmitRow>
                     <Button type="submit">Add week</Button>
                   </SubmitRow>
@@ -330,8 +572,6 @@ export function ProgramBuilder({
                         <Hidden name="program_id" value={program.id} />
                         <FormField label="Week number" name="week_number" type="number" defaultValue={week.week_number} />
                         <SelectField label="Phase" name="focus" options={WORKOUT_PHASES} defaultValue={week.focus ?? ""} />
-                        <FormField label="Title" name="title" defaultValue={week.title} />
-                        <FormField label="Notes" name="notes" defaultValue={week.notes ?? ""} />
                         <SubmitRow>
                           <Button type="submit">Save week</Button>
                         </SubmitRow>
@@ -410,12 +650,16 @@ export function ProgramBuilder({
                         <TableCell>{day.estimated_minutes ?? "-"}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Link
-                              href={`/programs/${program.id}?day=${day.id}`}
-                              className="text-xs font-medium text-era-gold hover:underline"
-                            >
-                              Manage
-                            </Link>
+                            <ManageDayDialog
+                              day={day}
+                              programId={program.id}
+                              sections={sections}
+                              dayExercises={dayExercises}
+                              sets={sets}
+                              exercises={exercises}
+                              sectionKindOptions={SECTION_KINDS.map((k) => ({ label: k, value: k }))}
+                              exerciseLibraryOptions={exerciseOptions}
+                            />
                             <BuilderDialog
                               title="Edit day"
                               trigger={
@@ -460,295 +704,6 @@ export function ProgramBuilder({
         </Card>
       </section>
 
-      {/* ============ SECTIONS + EXERCISES ============ */}
-      <section className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        {/* --- Selected day / sections --- */}
-        <Card className="rounded-lg border-border">
-          <CardHeader>
-            <CardTitle className="font-sans">
-              {selectedDay ? "Selected day" : "No day selected"}
-            </CardTitle>
-            {selectedDay ? (
-              <CardAction>
-                <div className="flex gap-2">
-                  {!selectedSections.length ? (
-                    <form action={addDefaultSections}>
-                      <Hidden name="program_id" value={program.id} />
-                      <Hidden name="program_day_id" value={selectedDay.id} />
-                      <Button type="submit" variant="secondary" size="sm">
-                        <Layers />
-                        Add default sections
-                      </Button>
-                    </form>
-                  ) : null}
-                  <BuilderDialog
-                    title="Add section"
-                    description="Create a section for warmups, main work, or finishers."
-                    trigger={<DialogButton size="sm">Add section</DialogButton>}
-                  >
-                    <form action={saveDaySection} className="grid gap-4">
-                      <Hidden name="program_id" value={program.id} />
-                      <Hidden name="program_day_id" value={selectedDay.id} />
-                      <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} />
-                      <FormField label="Title EN" name="title_en" required />
-                      <FormField label="Title NO" name="title_nb" required />
-                      <FormField label="Sort order" name="sort_order" type="number" defaultValue={selectedSections.length + 1} />
-                      <SubmitRow>
-                        <Button type="submit">Add section</Button>
-                      </SubmitRow>
-                    </form>
-                  </BuilderDialog>
-                </div>
-              </CardAction>
-            ) : null}
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {selectedDay ? (
-              <>
-                <div className="rounded-lg border border-border bg-era-black-2 p-3">
-                  <p className="font-medium text-era-white">
-                    {translation(selectedDay.title_translations, "en", selectedDay.title)}
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Day {selectedDay.day_number} - {selectedDay.estimated_minutes ?? 0} min
-                  </p>
-                </div>
-                {dayOptions.length ? (
-                  <BuilderDialog
-                    title="Duplicate from another day"
-                    description="Copy all sections, exercises, and sets from a source day into this day."
-                    trigger={
-                      <Button type="button" variant="outline" size="sm" className="w-full">
-                        <Copy />
-                        Duplicate from another day
-                      </Button>
-                    }
-                  >
-                    <form action={duplicateDay} className="grid gap-4">
-                      <Hidden name="program_id" value={program.id} />
-                      <Hidden name="target_day_id" value={selectedDay.id} />
-                      <OptionSelectField label="Copy from" name="source_day_id" options={dayOptions} />
-                      <p className="text-xs text-muted-foreground">
-                        This will copy all sections, exercises, and planned sets from the selected day. You can then swap exercises as needed.
-                      </p>
-                      <SubmitRow>
-                        <Button type="submit">Duplicate</Button>
-                      </SubmitRow>
-                    </form>
-                  </BuilderDialog>
-                ) : null}
-                {selectedSections.length ? (
-                  selectedSections.map((section) => (
-                    <div
-                      key={section.id}
-                      className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-era-white">
-                          {translation(section.title_translations, "en", section.title)}
-                        </p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                          {section.section_kind}
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
-                        <BuilderDialog
-                          title="Edit section"
-                          trigger={
-                            <Button type="button" variant="ghost" size="icon-sm">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          }
-                        >
-                          <form action={updateDaySection} className="grid gap-4">
-                            <Hidden name="id" value={section.id} />
-                            <Hidden name="program_id" value={program.id} />
-                            <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} defaultValue={section.section_kind} />
-                            <FormField label="Title EN" name="title_en" defaultValue={translation(section.title_translations, "en", section.title)} />
-                            <FormField label="Title NO" name="title_nb" defaultValue={translation(section.title_translations, "nb", section.title)} />
-                            <FormField label="Sort order" name="sort_order" type="number" defaultValue={section.sort_order} />
-                            <SubmitRow>
-                              <Button type="submit">Save section</Button>
-                            </SubmitRow>
-                          </form>
-                        </BuilderDialog>
-                        <DeleteButton action={deleteDaySection} id={section.id} programId={program.id} label="section" />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No sections yet.</p>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Create or select a day to manage sections.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* --- Exercises and sets --- */}
-        <Card className="rounded-lg border-border">
-          <CardHeader>
-            <CardTitle className="font-sans">Exercises and sets</CardTitle>
-            <CardAction>
-              {selectedDay && sectionOptions.length && exerciseOptions.length ? (
-                <BuilderDialog
-                  title="Assign exercise"
-                  description="Place an exercise inside one of the selected day's sections."
-                  trigger={<DialogButton>Assign exercise</DialogButton>}
-                >
-                  <form action={assignExerciseToDay} className="grid gap-4">
-                    <Hidden name="program_id" value={program.id} />
-                    <Hidden name="program_day_id" value={selectedDay.id} />
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <OptionSelectField label="Section" name="section_id" options={sectionOptions} />
-                      <OptionSelectField label="Exercise" name="exercise_id" options={exerciseOptions} />
-                      <FormField label="Sort order" name="sort_order" type="number" defaultValue={selectedExercises.length + 1} />
-                      <FormField label="Initial weight" name="initial_weight_value" type="number" />
-                      <FormField label="Rest seconds" name="default_rest_seconds" type="number" />
-                      <FormField label="Display EN" name="display_name_en" />
-                      <FormField label="Display NO" name="display_name_nb" />
-                      <FormField label="Target EN" name="target_summary_en" placeholder="3 sets - 10 reps" />
-                      <FormField label="Target NO" name="target_summary_nb" />
-                    </div>
-                    <SubmitRow>
-                      <Button type="submit">Assign exercise</Button>
-                    </SubmitRow>
-                  </form>
-                </BuilderDialog>
-              ) : (
-                <Button type="button" variant="secondary" disabled>
-                  <Plus />
-                  Assign exercise
-                </Button>
-              )}
-            </CardAction>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {selectedExercises.length ? (
-              selectedExercises.map((assignment) => {
-                const exerciseSets = sets.filter(
-                  (set) => set.program_day_exercise_id === assignment.id,
-                );
-                const exerciseName = translation(
-                  assignment.display_name_translations,
-                  "en",
-                  assignment.display_name || assignment.exercise_library?.name || "Exercise",
-                );
-
-                return (
-                  <div key={assignment.id} className="rounded-lg border border-border bg-era-black-2 p-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="font-medium text-era-white">{exerciseName}</p>
-                        {assignment.initial_weight_value ? (
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {assignment.initial_weight_value} {assignment.initial_weight_unit}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <BuilderDialog
-                          title="Edit exercise"
-                          trigger={
-                            <Button type="button" variant="ghost" size="icon-sm">
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          }
-                        >
-                          <form action={updateDayExercise} className="grid gap-4">
-                            <Hidden name="id" value={assignment.id} />
-                            <Hidden name="program_id" value={program.id} />
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <OptionSelectField label="Section" name="section_id" options={sectionOptions} defaultValue={assignment.section_id} />
-                              <OptionSelectField label="Exercise" name="exercise_id" options={exerciseOptions} defaultValue={assignment.exercise_id} />
-                              <FormField label="Sort order" name="sort_order" type="number" defaultValue={assignment.sort_order} />
-                              <FormField label="Initial weight" name="initial_weight_value" type="number" defaultValue={assignment.initial_weight_value ?? ""} />
-                              <FormField label="Rest seconds" name="default_rest_seconds" type="number" defaultValue={assignment.default_rest_seconds ?? ""} />
-                              <FormField label="Display EN" name="display_name_en" defaultValue={translation(assignment.display_name_translations, "en", assignment.display_name ?? "")} />
-                              <FormField label="Display NO" name="display_name_nb" defaultValue={translation(assignment.display_name_translations, "nb", "")} />
-                              <FormField label="Target EN" name="target_summary_en" defaultValue={translation(assignment.target_summary_translations ?? {}, "en", assignment.target_summary ?? "")} />
-                              <FormField label="Target NO" name="target_summary_nb" defaultValue={translation(assignment.target_summary_translations ?? {}, "nb", "")} />
-                            </div>
-                            <SubmitRow>
-                              <Button type="submit">Save exercise</Button>
-                            </SubmitRow>
-                          </form>
-                        </BuilderDialog>
-                        <DeleteButton action={deleteDayExercise} id={assignment.id} programId={program.id} label="exercise" />
-                        <BuilderDialog
-                          title="Add bulk sets"
-                          description="Create multiple identical sets at once."
-                          trigger={
-                            <Button type="button" variant="secondary" size="sm">
-                              <Layers />
-                              Add 3 sets
-                            </Button>
-                          }
-                        >
-                          <form action={addBulkSets} className="grid gap-4">
-                            <Hidden name="program_id" value={program.id} />
-                            <Hidden name="program_day_exercise_id" value={assignment.id} />
-                            <Hidden name="start_from" value={exerciseSets.length + 1} />
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <FormField label="Number of sets" name="set_count" type="number" defaultValue={3} />
-                              <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} />
-                              <FormField label="Weight" name="target_weight_value" type="number" />
-                              <FormField label="Reps exact" name="target_reps_exact" type="number" />
-                              <FormField label="Reps min" name="target_reps_min" type="number" />
-                              <FormField label="Reps max" name="target_reps_max" type="number" />
-                              <FormField label="Duration sec" name="target_duration_seconds" type="number" />
-                              <FormField label="Rest sec" name="rest_seconds" type="number" />
-                            </div>
-                            <SubmitRow>
-                              <Button type="submit">Add sets</Button>
-                            </SubmitRow>
-                          </form>
-                        </BuilderDialog>
-                        <BuilderDialog
-                          title="Add set"
-                          description="Add one planned set to this exercise."
-                          trigger={
-                            <Button type="button" variant="secondary" size="sm">
-                              <Plus />
-                              Add set
-                            </Button>
-                          }
-                        >
-                          <form action={addPlannedSet} className="grid gap-4">
-                            <Hidden name="program_id" value={program.id} />
-                            <Hidden name="program_day_exercise_id" value={assignment.id} />
-                            <div className="grid gap-4 lg:grid-cols-2">
-                              <FormField label="Set" name="set_number" type="number" defaultValue={exerciseSets.length + 1} />
-                              <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} />
-                              <FormField label="Weight" name="target_weight_value" type="number" />
-                              <FormField label="Reps exact" name="target_reps_exact" type="number" />
-                              <FormField label="Reps min" name="target_reps_min" type="number" />
-                              <FormField label="Reps max" name="target_reps_max" type="number" />
-                              <FormField label="Duration sec" name="target_duration_seconds" type="number" />
-                              <FormField label="Rest sec" name="rest_seconds" type="number" />
-                              <FormField label="Label EN" name="display_label_en" />
-                              <FormField label="Label NO" name="display_label_nb" />
-                            </div>
-                            <SubmitRow>
-                              <Button type="submit">Add set</Button>
-                            </SubmitRow>
-                          </form>
-                        </BuilderDialog>
-                      </div>
-                    </div>
-                    <PlannedSetsList exerciseSets={exerciseSets} programId={program.id} />
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Add a day section and active exercises before assigning exercises.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
     </div>
   );
 }
