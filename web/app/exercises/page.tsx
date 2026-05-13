@@ -8,14 +8,15 @@ import { ExerciseTable } from "@/components/exercises/exercise-table";
 import { getExercise, getExercises } from "@/lib/admin/data";
 
 type ExercisesPageProps = {
-  searchParams: Promise<{ edit?: string; page?: string }>;
+  searchParams: Promise<{ edit?: string; page?: string; search?: string }>;
 };
 
 export default async function ExercisesPage({ searchParams }: ExercisesPageProps) {
-  const { edit, page } = await searchParams;
+  const { edit, page, search } = await searchParams;
   const currentPage = Math.max(1, Number(page) || 1);
+  const searchTerm = search?.trim() ?? "";
   const [exercisesState, selectedExerciseState] = await Promise.all([
-    getExercises(currentPage),
+    getExercises(currentPage, 20, searchTerm),
     getExercise(edit),
   ]);
 
@@ -48,6 +49,7 @@ export default async function ExercisesPage({ searchParams }: ExercisesPageProps
         page={exercisesState.page}
         totalPages={exercisesState.totalPages}
         totalCount={exercisesState.totalCount}
+        search={searchTerm}
       />
 
       {selectedExerciseState.data ? (

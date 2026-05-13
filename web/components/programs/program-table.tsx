@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { MoreHorizontal, Pencil, Trash2, Wrench } from "lucide-react";
+import { MoreHorizontal, Pencil, Wrench } from "lucide-react";
 
+import { DeleteConfirmDialog, DeleteMenuItem, type DeleteTarget } from "@/components/admin/delete-confirm-dialog";
 import { EmptyState } from "@/components/admin/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,8 @@ import { dateText, translation } from "@/lib/admin/format";
 import type { ProgramRow } from "@/lib/admin/types";
 
 export function ProgramTable({ programs }: { programs: ProgramRow[] }) {
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+
   if (!programs.length) {
     return (
       <EmptyState
@@ -35,6 +39,7 @@ export function ProgramTable({ programs }: { programs: ProgramRow[] }) {
   }
 
   return (
+    <>
     <div className="rounded-lg border border-border bg-card">
       <Table className="min-w-[760px]">
         <TableHeader>
@@ -87,19 +92,17 @@ export function ProgramTable({ programs }: { programs: ProgramRow[] }) {
                       <Pencil />
                       Edit
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => {
-                        if (window.confirm(`Delete "${translation(program.title_translations, "en", program.title)}"? This will delete all weeks, days, exercises, and sets. This cannot be undone.`)) {
-                          const fd = new FormData();
-                          fd.set("id", program.id);
-                          deleteProgram(fd);
-                        }
-                      }}
-                    >
-                      <Trash2 />
-                      Delete
-                    </DropdownMenuItem>
+                    <DeleteMenuItem
+                      onConfirm={() =>
+                        setDeleteTarget({
+                          name: translation(program.title_translations, "en", program.title),
+                          type: "program",
+                          action: deleteProgram,
+                          formFields: { id: program.id },
+                          description: `This will delete "${translation(program.title_translations, "en", program.title)}" and all its weeks, days, exercises, and sets. This cannot be undone.`,
+                        })
+                      }
+                    />
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TableCell>
@@ -108,5 +111,11 @@ export function ProgramTable({ programs }: { programs: ProgramRow[] }) {
         </TableBody>
       </Table>
     </div>
+
+    <DeleteConfirmDialog
+      target={deleteTarget}
+      onClose={() => setDeleteTarget(null)}
+    />
+    </>
   );
 }

@@ -93,6 +93,7 @@ const DEFAULT_PAGE_SIZE = 20;
 export async function getExercises(
   page = 1,
   pageSize = DEFAULT_PAGE_SIZE,
+  search = "",
 ): Promise<PaginatedDataState<ExerciseRow[]>> {
   const empty = { data: [] as ExerciseRow[], configError: null as string | null, page, pageSize, totalCount: 0, totalPages: 0 };
   const { supabase, configError } = getAdminClient();
@@ -101,11 +102,17 @@ export async function getExercises(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from("exercise_library")
     .select("*", { count: "exact" })
     .order("updated_at", { ascending: false })
     .range(from, to);
+
+  if (search) {
+    query = query.ilike("name", `%${search}%`);
+  }
+
+  const { data, error, count } = await query;
 
   const totalCount = count ?? 0;
 

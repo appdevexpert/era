@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { requireAdminClient } from "@/lib/admin/supabase";
 
@@ -91,7 +90,6 @@ export async function saveExercise(formData: FormData) {
   }
 
   revalidatePath("/exercises");
-  redirect("/exercises");
 }
 
 export async function saveProgram(formData: FormData) {
@@ -138,7 +136,6 @@ export async function saveProgram(formData: FormData) {
   }
 
   revalidatePath("/programs");
-  redirect("/programs");
 }
 
 export async function saveProgramWeek(formData: FormData) {
@@ -480,7 +477,6 @@ export async function deleteExercise(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/exercises");
-  redirect("/exercises");
 }
 
 export async function deleteProgram(formData: FormData) {
@@ -491,7 +487,6 @@ export async function deleteProgram(formData: FormData) {
   if (error) throw new Error(error.message);
 
   revalidatePath("/programs");
-  redirect("/programs");
 }
 
 export async function deleteProgramWeek(formData: FormData) {

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { saveExercise } from "@/lib/admin/actions";
+import { useFormAction } from "@/lib/admin/use-form-action";
 import {
   EXERCISE_CATEGORIES,
   EXERCISE_MODALITIES,
@@ -32,6 +33,9 @@ export function ExerciseFormDialog({
   defaultOpen?: boolean;
 }) {
   const isEditing = Boolean(exercise);
+  const { handleSubmit, pending } = useFormAction(saveExercise, {
+    success: isEditing ? "Exercise updated" : "Exercise created",
+  });
 
   return (
     <Dialog defaultOpen={defaultOpen}>
@@ -46,7 +50,7 @@ export function ExerciseFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={saveExercise} className="grid gap-5">
+        <form onSubmit={handleSubmit} className="grid gap-5">
           <input type="hidden" name="id" value={exercise?.id ?? ""} />
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -137,7 +141,9 @@ export function ExerciseFormDialog({
           </div>
 
           <div className="flex justify-end border-t border-border pt-4">
-            <Button type="submit">{isEditing ? "Save changes" : "Create exercise"}</Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Saving..." : isEditing ? "Save changes" : "Create exercise"}
+            </Button>
           </div>
         </form>
       </DialogContent>

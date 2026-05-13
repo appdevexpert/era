@@ -1,6 +1,7 @@
 "use client";
 
 import React, { type ReactElement, type ReactNode, useState } from "react";
+import { Toast } from "@base-ui/react/toast";
 import { ChevronDown, ChevronUp, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { FormField, OptionSelectField, SelectField } from "@/components/admin/form-field";
@@ -53,6 +54,7 @@ import {
   WORKOUT_PHASES,
 } from "@/lib/admin/constants";
 import { translation } from "@/lib/admin/format";
+import { useFormAction } from "@/lib/admin/use-form-action";
 import type { PlannedSetRow, ProgramDetail } from "@/lib/admin/types";
 
 // ---------------------------------------------------------------------------
@@ -105,6 +107,60 @@ function SubmitRow({ children }: { children: ReactNode }) {
   );
 }
 
+function ActionForm({
+  action,
+  successMessage,
+  submitLabel,
+  children,
+  className,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  successMessage: string;
+  submitLabel: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const { handleSubmit, pending } = useFormAction(action, { success: successMessage });
+  return (
+    <form onSubmit={handleSubmit} className={className ?? "grid gap-4"}>
+      {children}
+      <SubmitRow>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving..." : submitLabel}
+        </Button>
+      </SubmitRow>
+    </form>
+  );
+}
+
+function DefaultSectionsButton({ programId, dayId }: { programId: string; dayId: string }) {
+  const [pending, setPending] = useState(false);
+  const toastManager = Toast.useToastManager();
+
+  async function handleClick() {
+    setPending(true);
+    try {
+      const fd = new FormData();
+      fd.set("program_id", programId);
+      fd.set("program_day_id", dayId);
+      await addDefaultSections(fd);
+      toastManager.add({ type: "success", title: "Default sections added" });
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "digest" in err) throw err;
+      toastManager.add({ type: "error", title: "Failed", description: err instanceof Error ? err.message : "An unexpected error occurred." });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={handleClick}>
+      <Layers />
+      {pending ? "Adding..." : "Add default sections"}
+    </Button>
+  );
+}
+
 function DeleteButton({
   action,
   id,
@@ -117,6 +173,29 @@ function DeleteButton({
   programId: string;
   label: string;
 } & Omit<React.ComponentProps<typeof Button>, "type">) {
+  const [pending, setPending] = useState(false);
+  const toastManager = Toast.useToastManager();
+
+  async function handleDelete() {
+    setPending(true);
+    try {
+      const fd = new FormData();
+      fd.set("id", id);
+      fd.set("program_id", programId);
+      await action(fd);
+      toastManager.add({ type: "success", title: `${label.charAt(0).toUpperCase() + label.slice(1)} deleted` });
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "digest" in err) throw err;
+      toastManager.add({
+        type: "error",
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "An unexpected error occurred.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <BuilderDialog
       title={`Delete ${label}?`}
@@ -127,13 +206,13 @@ function DeleteButton({
         </Button>
       }
     >
-      <form action={action} className="grid gap-4">
-        <Hidden name="id" value={id} />
-        <Hidden name="program_id" value={programId} />
+      <div className="grid gap-4">
         <SubmitRow>
-          <Button type="submit" variant="destructive">Delete {label}</Button>
+          <Button type="button" variant="destructive" disabled={pending} onClick={handleDelete}>
+            {pending ? "Deleting..." : `Delete ${label}`}
+          </Button>
         </SubmitRow>
-      </form>
+      </div>
     </BuilderDialog>
   );
 }
@@ -204,7 +283,7 @@ function PlannedSetsList({
                         </Button>
                       }
                     >
-                      <form action={updatePlannedSet} className="grid gap-4">
+                      <ActionForm action={updatePlannedSet} successMessage="Set updated" submitLabel="Save set">
                         <Hidden name="id" value={set.id} />
                         <Hidden name="program_id" value={programId} />
                         <div className="grid gap-4 lg:grid-cols-2">
@@ -213,10 +292,7 @@ function PlannedSetsList({
                           <FormField label="Weight (kg)" name="target_weight_value" type="number" defaultValue={set.target_weight_value ?? ""} />
                           <FormField label="Reps" name="target_reps_exact" type="number" defaultValue={set.target_reps_exact ?? ""} />
                         </div>
-                        <SubmitRow>
-                          <Button type="submit">Save set</Button>
-                        </SubmitRow>
-                      </form>
+                      </ActionForm>
                     </BuilderDialog>
                     <DeleteButton action={deletePlannedSet} id={set.id} programId={programId} label="set" />
                   </div>
@@ -276,14 +352,7 @@ function ManageDayDialog({
             <h4 className="text-sm font-medium text-era-white">Sections</h4>
             <div className="flex gap-2">
               {!daySections.length ? (
-                <form action={addDefaultSections}>
-                  <Hidden name="program_id" value={programId} />
-                  <Hidden name="program_day_id" value={day.id} />
-                  <Button type="submit" variant="secondary" size="sm">
-                    <Layers />
-                    Add default sections
-                  </Button>
-                </form>
+                <DefaultSectionsButton programId={programId} dayId={day.id} />
               ) : null}
               <BuilderDialog
                 title="Add section"
@@ -294,17 +363,14 @@ function ManageDayDialog({
                   </Button>
                 }
               >
-                <form action={saveDaySection} className="grid gap-4">
+                <ActionForm action={saveDaySection} successMessage="Section added" submitLabel="Add section">
                   <Hidden name="program_id" value={programId} />
                   <Hidden name="program_day_id" value={day.id} />
                   <Hidden name="sort_order" value={daySections.length + 1} />
                   <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} />
                   <FormField label="Title EN" name="title_en" required />
                   <FormField label="Title NO" name="title_nb" required />
-                  <SubmitRow>
-                    <Button type="submit">Add section</Button>
-                  </SubmitRow>
-                </form>
+                </ActionForm>
               </BuilderDialog>
             </div>
           </div>
@@ -332,16 +398,13 @@ function ManageDayDialog({
                         </Button>
                       }
                     >
-                      <form action={updateDaySection} className="grid gap-4">
+                      <ActionForm action={updateDaySection} successMessage="Section updated" submitLabel="Save section">
                         <Hidden name="id" value={section.id} />
                         <Hidden name="program_id" value={programId} />
                         <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} defaultValue={section.section_kind} />
                         <FormField label="Title EN" name="title_en" defaultValue={translation(section.title_translations, "en", section.title)} />
                         <FormField label="Title NO" name="title_nb" defaultValue={translation(section.title_translations, "nb", section.title)} />
-                        <SubmitRow>
-                          <Button type="submit">Save section</Button>
-                        </SubmitRow>
-                      </form>
+                      </ActionForm>
                     </BuilderDialog>
                     <DeleteButton action={deleteDaySection} id={section.id} programId={programId} label="section" />
                   </div>
@@ -367,7 +430,7 @@ function ManageDayDialog({
                   </Button>
                 }
               >
-                <form action={assignExerciseToDay} className="grid gap-4">
+                <ActionForm action={assignExerciseToDay} successMessage="Exercise assigned" submitLabel="Assign exercise">
                   <Hidden name="program_id" value={programId} />
                   <Hidden name="program_day_id" value={day.id} />
                   <Hidden name="sort_order" value={dayExs.length + 1} />
@@ -376,10 +439,7 @@ function ManageDayDialog({
                     <OptionSelectField label="Exercise" name="exercise_id" options={exerciseLibraryOptions} />
                     <FormField label="Initial weight (kg)" name="initial_weight_value" type="number" />
                   </div>
-                  <SubmitRow>
-                    <Button type="submit">Assign exercise</Button>
-                  </SubmitRow>
-                </form>
+                </ActionForm>
               </BuilderDialog>
             ) : null}
           </div>
@@ -415,7 +475,7 @@ function ManageDayDialog({
                             </Button>
                           }
                         >
-                          <form action={updateDayExercise} className="grid gap-4">
+                          <ActionForm action={updateDayExercise} successMessage="Exercise updated" submitLabel="Save exercise">
                             <Hidden name="id" value={assignment.id} />
                             <Hidden name="program_id" value={programId} />
                             <div className="grid gap-4 lg:grid-cols-2">
@@ -423,10 +483,7 @@ function ManageDayDialog({
                               <OptionSelectField label="Exercise" name="exercise_id" options={exerciseLibraryOptions} defaultValue={assignment.exercise_id} />
                               <FormField label="Initial weight (kg)" name="initial_weight_value" type="number" defaultValue={assignment.initial_weight_value ?? ""} />
                             </div>
-                            <SubmitRow>
-                              <Button type="submit">Save exercise</Button>
-                            </SubmitRow>
-                          </form>
+                          </ActionForm>
                         </BuilderDialog>
                         <DeleteButton action={deleteDayExercise} id={assignment.id} programId={programId} label="exercise" />
                         <BuilderDialog
@@ -439,7 +496,7 @@ function ManageDayDialog({
                             </Button>
                           }
                         >
-                          <form action={addBulkSets} className="grid gap-4">
+                          <ActionForm action={addBulkSets} successMessage="Sets added" submitLabel="Add sets">
                             <Hidden name="program_id" value={programId} />
                             <Hidden name="program_day_exercise_id" value={assignment.id} />
                             <Hidden name="start_from" value={exerciseSets.length + 1} />
@@ -453,10 +510,7 @@ function ManageDayDialog({
                               <FormField label="Duration sec" name="target_duration_seconds" type="number" />
                               <FormField label="Rest sec" name="rest_seconds" type="number" />
                             </div>
-                            <SubmitRow>
-                              <Button type="submit">Add sets</Button>
-                            </SubmitRow>
-                          </form>
+                          </ActionForm>
                         </BuilderDialog>
                         <BuilderDialog
                           title="Add set"
@@ -468,7 +522,7 @@ function ManageDayDialog({
                             </Button>
                           }
                         >
-                          <form action={addPlannedSet} className="grid gap-4">
+                          <ActionForm action={addPlannedSet} successMessage="Set added" submitLabel="Add set">
                             <Hidden name="program_id" value={programId} />
                             <Hidden name="program_day_exercise_id" value={assignment.id} />
                             <Hidden name="set_number" value={exerciseSets.length + 1} />
@@ -477,10 +531,7 @@ function ManageDayDialog({
                               <FormField label="Weight (kg)" name="target_weight_value" type="number" />
                               <FormField label="Reps" name="target_reps_exact" type="number" />
                             </div>
-                            <SubmitRow>
-                              <Button type="submit">Add set</Button>
-                            </SubmitRow>
-                          </form>
+                          </ActionForm>
                         </BuilderDialog>
                       </div>
                     </div>
@@ -535,14 +586,11 @@ export function ProgramBuilder({
                 description="Create the next phase in this program."
                 trigger={<DialogButton>Add week</DialogButton>}
               >
-                <form action={saveProgramWeek} className="grid gap-4">
+                <ActionForm action={saveProgramWeek} successMessage="Week added" submitLabel="Add week">
                   <Hidden name="program_id" value={program.id} />
                   <FormField label="Week number" name="week_number" type="number" defaultValue={weeks.length + 1} />
                   <SelectField label="Phase" name="focus" options={WORKOUT_PHASES} />
-                  <SubmitRow>
-                    <Button type="submit">Add week</Button>
-                  </SubmitRow>
-                </form>
+                </ActionForm>
               </BuilderDialog>
             </CardAction>
           </CardHeader>
@@ -568,14 +616,11 @@ export function ProgramBuilder({
                         </Button>
                       }
                     >
-                      <form action={saveProgramWeek} className="grid gap-4">
+                      <ActionForm action={saveProgramWeek} successMessage="Week updated" submitLabel="Save week">
                         <Hidden name="program_id" value={program.id} />
                         <FormField label="Week number" name="week_number" type="number" defaultValue={week.week_number} />
                         <SelectField label="Phase" name="focus" options={WORKOUT_PHASES} defaultValue={week.focus ?? ""} />
-                        <SubmitRow>
-                          <Button type="submit">Save week</Button>
-                        </SubmitRow>
-                      </form>
+                      </ActionForm>
                     </BuilderDialog>
                     <DeleteButton action={deleteProgramWeek} id={week.id} programId={program.id} label="week" />
                   </div>
@@ -598,7 +643,7 @@ export function ProgramBuilder({
                   description="Attach a workout day to a program week."
                   trigger={<DialogButton>Add day</DialogButton>}
                 >
-                  <form action={saveProgramDay} className="grid gap-4">
+                  <ActionForm action={saveProgramDay} successMessage="Day added" submitLabel="Add day">
                     <Hidden name="program_id" value={program.id} />
                     <OptionSelectField label="Week" name="week_id" options={weekOptions} />
                     <div className="grid gap-4 lg:grid-cols-2">
@@ -614,10 +659,7 @@ export function ProgramBuilder({
                         <FormField label="Target muscles" name="target_muscles" placeholder="chest, shoulders" />
                       </div>
                     </div>
-                    <SubmitRow>
-                      <Button type="submit">Add day</Button>
-                    </SubmitRow>
-                  </form>
+                  </ActionForm>
                 </BuilderDialog>
               ) : (
                 <Button type="button" variant="secondary" disabled>
@@ -668,7 +710,7 @@ export function ProgramBuilder({
                                 </Button>
                               }
                             >
-                              <form action={saveProgramDay} className="grid gap-4">
+                              <ActionForm action={saveProgramDay} successMessage="Day updated" submitLabel="Save day">
                                 <Hidden name="program_id" value={program.id} />
                                 <OptionSelectField label="Week" name="week_id" options={weekOptions} defaultValue={day.week_id} />
                                 <div className="grid gap-4 lg:grid-cols-2">
@@ -684,10 +726,7 @@ export function ProgramBuilder({
                                     <FormField label="Target muscles" name="target_muscles" defaultValue={day.target_muscles?.join(", ") ?? ""} />
                                   </div>
                                 </div>
-                                <SubmitRow>
-                                  <Button type="submit">Save day</Button>
-                                </SubmitRow>
-                              </form>
+                              </ActionForm>
                             </BuilderDialog>
                             <DeleteButton action={deleteProgramDay} id={day.id} programId={program.id} label="day" />
                           </div>

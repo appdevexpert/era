@@ -30,7 +30,7 @@ export function useGoogleAuth() {
 
       const signInResult: any = await GoogleSignin.signIn();
 
-      console.log("[GOOGLE] signInResult:", JSON.stringify(signInResult));
+
 
       const idToken =
         signInResult?.idToken ?? signInResult?.data?.idToken ?? null;
@@ -46,8 +46,6 @@ export function useGoogleAuth() {
         console.error("[GOOGLE] Supabase error:", error.message);
         return { type: "error", error: new Error(error.message) };
       }
-
-      console.log("[GOOGLE] Success, user:", data?.user?.email);
       return { type: "success" };
     } catch (err: any) {
       console.error("[GOOGLE] catch:", err?.code, err?.message, err);

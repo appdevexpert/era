@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { saveProgram } from "@/lib/admin/actions";
+import { useFormAction } from "@/lib/admin/use-form-action";
 import { PROGRAM_STATUSES } from "@/lib/admin/constants";
 import { translation } from "@/lib/admin/format";
 import type { ProgramRow } from "@/lib/admin/types";
@@ -27,6 +28,9 @@ export function ProgramFormDialog({
   defaultOpen?: boolean;
 }) {
   const isEditing = Boolean(program);
+  const { handleSubmit, pending } = useFormAction(saveProgram, {
+    success: isEditing ? "Program updated" : "Program created",
+  });
 
   return (
     <Dialog defaultOpen={defaultOpen}>
@@ -41,7 +45,7 @@ export function ProgramFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form action={saveProgram} className="grid gap-5">
+        <form onSubmit={handleSubmit} className="grid gap-5">
           <input type="hidden" name="id" value={program?.id ?? ""} />
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -112,7 +116,9 @@ export function ProgramFormDialog({
           </div>
 
           <div className="flex justify-end border-t border-border pt-4">
-            <Button type="submit">{isEditing ? "Save changes" : "Create program"}</Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Saving..." : isEditing ? "Save changes" : "Create program"}
+            </Button>
           </div>
         </form>
       </DialogContent>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ToastProvider, Toaster } from "@/components/ui/toast";
 import "./globals.css";
 
 const playfairDisplay = localFont({
@@ -32,9 +33,12 @@ export default function RootLayout({
       className={`${playfairDisplay.variable} ${italiana.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <TooltipProvider>
-          <AdminShell>{children}</AdminShell>
-        </TooltipProvider>
+        <ToastProvider>
+          <TooltipProvider>
+            <AdminShell>{children}</AdminShell>
+          </TooltipProvider>
+          <Toaster />
+        </ToastProvider>
       </body>
     </html>
   );
