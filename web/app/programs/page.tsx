@@ -44,7 +44,7 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       <ProgramTable programs={programsState.data} />
 
       {selectedProgramState.data ? (
-        <ProgramFormDialog program={selectedProgramState.data} defaultOpen />
+        <ProgramFormDialog key={edit} program={selectedProgramState.data} defaultOpen />
       ) : null}
     </>
   );
