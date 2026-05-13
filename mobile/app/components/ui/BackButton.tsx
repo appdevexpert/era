@@ -29,8 +29,8 @@ const BackButton = ({ onPress }: BackButtonProps) => {
       >
         <GlassView
           pointerEvents="none"
-          glassEffectStyle="regular"
-          colorScheme="dark"
+          glassEffectStyle="clear"
+          colorScheme="light"
           style={styles.glass}
         />
         <ChevronBack width={20} height={20} />
@@ -51,10 +51,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   glass: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+  //  position: "absolute",
+  //  left: 0,
+  //  right: 0,
+  //  top: 0,
+  //  bottom: 0
   },
 })

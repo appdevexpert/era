@@ -1,6 +1,5 @@
 import { COLORS, GRADIENTS } from "@/app/constants/colors";
-import { Get } from "@/assets/icons";
-import { IntroBackground } from "@/assets/images";
+import { IntroBackground, GetIcon } from "@/assets/images";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -131,7 +130,7 @@ const GetStarted = () => {
           {/* Draggable golden circle */}
           <GestureDetector gesture={panGesture}>
             <Animated.View style={[styles.circleWrapper, circleStyle]}>
-              <Get width={62} height={61} />
+              <Image source={GetIcon} style={{ width: 62, height: 61 }} />
             </Animated.View>
           </GestureDetector>
         </View>

@@ -54,7 +54,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => 
         style={styles.chip}
       >
         <StatWorkoutPlan width={32} height={32} />
-        <Text style={[styles.chipLabel, { width: 101 }]}>{t("workout.ui.workoutPlan")}</Text>
+        <Text style={styles.chipLabel}>{t("workout.ui.workoutPlan")}</Text>
       </LinearGradient>
     </ScrollView>
   );

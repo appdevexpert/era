@@ -28,8 +28,8 @@ const DayPill = ({
       <Pressable onPress={onPress} style={styles.pillActive}>
         <GlassView
           pointerEvents="none"
-          glassEffectStyle="regular"
-          colorScheme="dark"
+          glassEffectStyle="clear"
+          colorScheme="light"
           style={styles.glassFill}
         />
         <LinearGradient

@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { LinearGradient } from 'expo-linear-gradient'
 import Animated, {
   Easing,
+  FadeInLeft,
+  FadeInRight,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -28,6 +30,7 @@ interface OnboardingLayoutProps {
   buttonDisabled?: boolean
   showHeader?: boolean
   showButton?: boolean
+  direction?: 'forward' | 'back'
   onNext: () => void
   onBack?: () => void
 }
@@ -43,6 +46,7 @@ const OnboardingLayout = ({
   buttonDisabled = false,
   showHeader = true,
   showButton = true,
+  direction = 'forward',
   onNext,
   onBack,
 }: OnboardingLayoutProps) => {
@@ -87,16 +91,27 @@ const OnboardingLayout = ({
           <Text style={styles.stepCounter}>{currentStep}/{totalSteps}</Text>
         </View>
 
-        {showHeader && (
-          <View style={styles.headerSection}>
-            <Text style={styles.eyebrow}>{eyebrow}</Text>
-            <Text style={styles.heading}>{heading}</Text>
-            <Text style={styles.description}>{description}</Text>
-          </View>
-        )}
+        <Animated.View
+          key={currentStep}
+          entering={
+            (direction === 'forward' ? FadeInRight : FadeInLeft)
+              .duration(300)
+              .damping(20)
+              .stiffness(150)
+          }
+          style={{ flex: 1 }}
+        >
+          {showHeader && (
+            <View style={styles.headerSection}>
+              <Text style={styles.eyebrow}>{eyebrow}</Text>
+              <Text style={styles.heading}>{heading}</Text>
+              <Text style={styles.description}>{description}</Text>
+            </View>
+          )}
 
-        {/* Step Content */}
-        <View style={styles.content}>{children}</View>
+          {/* Step Content */}
+          <View style={styles.content}>{children}</View>
+        </Animated.View>
 
         {showButton && (
           <View style={styles.buttonContainer}>

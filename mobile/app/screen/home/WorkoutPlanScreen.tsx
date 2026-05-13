@@ -100,7 +100,7 @@ const DayPillItem = ({ pill, onPress }: { pill: DayPill; onPress?: () => void })
         <GlassView
           pointerEvents="none"
           glassEffectStyle="clear"
-          colorScheme="dark"
+          colorScheme="light"
           style={styles.dayPillFill}
         />
         {hasGradient ? (
@@ -132,7 +132,7 @@ const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
         <GlassView
           pointerEvents="none"
           glassEffectStyle="clear"
-          colorScheme="dark"
+          colorScheme="light"
           style={styles.dayPillFill}
         />
         <Text style={styles.weekBadgeText}>
@@ -144,7 +144,7 @@ const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
   );
 };
 
-const WeekSection = ({ week, onDayPress }: { week: WorkoutPlanWeekView; onDayPress: (pill: DayPill) => void }) => {
+const WeekSection = ({ week, isLast, onDayPress }: { week: WorkoutPlanWeekView; isLast: boolean; onDayPress: (pill: DayPill) => void }) => {
   const { t } = useTranslation();
   const firstRow = week.days.slice(0, 4);
   const secondRow = week.days.slice(4);
@@ -167,9 +167,9 @@ const WeekSection = ({ week, onDayPress }: { week: WorkoutPlanWeekView; onDayPre
       </View>
 
       <View style={styles.weekBody}>
-        <DashedTimeline isCurrentWeek={week.isCurrentWeek} />
+        {!isLast && <DashedTimeline isCurrentWeek={week.isCurrentWeek} />}
 
-        <View style={styles.daysCard}>
+        <View style={[styles.daysCard, isLast && styles.daysCardNoTimeline]}>
           <View style={styles.daysRow}>
             {firstRow.map((pill) => (
               <DayPillItem
@@ -257,8 +257,8 @@ const WorkoutPlanScreen = () => {
               <PlanProgressBar phases={plan.phases} />
             </View>
 
-            {plan.weeks.map((week) => (
-              <WeekSection key={week.weekNumber} week={week} onDayPress={handleDayPress} />
+            {plan.weeks.map((week, index) => (
+              <WeekSection key={week.weekNumber} week={week} isLast={index === plan.weeks.length - 1} onDayPress={handleDayPress} />
             ))}
           </>
         ) : (
@@ -344,6 +344,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     gap: 24,
+  },
+  daysCardNoTimeline: {
+    marginLeft: 22,
   },
   daysRow: {
     flexDirection: "row",

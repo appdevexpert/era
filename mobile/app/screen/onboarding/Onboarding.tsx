@@ -35,6 +35,7 @@ const Onboarding = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [stepIndex, setStepIndex] = useState(0)
+  const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [selections, setSelections] = useState<Selections>({
     gender: null,
     level: null,
@@ -121,6 +122,7 @@ const Onboarding = () => {
   const handleNext = () => {
     if (buttonDisabled) return
     if (stepIndex < STEPS.length - 1) {
+      setDirection('forward')
       setStepIndex(stepIndex + 1)
     } else {
       dispatch(completeOnboarding())
@@ -129,6 +131,7 @@ const Onboarding = () => {
 
   const handleBack = () => {
     if (stepIndex > 0) {
+      setDirection('back')
       setStepIndex(stepIndex - 1)
     }
   }
@@ -142,6 +145,7 @@ const Onboarding = () => {
       description={t(`onboarding.steps.${layoutStepKey}.description`)}
       buttonDisabled={buttonDisabled}
       showHeader={currentStepKey !== 'paywall'}
+      direction={direction}
       onNext={handleNext}
       onBack={stepIndex > 0 ? handleBack : undefined}
     >

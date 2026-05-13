@@ -115,7 +115,7 @@ const WorkoutCard = ({
             animate: true,
             animationDuration: 0.5,
           }}
-          colorScheme="dark"
+          colorScheme="light"
           style={styles.startGradient}
         />
         <LinearGradient
