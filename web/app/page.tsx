@@ -41,9 +41,9 @@ export default async function DashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <StatCard
-          title="Active users"
-          value={stats.activeUsers}
-          description="Users with sessions in last 30 days"
+          title="Users"
+          value={stats.totalUsers}
+          description="Registered users"
           icon={Activity}
           href="/users"
         />
