@@ -250,6 +250,9 @@ const en = {
       weekAdjustedNote: "Initial Days of Week 1 are adjusted here.",
       loadingWorkout: "Loading workout...",
       unableToLoadWorkout: "Unable to load workout.",
+      weekDayEyebrow: "Week {{week}} • {{day}}",
+      exerciseStartingIn: "{{exercise}} starting in",
+      noExerciseToStart: "No exercise is ready to start.",
     },
     weekdays: {
       mon: "Mon",

@@ -39,6 +39,12 @@ export type WorkoutPlanParams = {
   programDayId?: string;
 };
 
+export type StartTimerParams = {
+  programId?: string;
+  programDayId?: string;
+  programDayExerciseId?: string;
+};
+
 export type HomeStackParamList = {
   HomeTabs: NavigatorScreenParams<HomeTabParamList> | undefined;
   Setting: undefined;
@@ -46,6 +52,7 @@ export type HomeStackParamList = {
   Notification: undefined;
   WorkoutPlan: WorkoutPlanParams | undefined;
   ExerciseList: WorkoutPlanParams | undefined;
+  StartTimer: StartTimerParams | undefined;
 };
 
 export type RootStackParamList = {

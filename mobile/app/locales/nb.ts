@@ -250,6 +250,9 @@ const nb = {
       weekAdjustedNote: "De første dagene fra uke 1 justeres her.",
       loadingWorkout: "Laster treningsøkt...",
       unableToLoadWorkout: "Kunne ikke laste treningsøkten.",
+      weekDayEyebrow: "Uke {{week}} • {{day}}",
+      exerciseStartingIn: "{{exercise}} starter om",
+      noExerciseToStart: "Ingen øvelse er klar til å starte.",
     },
     weekdays: {
       mon: "Man",

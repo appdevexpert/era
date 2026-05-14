@@ -16,9 +16,10 @@ import type {
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapExerciseList } from "@/app/utils/workoutMappers";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -64,11 +65,24 @@ const SectionHeader = ({
   );
 };
 
-const ExerciseRow = ({ exercise }: { exercise: ExerciseListExerciseView }) => {
+const ExerciseRow = ({
+  exercise,
+  onPress,
+}: {
+  exercise: ExerciseListExerciseView;
+  onPress: (exerciseId: string) => void;
+}) => {
   const { t } = useTranslation();
 
   return (
-    <View style={styles.exerciseRow}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => onPress(exercise.id)}
+      style={({ pressed }) => [
+        styles.exerciseRow,
+        pressed ? styles.exerciseRowPressed : null,
+      ]}
+    >
       {exercise.showHandle ? <ReorderIcon /> : null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
@@ -82,17 +96,23 @@ const ExerciseRow = ({ exercise }: { exercise: ExerciseListExerciseView }) => {
           <Text style={styles.weightValue}>{exercise.weight}</Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 };
 
-const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
+const ExerciseSection = ({
+  section,
+  onExercisePress,
+}: {
+  section: ExerciseListSectionView;
+  onExercisePress: (exerciseId: string) => void;
+}) => (
   <View style={styles.section}>
     <SectionHeader title={section.title} showEdit={section.showEdit} />
     <View style={styles.exerciseList}>
       {section.exercises.map((exercise, index) => (
         <View key={exercise.id}>
-          <ExerciseRow exercise={exercise} />
+          <ExerciseRow exercise={exercise} onPress={onExercisePress} />
           {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
         </View>
       ))}
@@ -103,6 +123,7 @@ const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
 const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseList">>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
@@ -117,7 +138,27 @@ const ExerciseListScreen = () => {
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && currentDayDetail?.day.id !== requestedDayId,
   );
-  const handleStartNow = () => undefined;
+  const firstExerciseId = workout?.sections.flatMap((section) => section.exercises)[0]?.id;
+  const openStartTimer = useCallback(
+    (programDayExerciseId?: string) => {
+      if (!workout || shouldLoadRequestedDay) {
+        return;
+      }
+
+      navigation.navigate("StartTimer", {
+        programId: route.params?.programId,
+        programDayId: workout.id,
+        programDayExerciseId,
+      });
+    },
+    [
+      navigation,
+      route.params?.programId,
+      shouldLoadRequestedDay,
+      workout,
+    ],
+  );
+  const handleStartNow = () => openStartTimer(firstExerciseId);
   const isLoading =
     workoutStatus === "idle" ||
     workoutStatus === "loading" ||
@@ -166,7 +207,11 @@ const ExerciseListScreen = () => {
             </View>
 
             {workout.sections.map((section) => (
-              <ExerciseSection key={section.id} section={section} />
+              <ExerciseSection
+                key={section.id}
+                onExercisePress={openStartTimer}
+                section={section}
+              />
             ))}
           </>
         ) : (
@@ -187,7 +232,11 @@ const ExerciseListScreen = () => {
             style={styles.bottomFade}
           />
           <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
-            <PrimaryButton label={t("workout.ui.startNow")} onPress={handleStartNow} />
+            <PrimaryButton
+              disabled={!firstExerciseId}
+              label={t("workout.ui.startNow")}
+              onPress={handleStartNow}
+            />
           </View>
         </>
       ) : null}
@@ -298,6 +347,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+    borderRadius: 12,
+  },
+  exerciseRowPressed: {
+    backgroundColor: COLORS.alpha.white04,
   },
   reorderIcon: {
     width: 24,
