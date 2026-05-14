@@ -1,14 +1,17 @@
 import type { MuscleGroup } from "@/app/navigation/types";
 import type {
+  ExerciseLibraryRow,
   ExerciseListView,
   PlannedExerciseSetRow,
   ProgramDayDetailData,
+  ProgramDayExerciseRow,
   ProgramDayRow,
   ProgramWeekRow,
   WorkoutHomeView,
   WorkoutPlanPhaseView,
   WorkoutPlanView,
   WorkoutPlanWeekView,
+  WorkoutStartTimerView,
   WorkoutOverviewData,
 } from "@/app/types/workout";
 import { getLocalizedText, normalizeLanguage, type AppLanguage } from "@/app/utils/localization";
@@ -23,6 +26,11 @@ import {
 const WEEKDAY_LABELS = {
   en: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
   nb: ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"],
+};
+
+const FULL_WEEKDAY_LABELS = {
+  en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  nb: ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"],
 };
 
 const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
@@ -77,9 +85,30 @@ const getWeekdayLabel = (weekday: number | null, language: string) => {
   return labels[index] ?? labels[0];
 };
 
+const getFullWeekdayLabel = (weekday: number | null, language: string) => {
+  const labels = FULL_WEEKDAY_LABELS[normalizeLanguage(language)];
+  const index = typeof weekday === "number" ? weekday - 1 : 0;
+  return labels[index] ?? labels[0];
+};
+
 const localizeMuscle = (muscle: string, language: string) => {
   const labels = MUSCLE_LABELS[normalizeLanguage(language)];
   return labels[muscle] ?? muscle;
+};
+
+const getExerciseDisplayName = (
+  exercise: ProgramDayExerciseRow,
+  libraryById: Map<string, ExerciseLibraryRow>,
+  language: string,
+) => {
+  const libraryExercise = libraryById.get(exercise.exercise_id);
+
+  return getLocalizedText(
+    exercise.display_name_translations,
+    language,
+    exercise.display_name ??
+      getLocalizedText(libraryExercise?.name_translations ?? null, language, libraryExercise?.name ?? ""),
+  );
 };
 
 export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
@@ -211,19 +240,13 @@ export function mapExerciseList(
         title: getLocalizedText(section.title_translations, language, section.title),
         showEdit: section.section_kind === "main_exercises",
         exercises: sectionExercises.map((exercise) => {
-          const libraryExercise = libraryById.get(exercise.exercise_id);
           const exerciseSets = setsByExerciseId[exercise.id] ?? [];
           const firstWeightedSet = exerciseSets.find((set) => set.target_weight_value);
           const weight = formatWeight(
             exercise.initial_weight_value ?? firstWeightedSet?.target_weight_value,
             exercise.initial_weight_unit ?? firstWeightedSet?.target_weight_unit ?? "kg",
           );
-          const name = getLocalizedText(
-            exercise.display_name_translations,
-            language,
-            exercise.display_name ??
-              getLocalizedText(libraryExercise?.name_translations ?? null, language, libraryExercise?.name ?? ""),
-          );
+          const name = getExerciseDisplayName(exercise, libraryById, language);
 
           return {
             id: exercise.id,
@@ -239,6 +262,33 @@ export function mapExerciseList(
         }),
       };
     }),
+  };
+}
+
+export function mapWorkoutStartTimer(
+  data: ProgramDayDetailData,
+  language: string,
+  programDayExerciseId?: string,
+): WorkoutStartTimerView | null {
+  const libraryById = new Map(data.libraryExercises.map((exercise) => [exercise.id, exercise]));
+  const sectionById = new Map(data.sections.map((section) => [section.id, section]));
+  const selectedExercise =
+    data.exercises.find((exercise) => exercise.id === programDayExerciseId) ??
+    data.exercises.find(
+      (exercise) => sectionById.get(exercise.section_id)?.section_kind === "main_exercises",
+    ) ??
+    data.exercises[0];
+
+  if (!selectedExercise) {
+    return null;
+  }
+
+  return {
+    id: selectedExercise.id,
+    weekNumber: data.week.week_number,
+    dayLabel: getFullWeekdayLabel(data.day.weekday, language),
+    workoutTitle: getLocalizedText(data.day.title_translations, language, data.day.title),
+    exerciseName: getExerciseDisplayName(selectedExercise, libraryById, language),
   };
 }
 

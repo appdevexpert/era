@@ -3,6 +3,7 @@ import ExerciseListScreen from "@/app/screen/home/ExerciseListScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";
 import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
+import StartTimerScreen from "@/app/screen/home/StartTimerScreen";
 import WorkoutPlanScreen from "@/app/screen/home/WorkoutPlanScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import BottomTabNavigator from "./BottomTabNavigator";
@@ -34,6 +35,7 @@ const HomeNavigator = () => (
         headerTransparent: true,
       }}
     />
+    <Stack.Screen name="StartTimer" component={StartTimerScreen} />
   </Stack.Navigator>
 );
 

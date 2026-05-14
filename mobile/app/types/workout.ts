@@ -192,3 +192,11 @@ export interface ExerciseListView {
   estimatedMinutes: number;
   sections: ExerciseListSectionView[];
 }
+
+export interface WorkoutStartTimerView {
+  id: string;
+  weekNumber: number;
+  dayLabel: string;
+  workoutTitle: string;
+  exerciseName: string;
+}
