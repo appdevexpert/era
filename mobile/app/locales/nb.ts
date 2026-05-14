@@ -308,6 +308,7 @@ const nb = {
       actions: {
         completeSet: "Fullfør sett",
         completeExercise: "Fullfør øvelse",
+        prevAccessibility: "Gå til forrige sett",
         nextAccessibility: "Gå til neste sett",
       },
     },

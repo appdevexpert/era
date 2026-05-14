@@ -308,6 +308,7 @@ const en = {
       actions: {
         completeSet: "Complete Set",
         completeExercise: "Complete Exercise",
+        prevAccessibility: "Go to previous set",
         nextAccessibility: "Go to next set",
       },
     },

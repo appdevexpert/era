@@ -20,9 +20,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type SetLoggingScreenProps = {
   buttonVariant?: "completeSet" | "completeExercise";
+  footerVariant?: "first" | "middle" | "final";
 };
 
-const SetLoggingScreen = ({ buttonVariant = "completeSet" }: SetLoggingScreenProps) => {
+const SetLoggingScreen = ({
+  buttonVariant = "completeSet",
+  footerVariant = "first",
+}: SetLoggingScreenProps) => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
 
@@ -107,8 +111,11 @@ const SetLoggingScreen = ({ buttonVariant = "completeSet" }: SetLoggingScreenPro
       >
         <SetActionFooter
           buttonLabel={buttonLabel}
+          variant={footerVariant}
           onPrimaryAction={() => undefined}
+          onPrev={() => undefined}
           onNext={() => undefined}
+          prevAccessibilityLabel={t("workout.setLogging.actions.prevAccessibility")}
           nextAccessibilityLabel={t("workout.setLogging.actions.nextAccessibility")}
         />
       </View>
