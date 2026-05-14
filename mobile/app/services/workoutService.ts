@@ -59,6 +59,8 @@ const WORKOUT_SESSION_SELECT =
 const SESSION_EXERCISE_SELECT =
   "id,session_id,program_day_exercise_id,exercise_id,section_kind,sort_order,display_name_snapshot,category_snapshot,muscle_snapshot,status,started_at,completed_at,skipped_reason,comment,created_at,updated_at";
 
+const startSessionRequests = new Map<string, Promise<ActiveWorkoutSessionSnapshot>>();
+
 export async function getWorkoutOverview(
   programId = RAMI_TEMPLATE_PROGRAM_ID,
 ): Promise<WorkoutOverviewData> {
@@ -216,12 +218,36 @@ export async function startOrResumeWorkoutSession(
   programDayId: string,
 ): Promise<ActiveWorkoutSessionSnapshot> {
   const userId = await getCurrentUserId();
+  const requestKey = `${userId}:${programDayId}`;
+  const existingRequest = startSessionRequests.get(requestKey);
+
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = startOrResumeWorkoutSessionRequest(userId, programDayId)
+    .finally(() => {
+      if (startSessionRequests.get(requestKey) === request) {
+        startSessionRequests.delete(requestKey);
+      }
+    });
+
+  startSessionRequests.set(requestKey, request);
+  return request;
+}
+
+async function startOrResumeWorkoutSessionRequest(
+  userId: string,
+  programDayId: string,
+): Promise<ActiveWorkoutSessionSnapshot> {
   const dayDetail = await getProgramDayDetail(programDayId);
   const orderedExercises = getOrderedPlannedExercises(dayDetail);
-  const existingSession = await findActiveWorkoutSession(userId, programDayId);
+  const existingSession = await getCanonicalActiveWorkoutSession(userId, programDayId);
 
   let session = existingSession ??
     await createWorkoutSession(userId, programDayId, orderedExercises.length);
+  session = await getCanonicalActiveWorkoutSession(userId, programDayId) ?? session;
+
   const sessionExercises = await hydrateSessionExercises(session.id, dayDetail);
 
   if (session.total_exercises !== sessionExercises.length) {
@@ -239,7 +265,7 @@ export async function getActiveWorkoutSessionSnapshot(
   programDayId: string,
 ): Promise<ActiveWorkoutSessionSnapshot | null> {
   const userId = await getCurrentUserId();
-  const session = await findActiveWorkoutSession(userId, programDayId);
+  const session = await getCanonicalActiveWorkoutSession(userId, programDayId);
 
   if (!session) {
     return null;
@@ -343,23 +369,35 @@ async function getCurrentUserId() {
   return data.user.id;
 }
 
-async function findActiveWorkoutSession(userId: string, programDayId: string) {
+async function getCanonicalActiveWorkoutSession(userId: string, programDayId: string) {
+  const sessions = await findActiveWorkoutSessions(userId, programDayId);
+  const [canonicalSession, ...duplicateSessions] = sessions;
+
+  if (duplicateSessions.length > 0) {
+    await retireDuplicateWorkoutSessions(
+      duplicateSessions.map((session) => session.id),
+      canonicalSession.id,
+    );
+  }
+
+  return canonicalSession ?? null;
+}
+
+async function findActiveWorkoutSessions(userId: string, programDayId: string) {
   const result = await supabase
     .from("workout_sessions")
     .select(WORKOUT_SESSION_SELECT)
     .eq("user_id", userId)
     .eq("program_day_id", programDayId)
     .eq("status", "in_progress")
-    .order("started_at", { ascending: false })
-    .limit(1);
+    .order("started_at", { ascending: true })
+    .order("id", { ascending: true });
 
-  const sessions = requireList(
+  return requireList(
     result.data as WorkoutSessionRow[] | null,
     result.error,
     "Active workout session could not be loaded.",
   );
-
-  return sessions[0] ?? null;
 }
 
 async function getWorkoutSession(sessionId: string) {
@@ -376,6 +414,29 @@ async function getWorkoutSession(sessionId: string) {
   );
 
   return sessions[0] ?? null;
+}
+
+async function retireDuplicateWorkoutSessions(
+  duplicateSessionIds: string[],
+  canonicalSessionId: string,
+) {
+  if (duplicateSessionIds.length === 0) {
+    return;
+  }
+
+  const result = await supabase
+    .from("workout_sessions")
+    .update({
+      status: "skipped",
+      session_notes: `Superseded by active session ${canonicalSessionId}.`,
+    })
+    .in("id", duplicateSessionIds);
+
+  if (result.error) {
+    throw new Error(
+      result.error.message ?? "Duplicate workout sessions could not be retired.",
+    );
+  }
 }
 
 async function createWorkoutSession(
