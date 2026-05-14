@@ -273,6 +273,32 @@ const en = {
       unableToLoad: "Unable to load workout session.",
       upNext: "Up next",
     },
+    setLogging: {
+      setEyebrow: "Set {{number}}",
+      weightUnit: "Kgs",
+      bestSet: {
+        label: "Best Set",
+        reps: "Reps",
+      },
+      labels: {
+        weight: "Weight",
+        reps: "Reps",
+        feedback: "How did it feel?",
+        commentsPlaceholder: "Add Comments",
+        commentsAccessibility: "Add comments about this set",
+        micAccessibility: "Record a voice note",
+      },
+      feedback: {
+        light: "Light Weight",
+        correct: "Correct Weight",
+        heavy: "Felt Heavy",
+      },
+      actions: {
+        completeSet: "Complete Set",
+        completeExercise: "Complete Exercise",
+        nextAccessibility: "Go to next set",
+      },
+    },
     weekdays: {
       mon: "Mon",
       tue: "Tue",
