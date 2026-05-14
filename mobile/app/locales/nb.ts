@@ -273,6 +273,18 @@ const nb = {
       unableToLoad: "Kunne ikke laste treningsøkten.",
       upNext: "Neste",
     },
+    restTimer: {
+      title: "Hvilepause",
+      subtitle: "Sett {{number}} starter om...",
+      secondsLabel: "Sekunder",
+      exercisesLabel: "ØVELSER",
+      extend: "+ {{seconds}} sek",
+      extendAccessibility: "Legg til {{seconds}} sekunder på hvilepausen",
+      progressAccessibility: "Øvelse {{current}} av {{total}} {{label}}",
+      upNextEyebrow: "Neste",
+      upNextSetInfo: "{{current}}/{{total}} SETT",
+      skipAccessibility: "Hopp over hvile og start neste sett",
+    },
     setLogging: {
       setEyebrow: "Sett {{number}}",
       weightUnit: "Kg",
