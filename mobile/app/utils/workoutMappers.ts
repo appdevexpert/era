@@ -11,6 +11,7 @@ import type {
   WorkoutPlanPhaseView,
   WorkoutPlanView,
   WorkoutPlanWeekView,
+  WorkoutSessionHeaderView,
   WorkoutStartTimerView,
   WorkoutOverviewData,
 } from "@/app/types/workout";
@@ -289,6 +290,72 @@ export function mapWorkoutStartTimer(
     dayLabel: getFullWeekdayLabel(data.day.weekday, language),
     workoutTitle: getLocalizedText(data.day.title_translations, language, data.day.title),
     exerciseName: getExerciseDisplayName(selectedExercise, libraryById, language),
+  };
+}
+
+export function mapWorkoutSessionHeader(
+  data: ProgramDayDetailData,
+  language: string,
+  programDayExerciseId?: string,
+): WorkoutSessionHeaderView | null {
+  const libraryById = new Map(data.libraryExercises.map((exercise) => [exercise.id, exercise]));
+  const sectionById = new Map(data.sections.map((section) => [section.id, section]));
+  const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
+    (acc, set) => {
+      const current = acc[set.program_day_exercise_id] ?? [];
+      acc[set.program_day_exercise_id] = [...current, set];
+      return acc;
+    },
+    {},
+  );
+  const sortedExercises = [...data.exercises].sort((a, b) => a.sort_order - b.sort_order);
+  const selectedIndex = Math.max(
+    sortedExercises.findIndex((exercise) => exercise.id === programDayExerciseId),
+    0,
+  );
+  const selectedExercise = sortedExercises[selectedIndex];
+
+  if (!selectedExercise) {
+    return null;
+  }
+
+  const section = sectionById.get(selectedExercise.section_id);
+  const libraryExercise = libraryById.get(selectedExercise.exercise_id);
+  const exerciseSets = [...(setsByExerciseId[selectedExercise.id] ?? [])].sort(
+    (a, b) => a.set_number - b.set_number,
+  );
+  const firstWeightedSet = exerciseSets.find((set) => set.target_weight_value);
+  const sectionTitle = section
+    ? getLocalizedText(section.title_translations, language, section.title)
+    : "";
+  const fallbackCategory = [
+    ...(libraryExercise?.primary_muscles?.slice(0, 1).map((muscle) => localizeMuscle(muscle, language)) ?? []),
+    libraryExercise?.category,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
+  return {
+    id: selectedExercise.id,
+    contextLabel: sectionTitle || fallbackCategory,
+    currentExercise: selectedIndex + 1,
+    dayTitle: formatDayLabel(data.day.day_number, language),
+    exerciseName: getExerciseDisplayName(selectedExercise, libraryById, language),
+    nextExerciseName: sortedExercises[selectedIndex + 1]
+      ? getExerciseDisplayName(sortedExercises[selectedIndex + 1], libraryById, language)
+      : undefined,
+    targetSummary: getLocalizedText(
+      selectedExercise.target_summary_translations,
+      language,
+      selectedExercise.target_summary ?? formatSetSummary(exerciseSets, language),
+    ),
+    totalExercises: sortedExercises.length,
+    totalSets: exerciseSets.length || 1,
+    weight: formatWeight(
+      selectedExercise.initial_weight_value ?? firstWeightedSet?.target_weight_value,
+      selectedExercise.initial_weight_unit ?? firstWeightedSet?.target_weight_unit ?? "kg",
+    ) || undefined,
+    workoutTitle: getLocalizedText(data.day.title_translations, language, data.day.title),
   };
 }
 

@@ -5,6 +5,7 @@ import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
 import StartTimerScreen from "@/app/screen/home/StartTimerScreen";
 import WorkoutPlanScreen from "@/app/screen/home/WorkoutPlanScreen";
+import WorkoutSessionScreen from "@/app/screen/workoutSession/WorkoutSessionScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import BottomTabNavigator from "./BottomTabNavigator";
 import { HomeStackParamList } from "./types";
@@ -36,6 +37,7 @@ const HomeNavigator = () => (
       }}
     />
     <Stack.Screen name="StartTimer" component={StartTimerScreen} />
+    <Stack.Screen name="WorkoutSession" component={WorkoutSessionScreen} />
   </Stack.Navigator>
 );
 

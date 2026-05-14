@@ -12,7 +12,8 @@ import { useAppDispatch } from "@/app/stores/store";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapWorkoutStartTimer } from "@/app/utils/workoutMappers";
 import { StartTimerDumbbell } from "@/assets/images";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -32,6 +33,7 @@ const StartTimerScreen = () => {
   const insets = useSafeAreaInsets();
   const { height, width } = useWindowDimensions();
   const route = useRoute<RouteProp<HomeStackParamList, "StartTimer">>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
@@ -105,6 +107,29 @@ const StartTimerScreen = () => {
 
     return () => clearTimeout(timeout);
   }, [countdown, timerView]);
+
+  useEffect(() => {
+    if (!timerView || countdown > 1) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      navigation.replace("WorkoutSession", {
+        programId: route.params?.programId,
+        programDayId: route.params?.programDayId ?? currentDayDetail?.day.id,
+        programDayExerciseId: timerView.id,
+      });
+    }, 900);
+
+    return () => clearTimeout(timeout);
+  }, [
+    countdown,
+    currentDayDetail?.day.id,
+    navigation,
+    route.params?.programDayId,
+    route.params?.programId,
+    timerView,
+  ]);
 
   return (
     <View style={styles.root}>

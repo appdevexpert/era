@@ -200,3 +200,17 @@ export interface WorkoutStartTimerView {
   workoutTitle: string;
   exerciseName: string;
 }
+
+export interface WorkoutSessionHeaderView {
+  id: string;
+  contextLabel: string;
+  currentExercise: number;
+  dayTitle: string;
+  exerciseName: string;
+  nextExerciseName?: string;
+  targetSummary?: string;
+  totalExercises: number;
+  totalSets: number;
+  weight?: string;
+  workoutTitle: string;
+}
