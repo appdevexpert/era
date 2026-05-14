@@ -65,24 +65,11 @@ const SectionHeader = ({
   );
 };
 
-const ExerciseRow = ({
-  exercise,
-  onPress,
-}: {
-  exercise: ExerciseListExerciseView;
-  onPress: (exerciseId: string) => void;
-}) => {
+const ExerciseRow = ({ exercise }: { exercise: ExerciseListExerciseView }) => {
   const { t } = useTranslation();
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={() => onPress(exercise.id)}
-      style={({ pressed }) => [
-        styles.exerciseRow,
-        pressed ? styles.exerciseRowPressed : null,
-      ]}
-    >
+    <View style={styles.exerciseRow}>
       {exercise.showHandle ? <ReorderIcon /> : null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
@@ -96,23 +83,17 @@ const ExerciseRow = ({
           <Text style={styles.weightValue}>{exercise.weight}</Text>
         </View>
       ) : null}
-    </Pressable>
+    </View>
   );
 };
 
-const ExerciseSection = ({
-  section,
-  onExercisePress,
-}: {
-  section: ExerciseListSectionView;
-  onExercisePress: (exerciseId: string) => void;
-}) => (
+const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
   <View style={styles.section}>
     <SectionHeader title={section.title} showEdit={section.showEdit} />
     <View style={styles.exerciseList}>
       {section.exercises.map((exercise, index) => (
         <View key={exercise.id}>
-          <ExerciseRow exercise={exercise} onPress={onExercisePress} />
+          <ExerciseRow exercise={exercise} />
           {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
         </View>
       ))}
@@ -207,11 +188,7 @@ const ExerciseListScreen = () => {
             </View>
 
             {workout.sections.map((section) => (
-              <ExerciseSection
-                key={section.id}
-                onExercisePress={openStartTimer}
-                section={section}
-              />
+              <ExerciseSection key={section.id} section={section} />
             ))}
           </>
         ) : (
@@ -347,10 +324,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    borderRadius: 12,
-  },
-  exerciseRowPressed: {
-    backgroundColor: COLORS.alpha.white04,
   },
   reorderIcon: {
     width: 24,
