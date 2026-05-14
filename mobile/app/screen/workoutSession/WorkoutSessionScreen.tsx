@@ -1,3 +1,4 @@
+import NewPRAchievedModal from "@/app/components/workoutSession/NewPRAchievedModal";
 import WorkoutSessionHeader from "@/app/components/workoutSession/WorkoutSessionHeader";
 import {
   useWorkoutSessionHeaderScroll,
@@ -43,6 +44,10 @@ const WorkoutSessionScreen = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [currentSet, setCurrentSet] = useState(1);
   const [extraSets, setExtraSets] = useState(0);
+  // ERA-16: development-only assembly so the New PR Achieved modal is visible
+  // by default while wiring up the UI. PR detection / persistence are deferred
+  // to a later phase per the issue spec.
+  const [isNewPRModalVisible, setIsNewPRModalVisible] = useState(true);
   const requestedDayId = route.params?.programDayId;
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && currentDayDetail?.day.id !== requestedDayId,
@@ -227,6 +232,17 @@ const WorkoutSessionScreen = () => {
           </View>
         </>
       ) : null}
+
+      <NewPRAchievedModal
+        isVisible={isNewPRModalVisible}
+        exerciseName="Deadlift"
+        newPRWeight={130}
+        newPRReps={6}
+        previousPRWeight={120}
+        previousPRReps={6}
+        pointsAwarded={100}
+        onDismiss={() => setIsNewPRModalVisible(false)}
+      />
     </View>
   );
 };
