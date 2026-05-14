@@ -273,6 +273,32 @@ const nb = {
       unableToLoad: "Kunne ikke laste treningsøkten.",
       upNext: "Neste",
     },
+    setLogging: {
+      setEyebrow: "Sett {{number}}",
+      weightUnit: "Kg",
+      bestSet: {
+        label: "Beste sett",
+        reps: "Reps",
+      },
+      labels: {
+        weight: "Vekt",
+        reps: "Reps",
+        feedback: "Hvordan føltes det?",
+        commentsPlaceholder: "Legg til kommentar",
+        commentsAccessibility: "Legg til kommentar om dette settet",
+        micAccessibility: "Spill inn talenotat",
+      },
+      feedback: {
+        light: "Lett vekt",
+        correct: "Riktig vekt",
+        heavy: "Føltes tungt",
+      },
+      actions: {
+        completeSet: "Fullfør sett",
+        completeExercise: "Fullfør øvelse",
+        nextAccessibility: "Gå til neste sett",
+      },
+    },
     weekdays: {
       mon: "Man",
       tue: "Tir",
