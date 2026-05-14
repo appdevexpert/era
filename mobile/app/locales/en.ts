@@ -273,6 +273,18 @@ const en = {
       unableToLoad: "Unable to load workout session.",
       upNext: "Up next",
     },
+    restTimer: {
+      title: "Rest Timer",
+      subtitle: "Set {{number}} starting in...",
+      secondsLabel: "Seconds",
+      exercisesLabel: "EXERCISES",
+      extend: "+ {{seconds}} sec",
+      extendAccessibility: "Add {{seconds}} seconds to the rest timer",
+      progressAccessibility: "Exercise {{current}} of {{total}} {{label}}",
+      upNextEyebrow: "Up Next",
+      upNextSetInfo: "{{current}}/{{total}} SET",
+      skipAccessibility: "Skip rest and start next set",
+    },
     setLogging: {
       setEyebrow: "Set {{number}}",
       weightUnit: "Kgs",
