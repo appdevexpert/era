@@ -265,12 +265,16 @@ export function mapWorkoutSession(
   const orderedExercises = [...snapshot.sessionExercises].sort(
     (a, b) => a.sort_order - b.sort_order,
   );
-  const totalExercises = snapshot.session.total_exercises || orderedExercises.length;
-  const currentPosition = Math.min(
-    Math.max(snapshot.session.current_exercise_index, 1),
-    Math.max(totalExercises, 1),
+  const totalExercises = Math.max(
+    snapshot.session.total_exercises,
+    orderedExercises.length,
   );
-  const currentSessionExercise = orderedExercises[currentPosition - 1] ?? orderedExercises[0];
+  const currentPosition = totalExercises > 0
+    ? Math.min(Math.max(snapshot.session.current_exercise_index, 1), totalExercises)
+    : 0;
+  const currentSessionExercise = currentPosition > 0
+    ? orderedExercises[currentPosition - 1] ?? orderedExercises[0]
+    : null;
   const nextSessionExercise = orderedExercises[currentPosition] ?? null;
   const currentExercise = currentSessionExercise && dayDetail
     ? mapSessionExercise(currentSessionExercise, dayDetail, language)

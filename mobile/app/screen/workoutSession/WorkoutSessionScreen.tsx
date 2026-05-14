@@ -117,27 +117,29 @@ const WorkoutSessionScreen = () => {
               ) : null}
             </View>
 
-            <View style={styles.progressBlock}>
-              <View style={styles.progressCopy}>
-                <Text style={styles.progressLabel}>
-                  {t("workout.session.exerciseProgress", {
-                    current: sessionView.currentPosition,
-                    total: sessionView.totalExercises,
-                  })}
-                </Text>
-                <Text style={styles.progressPercent}>
-                  {Math.round(sessionView.progress * 100)}%
-                </Text>
+            {sessionView.totalExercises > 0 ? (
+              <View style={styles.progressBlock}>
+                <View style={styles.progressCopy}>
+                  <Text style={styles.progressLabel}>
+                    {t("workout.session.exerciseProgress", {
+                      current: sessionView.currentPosition,
+                      total: sessionView.totalExercises,
+                    })}
+                  </Text>
+                  <Text style={styles.progressPercent}>
+                    {Math.round(sessionView.progress * 100)}%
+                  </Text>
+                </View>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${Math.min(sessionView.progress * 100, 100)}%` },
+                    ]}
+                  />
+                </View>
               </View>
-              <View style={styles.progressTrack}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${Math.min(sessionView.progress * 100, 100)}%` },
-                  ]}
-                />
-              </View>
-            </View>
+            ) : null}
 
             {sessionView.currentExercise ? (
               <View style={styles.exercisePanel}>
