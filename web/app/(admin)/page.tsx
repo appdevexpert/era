@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 
 import { ConfigWarning } from "@/components/admin/config-warning";
+import { getAdminPageGate } from "@/components/admin/admin-page-gate";
 import { PageHeader } from "@/components/admin/page-header";
 import { StatCard } from "@/components/admin/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,9 @@ import { getDashboardStats, getPrograms } from "@/lib/admin/data";
 import { dateText, translation } from "@/lib/admin/format";
 
 export default async function DashboardPage() {
+  const gate = await getAdminPageGate();
+  if (gate) return gate;
+
   const [statsState, programsState] = await Promise.all([
     getDashboardStats(),
     getPrograms(),

@@ -1,3 +1,4 @@
+import { getAdminPageGate } from "@/components/admin/admin-page-gate";
 import { ConfigWarning } from "@/components/admin/config-warning";
 import { EmptyState } from "@/components/admin/empty-state";
 import { PageHeader } from "@/components/admin/page-header";
@@ -14,6 +15,9 @@ import { getUsers } from "@/lib/admin/data";
 import { dateText } from "@/lib/admin/format";
 
 export default async function UsersPage() {
+  const gate = await getAdminPageGate();
+  if (gate) return gate;
+
   const usersState = await getUsers();
   const users = usersState.data;
 

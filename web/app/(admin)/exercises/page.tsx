@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 
+import { getAdminPageGate } from "@/components/admin/admin-page-gate";
 import { ConfigWarning } from "@/components/admin/config-warning";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,9 @@ type ExercisesPageProps = {
 };
 
 export default async function ExercisesPage({ searchParams }: ExercisesPageProps) {
+  const gate = await getAdminPageGate();
+  if (gate) return gate;
+
   const { edit, page, search } = await searchParams;
   const currentPage = Math.max(1, Number(page) || 1);
   const searchTerm = search?.trim() ?? "";

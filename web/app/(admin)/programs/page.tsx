@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 
+import { getAdminPageGate } from "@/components/admin/admin-page-gate";
 import { ConfigWarning } from "@/components/admin/config-warning";
 import { PageHeader } from "@/components/admin/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,9 @@ type ProgramsPageProps = {
 };
 
 export default async function ProgramsPage({ searchParams }: ProgramsPageProps) {
+  const gate = await getAdminPageGate();
+  if (gate) return gate;
+
   const { edit } = await searchParams;
   const [programsState, selectedProgramState] = await Promise.all([
     getPrograms(),

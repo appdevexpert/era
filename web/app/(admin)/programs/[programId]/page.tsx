@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { getAdminPageGate } from "@/components/admin/admin-page-gate";
 import { ConfigWarning } from "@/components/admin/config-warning";
 import { PageHeader } from "@/components/admin/page-header";
 import { ProgramBuilder } from "@/components/programs/program-builder";
@@ -13,6 +14,9 @@ type ProgramDetailPageProps = {
 export default async function ProgramDetailPage({
   params,
 }: ProgramDetailPageProps) {
+  const gate = await getAdminPageGate();
+  if (gate) return gate;
+
   const { programId } = await params;
   const detailState = await getProgramDetail(programId);
   const program = detailState.data.program;

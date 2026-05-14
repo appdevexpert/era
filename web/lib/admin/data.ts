@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getAdminAuthState } from "@/lib/admin/auth";
 import { getAdminClient } from "@/lib/admin/supabase";
 import type {
   AdminDataState,
@@ -25,6 +26,20 @@ const EMPTY_STATS: DashboardStats = {
   draftPrograms: 0,
 };
 
+async function getAuthorizedAdminClient() {
+  const authState = await getAdminAuthState();
+
+  if (authState.status !== "authorized") {
+    throw new Error(
+      authState.status === "unauthenticated"
+        ? "Sign in before viewing ERA admin data."
+        : authState.message,
+    );
+  }
+
+  return getAdminClient();
+}
+
 async function rowCount(
   supabase: NonNullable<ReturnType<typeof getAdminClient>["supabase"]>,
   table: string,
@@ -38,7 +53,7 @@ async function rowCount(
 }
 
 export async function getDashboardStats(): Promise<AdminDataState<DashboardStats>> {
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) return { data: EMPTY_STATS, configError };
 
   const activeSince = new Date();
@@ -96,7 +111,7 @@ export async function getExercises(
   search = "",
 ): Promise<PaginatedDataState<ExerciseRow[]>> {
   const empty = { data: [] as ExerciseRow[], configError: null as string | null, page, pageSize, totalCount: 0, totalPages: 0 };
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) return { ...empty, configError };
 
   const from = (page - 1) * pageSize;
@@ -129,7 +144,7 @@ export async function getExercises(
 export async function getExercise(id?: string): Promise<AdminDataState<ExerciseRow | null>> {
   if (!id) return { data: null, configError: null };
 
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) return { data: null, configError };
 
   const { data, error } = await supabase
@@ -145,7 +160,7 @@ export async function getExercise(id?: string): Promise<AdminDataState<ExerciseR
 }
 
 export async function getPrograms(): Promise<AdminDataState<ProgramRow[]>> {
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) return { data: [], configError };
 
   const [programsResult, weeksResult, daysResult] = await Promise.all([
@@ -179,7 +194,7 @@ export async function getPrograms(): Promise<AdminDataState<ProgramRow[]>> {
 export async function getProgram(id?: string): Promise<AdminDataState<ProgramRow | null>> {
   if (!id) return { data: null, configError: null };
 
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) return { data: null, configError };
 
   const { data, error } = await supabase
@@ -195,7 +210,7 @@ export async function getProgram(id?: string): Promise<AdminDataState<ProgramRow
 }
 
 export async function getUsers(): Promise<AdminDataState<ProfileRow[]>> {
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) return { data: [], configError };
 
   const [profilesResult, assignmentsResult, authUsersResult] = await Promise.all([
@@ -234,7 +249,7 @@ export async function getUsers(): Promise<AdminDataState<ProfileRow[]>> {
 export async function getProgramDetail(
   programId: string,
 ): Promise<AdminDataState<ProgramDetail>> {
-  const { supabase, configError } = getAdminClient();
+  const { supabase, configError } = await getAuthorizedAdminClient();
   if (!supabase) {
     return {
       data: {
