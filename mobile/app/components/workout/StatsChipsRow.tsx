@@ -3,15 +3,17 @@ import { FONTS } from "@/app/constants/fonts";
 import { horizontalScale } from "@/app/utils/responsive";
 import { StatCoin, StatFire, StatWorkoutPlan } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 interface StatsChipsRowProps {
   points?: number;
   streakDays?: number;
+  onPointsPress?: () => void;
+  onStreakPress?: () => void;
 }
 
-const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => {
+const StatsChipsRow = ({ points = 340, streakDays = 5, onPointsPress, onStreakPress }: StatsChipsRowProps) => {
   const { t } = useTranslation();
 
   return (
@@ -22,7 +24,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => 
       style={styles.scroll}
     >
       {/* Points chip */}
-      <View style={styles.chip}>
+      <Pressable style={styles.chip} onPress={onPointsPress}>
         <LinearGradient
           colors={["rgba(201, 168, 76, 0.25)", "rgba(201, 168, 76, 0.25)"]}
           style={[StyleSheet.absoluteFill, { borderRadius: 90 }]}
@@ -31,20 +33,22 @@ const StatsChipsRow = ({ points = 340, streakDays = 5 }: StatsChipsRowProps) => 
           <StatCoin width={24} height={24} />
         </View>
         <Text style={styles.chipLabel}>{t("workout.ui.points", { count: points })}</Text>
-      </View>
+      </Pressable>
 
       {/* Streak chip */}
-      <LinearGradient
-        colors={["rgba(221, 62, 68, 0.08)", "rgba(247, 224, 111, 0.08)"]}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={styles.chip}
-      >
-        <View style={[styles.iconWrap, styles.fireIconBg]}>
-          <StatFire width={32} height={32} />
-        </View>
-        <Text style={styles.chipLabel}>{t("workout.ui.streak", { count: streakDays })}</Text>
-      </LinearGradient>
+      <Pressable onPress={onStreakPress}>
+        <LinearGradient
+          colors={["rgba(221, 62, 68, 0.08)", "rgba(247, 224, 111, 0.08)"]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.chip}
+        >
+          <View style={[styles.iconWrap, styles.fireIconBg]}>
+            <StatFire width={32} height={32} />
+          </View>
+          <Text style={styles.chipLabel}>{t("workout.ui.streak", { count: streakDays })}</Text>
+        </LinearGradient>
+      </Pressable>
 
       {/* Workout Plan chip */}
       <LinearGradient

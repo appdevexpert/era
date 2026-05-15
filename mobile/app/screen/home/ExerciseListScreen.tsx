@@ -16,7 +16,8 @@ import type {
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapExerciseList } from "@/app/utils/workoutMappers";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -103,6 +104,7 @@ const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
 const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseList">>();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
@@ -117,7 +119,20 @@ const ExerciseListScreen = () => {
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && currentDayDetail?.day.id !== requestedDayId,
   );
-  const handleStartNow = () => undefined;
+  const handleStartNow = () => {
+    if (!workout) return;
+    const firstExercise = workout.sections
+      .flatMap((s) => s.exercises)
+      .find((e) => e.name);
+    const subtitle = route.params?.subtitle ?? "";
+    const parts = subtitle.split("\u2022").map((s) => s.trim());
+    navigation.navigate("WorkoutCountdown", {
+      weekLabel: parts[0] ?? "",
+      dayLabel: parts[1] ?? "",
+      dayTitle: workout.title,
+      firstExerciseName: firstExercise?.name ?? "",
+    });
+  };
   const isLoading =
     workoutStatus === "idle" ||
     workoutStatus === "loading" ||

@@ -39,6 +39,51 @@ export type WorkoutPlanParams = {
   programDayId?: string;
 };
 
+export type WorkoutCountdownParams = {
+  weekLabel: string;
+  dayLabel: string;
+  dayTitle: string;
+  firstExerciseName: string;
+};
+
+export type RestTimerParams = {
+  exerciseIndex: number;
+  totalExercises: number;
+  currentSet: number;
+  totalSets: number;
+  nextExerciseName: string;
+  restDuration: number;
+};
+
+export type CardioTimerParams = {
+  exerciseName: string;
+  exerciseCategory: string;
+  exerciseIndex: number;
+  totalExercises: number;
+  duration: number;
+  idealTime?: string;
+  topTime?: string;
+};
+
+export type TimerLogParams = {
+  exerciseName: string;
+  exerciseCategory: string;
+  exerciseIndex: number;
+  totalExercises: number;
+  setCount: number;
+  idealTime?: string;
+  topTime?: string;
+};
+
+export type WorkoutLogParams = {
+  exerciseName: string;
+  exerciseCategory: string;
+  exerciseIndex: number;
+  totalExercises: number;
+  setCount: number;
+  showWeight?: boolean;
+};
+
 export type HomeStackParamList = {
   HomeTabs: NavigatorScreenParams<HomeTabParamList> | undefined;
   Setting: undefined;
@@ -46,6 +91,30 @@ export type HomeStackParamList = {
   Notification: undefined;
   WorkoutPlan: WorkoutPlanParams | undefined;
   ExerciseList: WorkoutPlanParams | undefined;
+  WorkoutCountdown: WorkoutCountdownParams;
+  WorkoutLog: WorkoutLogParams;
+  RestTimer: RestTimerParams;
+  TimerLog: TimerLogParams;
+  CardioTimer: CardioTimerParams;
+  Points: undefined;
+  SessionComplete: {
+    programTitle: string;
+    weekNumber: number;
+    dayNumber: number;
+    sessionDuration: string;
+    setsLogged: number;
+    eraPoints: number;
+    newPRs: number;
+    bonusPoints: number;
+  };
+  PRScreen: {
+    exerciseName: string;
+    exerciseCategory: string;
+    weight: string;
+    reps: number;
+    previousBest: string;
+    points: number;
+  };
 };
 
 export type RootStackParamList = {

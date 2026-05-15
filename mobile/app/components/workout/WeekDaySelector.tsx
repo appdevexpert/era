@@ -9,6 +9,7 @@ export interface DayItem {
   label: string;
   date: string;
   active?: boolean;
+  completed?: boolean;
 }
 
 interface WeekDaySelectorProps {
@@ -23,6 +24,30 @@ const DayPill = ({
   day: DayItem;
   onPress?: () => void;
 }) => {
+  if (day.completed) {
+    return (
+      <Pressable onPress={onPress} style={styles.pillCompleted}>
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="clear"
+          colorScheme="light"
+          style={styles.glassFill}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(10, 10, 10, 0.35)", "rgba(4, 95, 16, 0.35)"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.glassFill}
+        />
+        <Text style={styles.labelCompleted}>{day.label}</Text>
+        <View style={styles.checkBadge}>
+          <Text style={styles.checkMark}>✓</Text>
+        </View>
+      </Pressable>
+    );
+  }
+
   if (day.active) {
     return (
       <Pressable onPress={onPress} style={styles.pillActive}>
@@ -80,6 +105,42 @@ const styles = StyleSheet.create({
   glassFill: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 77,
+  },
+  pillCompleted: {
+    alignItems: "center",
+    gap: 4.6,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    borderRadius: 76.899,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  labelCompleted: {
+    fontSize: 10,
+    fontFamily: FONTS.medium,
+    fontWeight: "500",
+    textAlign: "center",
+    color: COLORS.neutral.white,
+  },
+  checkBadge: {
+    backgroundColor: "rgba(61, 202, 122, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  checkMark: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.semantic.success,
+    textAlign: "center",
+    minWidth: 16,
   },
   pillActive: {
     alignItems: "center",

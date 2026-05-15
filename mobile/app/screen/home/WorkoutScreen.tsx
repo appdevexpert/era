@@ -1,4 +1,6 @@
 import StatsChipsRow from "@/app/components/workout/StatsChipsRow";
+import StreakSheet from "@/app/components/workout/StreakSheet";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import WeekDaySelector from "@/app/components/workout/WeekDaySelector";
 import WorkoutCard from "@/app/components/workout/WorkoutCard";
 import { COLORS } from "@/app/constants/colors";
@@ -22,13 +24,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 const WorkoutScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
+  const streakRef = useRef<BottomSheetModal>(null);
+  const handleStreakPress = useCallback(() => streakRef.current?.present(), []);
   const user = useSelector(selectUser);
   const overview = useSelector(selectWorkoutOverview);
   const workout = useMemo(
@@ -110,7 +114,10 @@ const WorkoutScreen = () => {
 
         {/* Stats chips */}
         <View style={styles.statsSection}>
-          <StatsChipsRow />
+          <StatsChipsRow
+            onPointsPress={() => navigation.navigate("Points")}
+            onStreakPress={handleStreakPress}
+          />
         </View>
 
         {/* Week day selector */}
@@ -145,6 +152,27 @@ const WorkoutScreen = () => {
           </View>
         )}
       </ScrollView>
+
+      <StreakSheet
+        ref={streakRef}
+        streak={5}
+        days={[
+          { key: "mon", label: "Mon", date: "02", completed: true },
+          { key: "tue", label: "Tue", date: "03", completed: true },
+          { key: "wed", label: "Wed", date: "04", completed: true },
+          { key: "thu", label: "Thu", date: "05", completed: true },
+          { key: "fri", label: "Fri", date: "06", active: true },
+          { key: "sat", label: "Sat", date: "09" },
+          { key: "sun", label: "Sun", date: "10" },
+        ]}
+        exercises={20}
+        minutes={75}
+        points={200}
+        onViewPoints={() => {
+          streakRef.current?.dismiss();
+          navigation.navigate("Points");
+        }}
+      />
     </View>
   );
 };
