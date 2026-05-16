@@ -31,12 +31,15 @@ export type MuscleGroup =
   | "leg"
   | "front";
 
+export type DayStatus = "missed" | "completed" | "future" | "active";
+
 export type WorkoutPlanParams = {
   subtitle?: string;
   title?: string;
   muscles?: MuscleGroup[];
   programId?: string;
   programDayId?: string;
+  dayStatus?: DayStatus;
 };
 
 export type WorkoutCountdownParams = {
@@ -101,6 +104,12 @@ export type HomeStackParamList = {
   RestTimer: RestTimerParams;
   TimerLog: TimerLogParams;
   CardioTimer: CardioTimerParams;
+  ExerciseDetail: {
+    title: string; // exercise name (shown as header title)
+    subtitle: string; // "week 1 • monday" (shown as gold label)
+    exerciseData: string; // JSON-serialized CompletedExerciseView
+    sessionDurationMinutes?: number; // total session duration
+  };
   Points: undefined;
   SessionComplete: {
     programTitle: string;

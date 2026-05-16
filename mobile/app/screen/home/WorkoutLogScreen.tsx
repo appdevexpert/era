@@ -59,6 +59,7 @@ const WorkoutLogScreen = () => {
   const [weight, setWeight] = useState(currentEx?.initialWeight ?? 120);
   const [reps, setReps] = useState(currentEx?.targetReps ?? 6);
   const [comment, setComment] = useState("");
+  const [feedback, setFeedback] = useState<"light_weight" | "correct_weight" | "felt_heavy" | null>(null);
 
   const MAX_SETS = 5;
   const [activeSet, setActiveSet] = useState(startSet);
@@ -82,10 +83,12 @@ const WorkoutLogScreen = () => {
 
   /** Complete Set (not last) → log + rest timer */
   const handleCompleteSet = useCallback(() => {
-    logSetResult(exIdx, activeSet, weight, reps, null);
+    logSetResult(exIdx, activeSet, weight, reps, feedback, null, comment || null);
     navigateToRest(exIdx, activeSet + 2);
     setActiveSet((s) => s + 1);
-  }, [weight, reps, activeSet, exIdx, logSetResult, navigateToRest]);
+    setFeedback(null);
+    setComment("");
+  }, [weight, reps, activeSet, exIdx, feedback, comment, logSetResult, navigateToRest]);
 
   /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
@@ -94,9 +97,9 @@ const WorkoutLogScreen = () => {
       return;
     }
     lastSetLogged.current = true;
-    logSetResult(exIdx, activeSet, weight, reps, null);
+    logSetResult(exIdx, activeSet, weight, reps, feedback, null, comment || null);
     sheetRef.current?.expand();
-  }, [weight, reps, activeSet, exIdx, logSetResult]);
+  }, [weight, reps, activeSet, exIdx, feedback, comment, logSetResult]);
 
   /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
@@ -210,7 +213,10 @@ const WorkoutLogScreen = () => {
 
           {showWeight ? (
             <View style={styles.bodyPadded}>
-              <SetFeedback />
+              <SetFeedback onSelect={(option) => {
+                const map = { light: "light_weight", correct: "correct_weight", heavy: "felt_heavy" } as const;
+                setFeedback(map[option]);
+              }} />
             </View>
           ) : null}
 

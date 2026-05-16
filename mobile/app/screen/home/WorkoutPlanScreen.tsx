@@ -289,6 +289,7 @@ const WorkoutPlanScreen = () => {
       title: pill.title,
       subtitle: pill.subtitle,
       muscles: pill.muscles,
+      dayStatus: pill.status,
     });
   }, [navigation, route.params?.programId]);
 

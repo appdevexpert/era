@@ -5,7 +5,7 @@ import WeekDaySelector from "@/app/components/workout/WeekDaySelector";
 import WorkoutCard from "@/app/components/workout/WorkoutCard";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
-import { HomeStackParamList } from "@/app/navigation/types";
+import type { HomeStackParamList, MuscleGroup } from "@/app/navigation/types";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
   selectHasWorkoutBootstrap,
@@ -74,8 +74,27 @@ const WorkoutScreen = () => {
       subtitle: workout.subtitle,
       title: workout.workoutName,
       muscles: mapMusclesToIcons(workout.targetMuscles),
+      dayStatus: workout.isCompleted ? "completed" : "active",
     });
   };
+
+  const handleDayPress = useCallback((day: { key: string; title: string; subtitle: string; muscles: MuscleGroup[]; active?: boolean; completed?: boolean; missed?: boolean }) => {
+    if (!workout) return;
+
+    let dayStatus: "missed" | "completed" | "active" | "future" = "future";
+    if (day.active) dayStatus = workout.isCompleted ? "completed" : "active";
+    else if (day.completed) dayStatus = "completed";
+    else if (day.missed) dayStatus = "missed";
+
+    navigation.navigate("ExerciseList", {
+      programId: workout.programId,
+      programDayId: day.key,
+      title: day.title,
+      subtitle: day.subtitle,
+      muscles: day.muscles,
+      dayStatus,
+    });
+  }, [workout, navigation]);
 
   return (
     <View style={styles.root}>
@@ -125,7 +144,7 @@ const WorkoutScreen = () => {
         {/* Week day selector */}
         <View style={styles.weekRow}>
           {workout ? (
-            <WeekDaySelector days={workout.days} />
+            <WeekDaySelector days={workout.days} onDayPress={handleDayPress} />
           ) : (
             <Text style={styles.statusText}>
               {isLoading ? t("workout.ui.loadingWorkout") : errorMessage}
@@ -160,13 +179,13 @@ const WorkoutScreen = () => {
         ref={streakRef}
         streak={5}
         days={[
-          { key: "mon", label: "Mon", date: "02", completed: true },
-          { key: "tue", label: "Tue", date: "03", completed: true },
-          { key: "wed", label: "Wed", date: "04", completed: true },
-          { key: "thu", label: "Thu", date: "05", completed: true },
-          { key: "fri", label: "Fri", date: "06", active: true },
-          { key: "sat", label: "Sat", date: "09" },
-          { key: "sun", label: "Sun", date: "10" },
+          { key: "mon", label: "Mon", date: "02", title: "", subtitle: "", muscles: [], completed: true },
+          { key: "tue", label: "Tue", date: "03", title: "", subtitle: "", muscles: [], completed: true },
+          { key: "wed", label: "Wed", date: "04", title: "", subtitle: "", muscles: [], completed: true },
+          { key: "thu", label: "Thu", date: "05", title: "", subtitle: "", muscles: [], completed: true },
+          { key: "fri", label: "Fri", date: "06", title: "", subtitle: "", muscles: [], active: true },
+          { key: "sat", label: "Sat", date: "09", title: "", subtitle: "", muscles: [] },
+          { key: "sun", label: "Sun", date: "10", title: "", subtitle: "", muscles: [] },
         ]}
         exercises={20}
         minutes={75}

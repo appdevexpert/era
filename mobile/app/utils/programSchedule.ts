@@ -51,7 +51,7 @@ function getSignupContext(config: ProgramScheduleConfig) {
 
 export function computeCurrentPosition(
   config: ProgramScheduleConfig,
-  today: string = toYMD(new Date()),
+  today: string = getToday(),
 ): CurrentPosition {
   const { start, signupWeekday, skippedDays, week1End, week2Start } =
     getSignupContext(config);
@@ -190,7 +190,7 @@ export function computeWeekDates(
 export function isWeekAccessible(
   config: ProgramScheduleConfig,
   weekNumber: number,
-  today: string = toYMD(new Date()),
+  today: string = getToday(),
 ): boolean {
   const current = computeCurrentPosition(config, today);
   return weekNumber <= current.weekNumber;

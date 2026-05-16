@@ -5,6 +5,7 @@ import {
   getProgramDayDetail,
   getWorkoutOverview,
 } from "@/app/services/workoutService";
+import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import type { ProgramDayDetailData, WorkoutOverviewData } from "@/app/types/workout";
 import type { LoadingState } from "@/app/types";
 import type { RootState } from "@/app/stores/store";
@@ -58,9 +59,28 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       ? await getCompletedSessionDayIds(userId)
       : [];
 
-    const currentDayDetail = await getProgramDayDetail(
-      args?.programDayId ?? overview.currentDay.id,
-    );
+    // Determine the correct day to load detail for
+    let targetDayId = args?.programDayId ?? overview.currentDay.id;
+
+    // If no specific day requested, use schedule to find today's actual day
+    if (!args?.programDayId) {
+      const programStartDate = getState().auth.programStartDate;
+      if (programStartDate) {
+        const config = { programStartDate, totalWeeks: overview.program.duration_weeks };
+        const pos = computeCurrentPosition(config);
+        const found = overview.days.find((d) => {
+          if (pos.isAdjustedDay) {
+            const week1 = overview.weeks.find((w) => w.week_number === 1);
+            return week1 && d.week_id === week1.id && d.day_number === pos.dayNumber;
+          }
+          const w = overview.weeks.find((wk) => wk.id === d.week_id);
+          return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+        });
+        if (found) targetDayId = found.id;
+      }
+    }
+
+    const currentDayDetail = await getProgramDayDetail(targetDayId);
 
     return {
       programId: overview.program.id,

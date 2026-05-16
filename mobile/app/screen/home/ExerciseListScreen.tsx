@@ -1,29 +1,35 @@
 import PrimaryButton from "@/app/components/ui/PrimaryButton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
-import type { HomeStackParamList } from "@/app/navigation/types";
+import type { DayStatus, HomeStackParamList } from "@/app/navigation/types";
 import {
   selectCurrentDayDetail,
   selectHasWorkoutBootstrap,
   selectWorkoutError,
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
+import { selectUser } from "@/app/stores/selectors/authSelectors";
 import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import type {
+  CompletedExerciseView,
+  CompletedSessionDetail,
+  CompletedSetView,
   ExerciseListExerciseView,
   ExerciseListSectionView,
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapExerciseList } from "@/app/utils/workoutMappers";
+import { getCompletedSessionDetail } from "@/app/services/sessionService";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ChevronRight } from "@/assets/icons";
 
 const ReorderIcon = () => (
   <View style={styles.reorderIcon}>
@@ -65,19 +71,40 @@ const SectionHeader = ({
   );
 };
 
-const ExerciseRow = ({ exercise }: { exercise: ExerciseListExerciseView }) => {
+/* ─── Missed banner ─── */
+
+const MissedBanner = () => {
   const { t } = useTranslation();
+  return (
+    <View style={styles.missedBanner}>
+      <Text style={styles.missedBannerText}>{t("workout.ui.noWorkoutLogged")}</Text>
+    </View>
+  );
+};
+
+/* ─── Exercise row variants ─── */
+
+const ExerciseRow = ({
+  exercise,
+  mode,
+}: {
+  exercise: ExerciseListExerciseView;
+  mode: DayStatus;
+}) => {
+  const { t } = useTranslation();
+  const showWeight = mode === "active" || mode === "future";
+  const showHandle = exercise.showHandle && mode === "active";
 
   return (
     <View style={styles.exerciseRow}>
-      {exercise.showHandle ? <ReorderIcon /> : null}
+      {showHandle ? <ReorderIcon /> : null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
           {exercise.name}
         </Text>
         <Text style={styles.exercisePrescription}>{exercise.prescription}</Text>
       </View>
-      {exercise.weight ? (
+      {showWeight && exercise.weight ? (
         <View style={styles.weightBlock}>
           <Text style={styles.weightLabel}>{t("workout.ui.initialWeight")}</Text>
           <Text style={styles.weightValue}>{exercise.weight}</Text>
@@ -87,13 +114,51 @@ const ExerciseRow = ({ exercise }: { exercise: ExerciseListExerciseView }) => {
   );
 };
 
-const ExerciseSection = ({ section }: { section: ExerciseListSectionView }) => (
+/* ─── Completed exercise row (with logged set chips + chevron) ─── */
+
+const formatSetChip = (set: CompletedSetView): string => {
+  if (set.weight != null) return `${set.weight}${set.weightUnit} X ${set.reps ?? 0}`;
+  if (set.duration != null) return `${set.duration} SEC`;
+  return `BW X ${set.reps ?? 0}`;
+};
+
+const CompletedExerciseRow = ({
+  exercise,
+  onPress,
+}: {
+  exercise: CompletedExerciseView;
+  onPress: () => void;
+}) => (
+  <Pressable style={styles.exerciseRow} onPress={onPress}>
+    <View style={[styles.exerciseCopy, { flex: 1 }]}>
+      <Text numberOfLines={1} style={styles.exerciseName}>
+        {exercise.name}
+      </Text>
+      <View style={styles.setChipsRow}>
+        {exercise.sets.map((set) => (
+          <View key={set.setNumber} style={styles.setChip}>
+            <Text style={styles.setChipText}>{formatSetChip(set)}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+    <ChevronRight width={16} height={16} color="#F0F0F0" />
+  </Pressable>
+);
+
+const ExerciseSection = ({
+  section,
+  mode,
+}: {
+  section: ExerciseListSectionView;
+  mode: DayStatus;
+}) => (
   <View style={styles.section}>
-    <SectionHeader title={section.title} showEdit={section.showEdit} />
+    <SectionHeader title={section.title} showEdit={mode === "active" && section.showEdit} />
     <View style={styles.exerciseList}>
       {section.exercises.map((exercise, index) => (
         <View key={exercise.id}>
-          <ExerciseRow exercise={exercise} />
+          <ExerciseRow exercise={exercise} mode={mode} />
           {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
         </View>
       ))}
@@ -107,6 +172,7 @@ const ExerciseListScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
+  const user = useSelector(selectUser);
   const currentDayDetail = useSelector(selectCurrentDayDetail);
   const workout = useMemo(
     () => (currentDayDetail ? mapExerciseList(currentDayDetail, i18n.language) : null),
@@ -116,9 +182,16 @@ const ExerciseListScreen = () => {
   const workoutError = useSelector(selectWorkoutError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
   const requestedDayId = route.params?.programDayId;
+  const dayStatus: DayStatus = route.params?.dayStatus ?? "active";
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && currentDayDetail?.day.id !== requestedDayId,
   );
+
+  // Completed session data (fetched for "completed" mode)
+  const [completedSession, setCompletedSession] = useState<CompletedSessionDetail | null>(null);
+  const [completedLoading, setCompletedLoading] = useState(dayStatus === "completed");
+  const completedFetchedRef = useRef(false);
+
   const handleStartNow = () => {
     if (!workout) return;
     const firstExercise = workout.sections
@@ -133,6 +206,19 @@ const ExerciseListScreen = () => {
       firstExerciseName: firstExercise?.name ?? "",
     });
   };
+
+  const handleExercisePress = useCallback(
+    (exercise: CompletedExerciseView) => {
+      navigation.navigate("ExerciseDetail", {
+        title: exercise.name,
+        subtitle: route.params?.subtitle ?? "",
+        exerciseData: JSON.stringify(exercise),
+        sessionDurationMinutes: completedSession?.durationMinutes,
+      });
+    },
+    [navigation, route.params?.subtitle, completedSession?.durationMinutes],
+  );
+
   const isLoading =
     workoutStatus === "idle" ||
     workoutStatus === "loading" ||
@@ -160,6 +246,29 @@ const ExerciseListScreen = () => {
     workoutStatus,
   ]);
 
+  // Fetch completed session data when in completed mode
+  useEffect(() => {
+    if (dayStatus === "completed" && requestedDayId && user?.id && !completedFetchedRef.current) {
+      completedFetchedRef.current = true;
+      setCompletedLoading(true);
+      getCompletedSessionDetail(user.id, requestedDayId)
+        .then((result) => {
+          if (!result) {
+            console.warn("[ExerciseList] No completed session found in Supabase for dayId:", requestedDayId, "userId:", user.id);
+          }
+          setCompletedSession(result);
+        })
+        .catch((err) => {
+          console.error("[ExerciseList] Failed to fetch completed session:", err);
+        })
+        .finally(() => setCompletedLoading(false));
+    }
+  }, [dayStatus, requestedDayId, user?.id]);
+
+  const showStartButton = dayStatus === "active";
+  const showStatsRow = dayStatus !== "missed";
+  const dataReady = workout && !shouldLoadRequestedDay;
+
   return (
     <View style={styles.root}>
       <View pointerEvents="none" style={styles.topFade} />
@@ -168,21 +277,85 @@ const ExerciseListScreen = () => {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + verticalScale(156),
-            paddingBottom: insets.bottom + verticalScale(132),
+            paddingTop: insets.top + verticalScale(130),
+            paddingBottom: insets.bottom + verticalScale(showStartButton ? 132 : 40),
           },
         ]}
       >
-        {workout && !shouldLoadRequestedDay ? (
+        {dataReady ? (
           <>
-            <View style={styles.statsRow}>
-              <StatCard value={String(workout.exerciseCount)} label={t("workout.ui.exercisesLabel")} />
-              <StatCard value={String(workout.estimatedMinutes)} label={t("workout.ui.minutesLabel")} />
-            </View>
+            {/* Missed banner */}
+            {dayStatus === "missed" ? <MissedBanner /> : null}
 
-            {workout.sections.map((section) => (
-              <ExerciseSection key={section.id} section={section} />
-            ))}
+            {/* Stats row */}
+            {showStatsRow ? (
+              <View style={styles.statsRow}>
+                <StatCard value={String(workout.exerciseCount)} label={t("workout.ui.exercisesLabel")} />
+                <StatCard
+                  value={String(
+                    dayStatus === "completed" && completedSession
+                      ? completedSession.durationMinutes
+                      : workout.estimatedMinutes,
+                  )}
+                  label={t("workout.ui.minutesLabel")}
+                />
+              </View>
+            ) : null}
+
+            {/* Completed mode: show sections with logged set chips */}
+            {dayStatus === "completed" && completedSession ? (
+              workout.sections.map((section) => {
+                // Match completed exercises to this section's planned exercises
+                const completedByName = new Map(
+                  completedSession.exercises.map((e) => [e.name, e]),
+                );
+                return (
+                  <View key={section.id} style={styles.section}>
+                    <SectionHeader title={section.title} />
+                    <View style={styles.exerciseList}>
+                      {section.exercises.map((planned, index) => {
+                        const completed = completedByName.get(planned.name);
+                        if (completed) {
+                          return (
+                            <View key={planned.id}>
+                              <CompletedExerciseRow
+                                exercise={completed}
+                                onPress={() => handleExercisePress(completed)}
+                              />
+                              {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
+                            </View>
+                          );
+                        }
+                        return (
+                          <View key={planned.id}>
+                            <ExerciseRow exercise={planned} mode="completed" />
+                            {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                );
+              })
+            ) : dayStatus === "completed" && completedLoading ? (
+              <View style={styles.statusBox}>
+                <Text style={styles.statusText}>{t("workout.ui.loadingWorkout")}</Text>
+              </View>
+            ) : null}
+
+            {/* Non-completed modes: show planned exercise sections */}
+            {dayStatus !== "completed"
+              ? workout.sections.map((section) => (
+                  <ExerciseSection key={section.id} section={section} mode={dayStatus} />
+                ))
+              : null}
+
+            {/* Completed mode fallback: show planned if no session data */}
+            {dayStatus === "completed" && !completedSession && !completedLoading
+              ? workout.sections.map((section) => (
+                  <ExerciseSection key={section.id} section={section} mode={dayStatus} />
+                ))
+              : null}
           </>
         ) : (
           <View style={styles.statusBox}>
@@ -193,7 +366,7 @@ const ExerciseListScreen = () => {
         )}
       </ScrollView>
 
-      {workout && !shouldLoadRequestedDay ? (
+      {showStartButton && dataReady ? (
         <>
           <LinearGradient
             pointerEvents="none"
@@ -229,6 +402,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: horizontalScale(16),
     gap: verticalScale(24),
   },
+
+  /* Missed banner */
+  missedBanner: {
+    backgroundColor: "rgba(230,119,119,0.16)",
+    borderWidth: 1,
+    borderColor: "#E67777",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  missedBannerText: {
+    fontFamily: FONTS.regular,
+    fontSize: 16,
+    fontWeight: "400",
+    color: "#F0F0F0",
+    lineHeight: 19.2,
+  },
+
+  /* Stats */
   statsRow: {
     flexDirection: "row",
     gap: 12,
@@ -262,6 +454,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.48,
     textTransform: "uppercase",
   },
+
+  /* Sections */
   section: {
     gap: 18,
   },
@@ -304,6 +498,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: "rgba(240,240,240,0.8)",
   },
+
+  /* Exercises */
   exerciseList: {
     width: "100%",
     gap: 12,
@@ -371,6 +567,28 @@ const styles = StyleSheet.create({
     color: COLORS.neutral.white,
     textAlign: "right",
   },
+
+  /* Set chips (completed mode) */
+  setChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  setChip: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  setChipText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    fontWeight: "400",
+    color: COLORS.primary.dark,
+    letterSpacing: 0.48,
+    textTransform: "uppercase",
+  },
+
   divider: {
     height: 1,
     backgroundColor: COLORS.neutral.charcoal,

@@ -1,5 +1,6 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import type { MuscleGroup } from "@/app/navigation/types";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -8,6 +9,9 @@ export interface DayItem {
   key: string;
   label: string;
   date: string;
+  title: string;
+  subtitle: string;
+  muscles: MuscleGroup[];
   active?: boolean;
   completed?: boolean;
   missed?: boolean;

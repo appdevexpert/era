@@ -129,23 +129,104 @@ export function mapWorkoutHome(
   programStartDate?: string | null,
   completedDayIds?: string[],
 ): WorkoutHomeView {
-  // Determine current position from date math (or fallback to backend)
+  const config = programStartDate
+    ? { programStartDate, totalWeeks: data.program.duration_weeks }
+    : null;
+
+  // Step A: Resolve current position — separate content day from calendar week
   let currentDay = data.currentDay;
-  if (programStartDate) {
-    const config = { programStartDate, totalWeeks: data.program.duration_weeks };
+  let calendarWeekNumber = 1;
+
+  if (config) {
     const pos = computeCurrentPosition(config);
-    const found = data.days.find((d) => {
-      const w = data.weeks.find((wk) => wk.id === d.week_id);
-      return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
-    });
-    if (found) currentDay = found;
+    calendarWeekNumber = pos.weekNumber;
+
+    if (pos.isAdjustedDay) {
+      // Adjusted day in Week 4: content comes from Week 1's skipped day
+      const week1 = data.weeks.find((w) => w.week_number === 1);
+      if (week1) {
+        const found = data.days.find(
+          (d) => d.week_id === week1.id && d.day_number === pos.dayNumber,
+        );
+        if (found) currentDay = found;
+      }
+    } else {
+      const found = data.days.find((d) => {
+        const w = data.weeks.find((wk) => wk.id === d.week_id);
+        return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+      });
+      if (found) currentDay = found;
+    }
+  } else {
+    const week = getWeekForDay(data.weeks, currentDay);
+    if (week) calendarWeekNumber = week.week_number;
   }
 
-  const currentWeek = getWeekForDay(data.weeks, currentDay) ?? data.weeks[0];
-  const weekDays = data.days.filter((day) => day.week_id === currentDay.week_id);
-  const today = programStartDate ? getToday() : null;
+  // Step B: Calendar week for display (programWeek, programType)
+  const calendarWeek = data.weeks.find((w) => w.week_number === calendarWeekNumber) ?? data.weeks[0];
+
+  // Step C: Build selector days for the calendar week
+  const skippedInfo = config ? getSkippedDaysInfo(config) : null;
+  const skipped = skippedInfo?.count ?? 0;
+  const today = config ? getToday() : null;
   const completed = new Set(completedDayIds ?? []);
 
+  let selectorDays = data.days
+    .filter((day) => day.week_id === calendarWeek.id)
+    .sort((a, b) => a.sort_order - b.sort_order);
+
+  // If no DB rows for this week, generate from template
+  if (selectorDays.length === 0) {
+    const templateDays = data.days
+      .filter((day) => day.week_id === data.weeks[0]?.id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    selectorDays = buildFutureWeekDays(calendarWeek, templateDays, data.program.days_per_week);
+  }
+
+  // Build entries: normal days + adjusted days (Week 4 only)
+  type DayEntry = { day: ProgramDayRow; isAdjusted: boolean };
+  let allEntries: DayEntry[] = selectorDays.map((d) => ({ day: d, isAdjusted: false }));
+
+  if (calendarWeekNumber === 4 && skipped > 0 && skippedInfo) {
+    const week1 = data.weeks.find((w) => w.week_number === 1);
+    if (week1) {
+      const week1Skipped = data.days
+        .filter((d) => d.week_id === week1.id && d.day_number < skippedInfo.signupWeekday)
+        .sort((a, b) => a.sort_order - b.sort_order);
+      allEntries = [
+        ...allEntries,
+        ...week1Skipped.map((d) => ({ day: d, isAdjusted: true })),
+      ];
+    }
+  }
+
+  // Map selector days with calendar dates and weekday labels
+  const days = allEntries.map((entry) => {
+    const { day, isAdjusted } = entry;
+    let dayDate: string | null = null;
+    if (config) {
+      dayDate = computeDateForDay(config, calendarWeekNumber, day.day_number, isAdjusted);
+    }
+    const weekday = dayDate ? getWeekdayFromDate(dayDate) : day.weekday;
+    const isCompleted = completed.has(day.id);
+    const isActive = day.id === currentDay.id;
+    const isPast = dayDate && today ? dayDate < today : false;
+    const isMissed = isPast && !isCompleted && !day.is_rest_day;
+
+    return {
+      key: day.id,
+      label: getWeekdayLabel(weekday, language),
+      date: dayDate ? dayDate.split("-")[2] : padDayNumber(day.day_number),
+      title: getLocalizedText(day.title_translations, language, day.title),
+      subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
+      muscles: mapMusclesToIcons(day.target_muscles),
+      active: isActive,
+      completed: isCompleted,
+      missed: isMissed,
+    };
+  });
+
+  // Step D: Build output — calendarWeek for program info, currentDay for workout content
   return {
     programId: data.program.id,
     currentDayId: currentDay.id,
@@ -157,33 +238,14 @@ export function mapWorkoutHome(
     duration: formatWorkoutDuration(currentDay.estimated_minutes),
     tags: currentDay.target_muscles.slice(0, 4).map((muscle) => localizeMuscle(muscle, language)),
     targetMuscles: currentDay.target_muscles,
-    programType: currentWeek
-      ? getLocalizedText(currentWeek.focus_translations, language, currentWeek.focus ?? "")
+    programType: calendarWeek
+      ? getLocalizedText(calendarWeek.focus_translations, language, calendarWeek.focus ?? "")
       : "",
-    programWeek: currentWeek
-      ? formatWeekProgress(currentWeek.week_number, data.program.duration_weeks, language)
+    programWeek: calendarWeek
+      ? formatWeekProgress(calendarWeek.week_number, data.program.duration_weeks, language)
       : "",
     programDay: formatDayLabel(currentDay.day_number, language),
-    days: weekDays.map((day) => {
-      let dayDate: string | null = null;
-      if (programStartDate && currentWeek) {
-        const config = { programStartDate, totalWeeks: data.program.duration_weeks };
-        dayDate = computeDateForDay(config, currentWeek.week_number, day.day_number);
-      }
-      const isCompleted = completed.has(day.id);
-      const isActive = day.id === currentDay.id;
-      const isPast = dayDate && today ? dayDate < today : false;
-      const isMissed = isPast && !isCompleted && !day.is_rest_day;
-
-      return {
-        key: day.id,
-        label: getWeekdayLabel(day.weekday, language),
-        date: dayDate ? dayDate.split("-")[2] : padDayNumber(day.day_number),
-        active: isActive,
-        completed: isCompleted,
-        missed: isMissed,
-      };
-    }),
+    days,
   };
 }
 

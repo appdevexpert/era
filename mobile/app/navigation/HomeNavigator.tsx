@@ -1,4 +1,5 @@
 import WorkoutPlanHeader from "@/app/components/navigation/WorkoutPlanHeader";
+import ExerciseDetailScreen from "@/app/screen/home/ExerciseDetailScreen";
 import ExerciseListScreen from "@/app/screen/home/ExerciseListScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";
 import ProfileScreen from "@/app/screen/home/ProfileScreen";
@@ -36,6 +37,15 @@ const HomeNavigator = () => (
     <Stack.Screen
       name="ExerciseList"
       component={ExerciseListScreen}
+      options={{
+        headerShown: true,
+        header: (props) => <WorkoutPlanHeader {...props} />,
+        headerTransparent: true,
+      }}
+    />
+    <Stack.Screen
+      name="ExerciseDetail"
+      component={ExerciseDetailScreen}
       options={{
         headerShown: true,
         header: (props) => <WorkoutPlanHeader {...props} />,

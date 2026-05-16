@@ -136,7 +136,12 @@ export interface WorkoutHomeView {
     key: string;
     label: string;
     date: string;
+    title: string;
+    subtitle: string;
+    muscles: MuscleGroup[];
     active?: boolean;
+    completed?: boolean;
+    missed?: boolean;
   }[];
 }
 
@@ -247,4 +252,33 @@ export interface SessionWorkout {
   weekNumber: number;
   dayNumber: number;
   exercises: SessionExercise[];
+}
+
+/* ─── Completed session types (past workout view) ─── */
+
+export interface CompletedSetView {
+  setNumber: number;
+  weight: number | null;
+  weightUnit: string;
+  reps: number | null;
+  duration: number | null;
+  feedback: "light_weight" | "correct_weight" | "felt_heavy" | null;
+  comment: string | null;
+}
+
+export interface CompletedExerciseView {
+  id: string;
+  name: string;
+  sets: CompletedSetView[];
+  totalSets: number;
+  durationMinutes: number;
+  comment: string | null;
+}
+
+export interface CompletedSessionDetail {
+  sessionId: string;
+  programDayId: string;
+  exercises: CompletedExerciseView[];
+  totalExercises: number;
+  durationMinutes: number;
 }

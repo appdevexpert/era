@@ -3,7 +3,13 @@
  * Follows the same pattern as workoutService.ts.
  */
 
-import type { SessionExercise, SessionExerciseSet } from "@/app/types/workout";
+import type {
+  CompletedExerciseView,
+  CompletedSessionDetail,
+  CompletedSetView,
+  SessionExercise,
+  SessionExerciseSet,
+} from "@/app/types/workout";
 import { supabase } from "@/app/utils/auth";
 
 /* ─── Helpers ─── */
@@ -414,4 +420,88 @@ export async function createPointEvent(params: {
   });
 
   throwIfError(error, "Failed to create point event");
+}
+
+/* ─── Read: completed session detail ─── */
+
+export async function getCompletedSessionDetail(
+  userId: string,
+  programDayId: string,
+): Promise<CompletedSessionDetail | null> {
+  // 1. Find the completed session for this day
+  const { data: session, error: sessionError } = await supabase
+    .from("workout_sessions")
+    .select("id, duration_seconds, total_exercises, exercises_completed, sets_logged")
+    .eq("user_id", userId)
+    .eq("program_day_id", programDayId)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (sessionError || !session) return null;
+
+  // 2. Fetch exercises for this session
+  const { data: exercises, error: exError } = await supabase
+    .from("session_exercises")
+    .select("id, display_name_snapshot, sort_order, status, comment")
+    .eq("session_id", session.id)
+    .order("sort_order", { ascending: true });
+
+  if (exError) throw new Error(exError.message);
+  const exerciseRows = exercises ?? [];
+
+  // 3. Fetch all sets for these exercises
+  const exerciseIds = exerciseRows.map((e) => e.id);
+  const { data: sets, error: setError } = await supabase
+    .from("session_sets")
+    .select(
+      "id, session_exercise_id, set_number, logged_weight_value, logged_weight_unit, logged_reps, logged_duration_seconds, perceived_feedback, comment, status",
+    )
+    .in("session_exercise_id", exerciseIds.length > 0 ? exerciseIds : ["_none_"])
+    .order("set_number", { ascending: true });
+
+  if (setError) throw new Error(setError.message);
+  const setRows = sets ?? [];
+
+  // 4. Group sets by exercise
+  const setsByExercise = new Map<string, typeof setRows>();
+  for (const s of setRows) {
+    const arr = setsByExercise.get(s.session_exercise_id) ?? [];
+    arr.push(s);
+    setsByExercise.set(s.session_exercise_id, arr);
+  }
+
+  // 5. Build result
+  const completedExercises: CompletedExerciseView[] = exerciseRows.map((ex) => {
+    const exSets = setsByExercise.get(ex.id) ?? [];
+    const completedSets: CompletedSetView[] = exSets
+      .filter((s) => s.status === "completed")
+      .map((s) => ({
+        setNumber: s.set_number,
+        weight: s.logged_weight_value != null ? Number(s.logged_weight_value) : null,
+        weightUnit: s.logged_weight_unit ?? "kg",
+        reps: s.logged_reps,
+        duration: s.logged_duration_seconds,
+        feedback: s.perceived_feedback as CompletedSetView["feedback"],
+        comment: s.comment,
+      }));
+
+    return {
+      id: ex.id,
+      name: ex.display_name_snapshot ?? "",
+      sets: completedSets,
+      totalSets: completedSets.length,
+      durationMinutes: 0, // not tracked per-exercise
+      comment: ex.comment,
+    };
+  });
+
+  return {
+    sessionId: session.id,
+    programDayId,
+    exercises: completedExercises,
+    totalExercises: session.total_exercises ?? exerciseRows.length,
+    durationMinutes: Math.round((session.duration_seconds ?? 0) / 60),
+  };
 }
