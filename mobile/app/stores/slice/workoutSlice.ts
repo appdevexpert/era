@@ -1,4 +1,5 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { signOutThunk } from "./authSlice";
 import {
   getProgramDayDetail,
   getWorkoutOverview,
@@ -83,6 +84,7 @@ const workoutSlice = createSlice({
       state.status = "failed";
       state.error = action.payload ?? "Unable to load workout.";
     });
+    builder.addCase(signOutThunk.fulfilled, () => initialState);
   },
 });
 

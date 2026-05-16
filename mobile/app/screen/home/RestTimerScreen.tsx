@@ -2,6 +2,7 @@ import { ChevronBack } from "@/assets/icons";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
+import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
@@ -129,13 +130,21 @@ const RestTimerScreen = () => {
   const { t } = useTranslation();
 
   const {
-    exerciseIndex,
+    exerciseIndex, // 1-based
     totalExercises,
     currentSet,
     totalSets,
     nextExerciseName,
     restDuration,
   } = route.params;
+
+  const exIdx = exerciseIndex - 1; // 0-based
+  const { navigateToExercise } = useWorkoutSession();
+
+  /** Skip rest / navigate to the exercise at the correct set */
+  const goToExercise = useCallback(() => {
+    navigateToExercise(exIdx, currentSet - 1); // currentSet is 1-based, convert to 0-based
+  }, [exIdx, currentSet, navigateToExercise]);
 
   const [totalTime, setTotalTime] = useState(restDuration);
   const [remaining, setRemaining] = useState(restDuration);
@@ -144,7 +153,10 @@ const RestTimerScreen = () => {
   const animatedProgress = useSharedValue(1);
 
   useEffect(() => {
-    if (remaining <= 0) return;
+    if (remaining <= 0) {
+      goToExercise();
+      return;
+    }
     const id = setTimeout(() => setRemaining((r) => r - 1), 1000);
     return () => clearTimeout(id);
   }, [remaining]);
@@ -205,7 +217,7 @@ const RestTimerScreen = () => {
             })}
           </Text>
         </View>
-        <View style={styles.upNextChevron}>
+        <Pressable style={styles.upNextChevron} onPress={goToExercise}>
           <GlassView
             pointerEvents="none"
             glassEffectStyle="regular"
@@ -222,7 +234,7 @@ const RestTimerScreen = () => {
             height={20}
             style={{ transform: [{ rotate: "180deg" }] }}
           />
-        </View>
+        </Pressable>
       </View>
     </View>
   );

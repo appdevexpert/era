@@ -63,6 +63,7 @@ export type CardioTimerParams = {
   duration: number;
   idealTime?: string;
   topTime?: string;
+  slideFrom?: "left" | "right";
 };
 
 export type TimerLogParams = {
@@ -71,8 +72,10 @@ export type TimerLogParams = {
   exerciseIndex: number;
   totalExercises: number;
   setCount: number;
+  currentSet?: number; // 0-based, which set to start on
   idealTime?: string;
   topTime?: string;
+  slideFrom?: "left" | "right";
 };
 
 export type WorkoutLogParams = {
@@ -82,6 +85,8 @@ export type WorkoutLogParams = {
   totalExercises: number;
   setCount: number;
   showWeight?: boolean;
+  currentSet?: number; // 0-based, which set to start on
+  slideFrom?: "left" | "right";
 };
 
 export type HomeStackParamList = {

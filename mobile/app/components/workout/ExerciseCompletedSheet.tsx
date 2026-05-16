@@ -12,6 +12,7 @@ type SetSummary = {
   weight: string;
   reps: number;
   setNumber: number;
+  duration?: number | null;
 };
 
 type ExerciseCompletedSheetProps = {
@@ -19,12 +20,21 @@ type ExerciseCompletedSheetProps = {
   onContinue: (comment: string) => void;
 };
 
+const formatDuration = (seconds: number) => {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+};
+
 const SetCard = ({ set }: { set: SetSummary }) => {
   const { t } = useTranslation();
+  const isTimed = set.duration != null && set.duration > 0;
   return (
     <View style={styles.setCard}>
       <Text style={styles.setCardValue}>
-        {t("workout.ui.repsFormat", { weight: set.weight, reps: set.reps })}
+        {isTimed
+          ? formatDuration(set.duration!)
+          : t("workout.ui.repsFormat", { weight: set.weight, reps: set.reps })}
       </Text>
       <Text style={styles.setCardLabel}>
         {t("workout.ui.setLabel", { number: set.setNumber }).toUpperCase()}
@@ -132,10 +142,11 @@ const styles = StyleSheet.create({
   },
   setsRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   setCard: {
-    flex: 1,
+    width: "31%",
     backgroundColor: COLORS.neutral.black2,
     borderWidth: 1,
     borderColor: COLORS.neutral.charcoal,

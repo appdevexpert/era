@@ -1,6 +1,7 @@
 const nb = {
   common: {
     continue: "Fortsett",
+    cancel: "Avbryt",
   },
   auth: {
     login: "Logg inn",
@@ -275,6 +276,9 @@ const nb = {
       reset: "Nullstill",
       cancel: "Avbryt",
       completeSession: "Fullfør økt",
+      quitTitle: "Avslutt trening?",
+      quitMessage: "Dine loggede sett er lagret.",
+      quitConfirm: "Avslutt",
       sessionComplete: "Økt fullført",
       sessionDuration: "Øktvarighet",
       setsLogged: "Sett logget",

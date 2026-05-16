@@ -9,12 +9,17 @@ import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale } from "@/app/utils/responsive";
+import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
+import { useSessionTimer } from "@/app/hooks/useSessionTimer";
+import { useAppDispatch } from "@/app/stores/store";
+import { clearSession } from "@/app/stores/slice/sessionSlice";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import { Alert, StyleSheet, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Extrapolation,
@@ -24,14 +29,9 @@ import Animated, {
   useSharedValue,
 } from "react-native-reanimated";
 
-const formatTime = (seconds: number) => {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-};
-
 const WorkoutLogScreen = () => {
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutLog">>();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
@@ -39,62 +39,83 @@ const WorkoutLogScreen = () => {
   const {
     exerciseName,
     exerciseCategory,
-    exerciseIndex,
+    exerciseIndex, // 1-based
     totalExercises,
     setCount,
     showWeight = true,
+    currentSet: startSet = 0, // 0-based set to resume from
   } = route.params;
 
-  // Session timer
-  const [elapsed, setElapsed] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const timer = formatTime(elapsed);
+  const { t } = useTranslation();
+  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, finishSession, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet } = useWorkoutSession();
+  const { formatted: timer } = useSessionTimer();
+  const exercises = sessionWorkout?.exercises ?? [];
+  const total = exercises.length;
+  const exIdx = exerciseIndex - 1; // 0-based
+  const currentEx = exercises[exIdx];
+  const prevEx = exIdx > 0 ? exercises[exIdx - 1] : undefined;
+  const nextEx = exIdx < total - 1 ? exercises[exIdx + 1] : undefined;
 
-  const [weight, setWeight] = useState(120);
-  const [reps, setReps] = useState(6);
+  const [weight, setWeight] = useState(currentEx?.initialWeight ?? 120);
+  const [reps, setReps] = useState(currentEx?.targetReps ?? 6);
   const [comment, setComment] = useState("");
 
   const MAX_SETS = 5;
-  const [activeSet] = useState(2); // TODO: change back to 0 after testing
-  const [sets, setSets] = useState(setCount || 3);
+  const [activeSet, setActiveSet] = useState(startSet);
+  const sets = getSetCount(exIdx) || setCount || 3;
   const canAddSet = sets < MAX_SETS;
   const isLastSet = activeSet >= sets - 1;
-  const handleAddSet = () => {
-    if (canAddSet) setSets((s) => s + 1);
-  };
+  const handleAddSet = useCallback(async () => {
+    if (!canAddSet) return;
+    await addSet(exIdx);
+  }, [canAddSet, addSet, exIdx]);
 
   // Exercise completed bottom sheet
   const sheetRef = useRef<BottomSheet>(null);
-  const completedSets = [
-    { weight: "120 Kg", reps: 6, setNumber: 1 },
-    { weight: "125kg", reps: 6, setNumber: 2 },
-    { weight: "130kg", reps: 6, setNumber: 3 },
-  ];
+  const lastSetLogged = useRef(false);
+
+  /** Navigate to a specific exercise by 0-based index */
+  const goToExercise = useCallback(
+    (idx: number, direction: "forward" | "back" = "forward") => goToEx(idx, 0, direction),
+    [goToEx],
+  );
+
+  /** Complete Set (not last) → log + rest timer */
+  const handleCompleteSet = useCallback(() => {
+    logSetResult(exIdx, activeSet, weight, reps, null);
+    navigateToRest(exIdx, activeSet + 2);
+    setActiveSet((s) => s + 1);
+  }, [weight, reps, activeSet, exIdx, logSetResult, navigateToRest]);
+
+  /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
+    if (lastSetLogged.current) {
+      sheetRef.current?.expand();
+      return;
+    }
+    lastSetLogged.current = true;
+    logSetResult(exIdx, activeSet, weight, reps, null);
     sheetRef.current?.expand();
-  }, []);
+  }, [weight, reps, activeSet, exIdx, logSetResult]);
+
+  /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
     (_comment: string) => {
       sheetRef.current?.close();
-      // TODO: check if PR was hit, then show PR screen, otherwise goBack
-      navigation.navigate("PRScreen", {
-        exerciseName,
-        exerciseCategory,
-        weight: `${weight} kg`,
-        reps,
-        previousBest: "114 kg",
-        points: 100,
-      });
+      completeExerciseResult(exIdx, _comment);
+
+      const nextIdx = exIdx + 1;
+      if (nextIdx >= total) {
+        navigateToSessionComplete();
+        return;
+      }
+      navigateToRest(nextIdx, 1);
     },
-    [navigation, exerciseName, exerciseCategory, weight, reps],
+    [exIdx, total, completeExerciseResult, navigateToRest, navigateToSessionComplete],
   );
 
   const COLLAPSE_DISTANCE = 60;
 
-  // Scroll-driven collapse
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
@@ -102,7 +123,6 @@ const WorkoutLogScreen = () => {
     },
   });
 
-  // Content stays still while header collapses, then scrolls normally
   const contentHoldStyle = useAnimatedStyle(() => ({
     transform: [
       {
@@ -128,7 +148,24 @@ const WorkoutLogScreen = () => {
         sets={sets}
         canAddSet={canAddSet}
         onAddSet={handleAddSet}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          Alert.alert(
+            t("workout.ui.quitTitle"),
+            t("workout.ui.quitMessage"),
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("workout.ui.quitConfirm"),
+                style: "destructive",
+                onPress: async () => {
+                  await finishSession();
+                  dispatch(clearSession());
+                  navigation.popToTop();
+                },
+              },
+            ],
+          );
+        }}
         scrollY={scrollY}
         topInset={insets.top}
       />
@@ -143,47 +180,46 @@ const WorkoutLogScreen = () => {
         ]}
       >
         <Animated.View style={contentHoldStyle}>
-        <SetStatCards
-          bestSet={{ weight: "120kg", reps: 4 }}
-          lastSet={showWeight ? { weight: "110 Kg", reps: 6 } : undefined}
-        />
+          <SetStatCards
+            bestSet={getExerciseSetStats(exIdx).bestSet}
+            lastSet={getExerciseSetStats(exIdx).lastSet}
+          />
 
-        {showWeight ? (
-          <View style={styles.rulerFullWidth}>
-            <WeightRuler
-              label="Weight"
-              unit="Kgs"
-              value={weight}
-              onValueChange={setWeight}
-              min={20}
-              max={200}
+          {showWeight ? (
+            <View style={styles.rulerFullWidth}>
+              <WeightRuler
+                label="Weight"
+                unit="Kgs"
+                value={weight}
+                onValueChange={setWeight}
+                min={20}
+                max={200}
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.repsSection}>
+            <RepsPicker
+              label="Reps"
+              value={reps}
+              onValueChange={setReps}
+              min={1}
+              max={30}
             />
           </View>
-        ) : null}
 
-        <View style={styles.repsSection}>
-          <RepsPicker
-            label="Reps"
-            value={reps}
-            onValueChange={setReps}
-            min={1}
-            max={30}
-          />
-        </View>
+          {showWeight ? (
+            <View style={styles.bodyPadded}>
+              <SetFeedback />
+            </View>
+          ) : null}
 
-        {showWeight ? (
-          <View style={styles.bodyPadded}>
-            <SetFeedback />
+          <View style={[styles.bodyPaddeds, { paddingTop: 32 }]}>
+            <AddComment value={comment} onChangeText={setComment} />
           </View>
-        ) : null}
-
-        <View style={[styles.bodyPaddeds, { paddingTop: 32 }]}>
-          <AddComment value={comment} onChangeText={setComment} />
-        </View>
         </Animated.View>
       </Animated.ScrollView>
 
-      {/* Bottom fade overlay */}
       <LinearGradient
         pointerEvents="none"
         colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.8)"]}
@@ -191,54 +227,20 @@ const WorkoutLogScreen = () => {
         style={styles.bottomFade}
       />
 
-      {/* Bottom action bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <CompleteSetBar
-          onComplete={
-            isLastSet
-              ? handleCompleteExercise
-              : () =>
-                  navigation.navigate("RestTimer", {
-                    exerciseIndex,
-                    totalExercises,
-                    currentSet: activeSet + 2,
-                    totalSets: sets,
-                    nextExerciseName: exerciseName,
-                    restDuration: 60,
-                  })
-          }
-          onNext={() =>
-            navigation.navigate("TimerLog", {
-              exerciseName: "Plank",
-              exerciseCategory: "core finisher",
-              exerciseIndex: 3,
-              totalExercises: 3,
-              setCount: 3,
-              idealTime: "60 sec",
-              topTime: "1min 20sec",
-            })
-          }
-          onPrevious={() =>
-            navigation.navigate("CardioTimer", {
-              exerciseName: "Incline Walk",
-              exerciseCategory: "treadmill",
-              exerciseIndex: 3,
-              totalExercises: 3,
-              duration: 1200,
-              idealTime: "20 min",
-              topTime: "40 min",
-            })
-          }
-          showNext
-          showPrevious
+          onComplete={isLastSet ? handleCompleteExercise : handleCompleteSet}
+          onNext={nextEx ? () => goToExercise(exIdx + 1, "forward") : undefined}
+          onPrevious={prevEx ? () => goToExercise(exIdx - 1, "back") : undefined}
+          showNext={!!nextEx}
+          showPrevious={!!prevEx}
           isLastSet={isLastSet}
         />
       </View>
 
-      {/* Exercise completed bottom sheet */}
       <ExerciseCompletedSheet
         ref={sheetRef}
-        sets={completedSets}
+        sets={getCompletedSetsForSheet(exIdx)}
         onContinue={handleSheetContinue}
       />
     </View>
@@ -282,17 +284,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   bodyPadded: {
-   paddingHorizontal: 16,
-   borderBottomWidth: 1,
-   paddingBottom: 32,
-   marginHorizontal: -16,
-   borderColor: COLORS.neutral.charcoal,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    paddingBottom: 32,
+    marginHorizontal: -16,
+    borderColor: COLORS.neutral.charcoal,
   },
   bodyPaddeds: {
     paddingHorizontal: 16,
     paddingBottom: 130,
     marginHorizontal: -16,
-   },
+  },
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 10,

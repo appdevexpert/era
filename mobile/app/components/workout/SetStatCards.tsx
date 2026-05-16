@@ -9,8 +9,8 @@ type SetStat = {
 };
 
 type SetStatCardsProps = {
-  bestSet: SetStat;
-  lastSet?: SetStat;
+  bestSet?: SetStat | null;
+  lastSet?: SetStat | null;
 };
 
 const StatCard = ({ value, label }: { value: string; label: string }) => (
@@ -23,6 +23,9 @@ const StatCard = ({ value, label }: { value: string; label: string }) => (
 const SetStatCards = ({ bestSet, lastSet }: SetStatCardsProps) => {
   const { t } = useTranslation();
 
+  // Nothing to show — new user, first time on this exercise
+  if (!bestSet && !lastSet) return null;
+
   const formatSet = (set: SetStat) =>
     t("workout.ui.repsFormat", { weight: set.weight, reps: set.reps });
 
@@ -34,10 +37,12 @@ const SetStatCards = ({ bestSet, lastSet }: SetStatCardsProps) => {
           label={t("workout.ui.lastSet")}
         />
       ) : null}
-      <StatCard
-        value={formatSet(bestSet)}
-        label={t("workout.ui.bestSet")}
-      />
+      {bestSet ? (
+        <StatCard
+          value={formatSet(bestSet)}
+          label={t("workout.ui.bestSet")}
+        />
+      ) : null}
     </View>
   );
 };

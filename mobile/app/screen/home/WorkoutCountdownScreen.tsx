@@ -3,12 +3,8 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import {
-  RouteProp,
-  useNavigation,
-  useRoute,
-} from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp, useRoute } from "@react-navigation/native";
+import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -38,13 +34,13 @@ const CountdownNumber = ({
 const WorkoutCountdownScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutCountdown">>();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
+  const { ready, startSession, navigateToExercise } = useWorkoutSession();
 
   const { weekLabel, dayLabel, dayTitle, firstExerciseName } = route.params;
 
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const hasStarted = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const startFadeIn = useCallback(() => {
@@ -64,15 +60,15 @@ const WorkoutCountdownScreen = () => {
       const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
       return () => clearTimeout(timer);
     }
-    // Countdown finished — navigate to workout log
-    navigation.replace("WorkoutLog", {
-      exerciseName: firstExerciseName,
-      exerciseCategory: `${dayTitle}`,
-      exerciseIndex: 1,
-      totalExercises: 5,
-      setCount: 3,
-    });
-  }, [countdown, navigation, firstExerciseName, dayTitle]);
+    // Countdown finished — start session and navigate to first exercise (once)
+    if (ready && !hasStarted.current) {
+      hasStarted.current = true;
+      void (async () => {
+        await startSession();
+        navigateToExercise(0);
+      })();
+    }
+  }, [countdown, ready, startSession, navigateToExercise]);
 
   return (
     <View style={styles.root}>

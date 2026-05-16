@@ -10,6 +10,7 @@ export interface DayItem {
   date: string;
   active?: boolean;
   completed?: boolean;
+  missed?: boolean;
 }
 
 interface WeekDaySelectorProps {
@@ -24,9 +25,60 @@ const DayPill = ({
   day: DayItem;
   onPress?: () => void;
 }) => {
+  // State 3: Today + Completed — gold-to-green gradient with ✓
+  if (day.active && day.completed) {
+    return (
+      <Pressable onPress={onPress} style={styles.pillBase}>
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="clear"
+          colorScheme="light"
+          style={styles.glassFill}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(201, 168, 76, 0.35)", "rgba(4, 95, 16, 0.35)"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.glassFill}
+        />
+        <Text style={styles.label}>{day.label}</Text>
+        <View style={styles.checkBadge}>
+          <Text style={styles.checkMark}>✓</Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  // State 1: Missed — dark-to-red gradient with ✕
+  if (day.missed) {
+    return (
+      <Pressable onPress={onPress} style={styles.pillBase}>
+        <GlassView
+          pointerEvents="none"
+          glassEffectStyle="clear"
+          colorScheme="light"
+          style={styles.glassFill}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(10, 10, 10, 0.35)", "rgba(230, 119, 119, 0.35)"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.glassFill}
+        />
+        <Text style={styles.label}>{day.label}</Text>
+        <View style={styles.missBadge}>
+          <Text style={styles.missMark}>✕</Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  // State 2: Past Completed — dark-to-green gradient with ✓
   if (day.completed) {
     return (
-      <Pressable onPress={onPress} style={styles.pillCompleted}>
+      <Pressable onPress={onPress} style={styles.pillBase}>
         <GlassView
           pointerEvents="none"
           glassEffectStyle="clear"
@@ -40,7 +92,7 @@ const DayPill = ({
           end={{ x: 0.5, y: 1 }}
           style={styles.glassFill}
         />
-        <Text style={styles.labelCompleted}>{day.label}</Text>
+        <Text style={styles.label}>{day.label}</Text>
         <View style={styles.checkBadge}>
           <Text style={styles.checkMark}>✓</Text>
         </View>
@@ -48,9 +100,10 @@ const DayPill = ({
     );
   }
 
+  // State 4: Today + Not Completed — solid gold with date badge
   if (day.active) {
     return (
-      <Pressable onPress={onPress} style={styles.pillActive}>
+      <Pressable onPress={onPress} style={styles.pillBase}>
         <GlassView
           pointerEvents="none"
           glassEffectStyle="clear"
@@ -62,7 +115,7 @@ const DayPill = ({
           colors={["rgba(201, 168, 76, 0.35)", "rgba(201, 168, 76, 0.35)"]}
           style={styles.glassFill}
         />
-        <Text style={styles.labelActive}>{day.label}</Text>
+        <Text style={styles.label}>{day.label}</Text>
         <View style={styles.dateBadgeActive}>
           <Text style={styles.dateTextActive}>{day.date}</Text>
         </View>
@@ -70,6 +123,7 @@ const DayPill = ({
     );
   }
 
+  // State 5: Future / Inactive — dashed border with date
   return (
     <Pressable onPress={onPress} style={styles.pillInactive}>
       <Text style={styles.labelInactive}>{day.label}</Text>
@@ -106,43 +160,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     borderRadius: 77,
   },
-  pillCompleted: {
-    alignItems: "center",
-    gap: 4.6,
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    borderRadius: 76.899,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  labelCompleted: {
-    fontSize: 10,
-    fontFamily: FONTS.medium,
-    fontWeight: "500",
-    textAlign: "center",
-    color: COLORS.neutral.white,
-  },
-  checkBadge: {
-    backgroundColor: "rgba(61, 202, 122, 0.2)",
-    paddingHorizontal: 6,
-    paddingVertical: 6,
-    borderRadius: 100,
-    alignItems: "center",
-    justifyContent: "center",
-    width: "100%",
-  },
-  checkMark: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.semantic.success,
-    textAlign: "center",
-    minWidth: 16,
-  },
-  pillActive: {
+  pillBase: {
     alignItems: "center",
     gap: 4.6,
     paddingHorizontal: 8,
@@ -166,7 +184,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.neutral.charcoal,
     overflow: "hidden",
   },
-  labelActive: {
+  label: {
     fontSize: 10,
     fontFamily: FONTS.medium,
     fontWeight: "500",
@@ -179,6 +197,38 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
     color: "rgba(240, 240, 240, 0.5)",
+  },
+  checkBadge: {
+    backgroundColor: "rgba(61, 202, 122, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  checkMark: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.semantic.success,
+    textAlign: "center",
+    minWidth: 16,
+  },
+  missBadge: {
+    backgroundColor: "rgba(230, 119, 119, 0.2)",
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  missMark: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#E67777",
+    textAlign: "center",
+    minWidth: 16,
   },
   dateBadgeActive: {
     backgroundColor: "rgba(201, 168, 76, 0.6)",

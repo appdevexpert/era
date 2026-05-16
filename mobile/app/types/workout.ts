@@ -192,3 +192,54 @@ export interface ExerciseListView {
   estimatedMinutes: number;
   sections: ExerciseListSectionView[];
 }
+
+/* ─── Session workout types (screen-ready) ─── */
+
+export type ExerciseMode = "weighted" | "bodyweight" | "timed" | "cardio";
+
+export interface SessionExerciseSet {
+  id: string;
+  setNumber: number;
+  setKind: string;
+  targetWeight: number | null;
+  targetWeightUnit: string;
+  targetReps: number | null;
+  targetRepsMin: number | null;
+  targetRepsMax: number | null;
+  targetDuration: number | null;
+  restSeconds: number | null;
+  displayLabel: string | null;
+}
+
+export interface SessionExercise {
+  id: string;
+  exerciseLibraryId: string;
+  sectionId: string;
+  sectionKind: string;
+  name: string;
+  category: string;
+  modality: string;
+  exerciseCategory: string;
+  mode: ExerciseMode;
+  setCount: number;
+  sets: SessionExerciseSet[];
+  initialWeight: number | null;
+  weightUnit: string;
+  targetReps: number | null;
+  targetDuration: number | null;
+  restSeconds: number;
+  showWeight: boolean;
+  idealTime: string | undefined;
+  topTime: string | undefined;
+  sortOrder: number;
+}
+
+export interface SessionWorkout {
+  programDayId: string;
+  title: string;
+  weekLabel: string;
+  dayLabel: string;
+  weekNumber: number;
+  dayNumber: number;
+  exercises: SessionExercise[];
+}

@@ -1,10 +1,14 @@
 import type { MuscleGroup } from "@/app/navigation/types";
 import type {
   ExerciseListView,
+  ExerciseMode,
   PlannedExerciseSetRow,
   ProgramDayDetailData,
   ProgramDayRow,
   ProgramWeekRow,
+  SessionExercise,
+  SessionExerciseSet,
+  SessionWorkout,
   WorkoutHomeView,
   WorkoutPlanPhaseView,
   WorkoutPlanView,
@@ -345,4 +349,164 @@ function buildFutureWeekDays(
       sort_order: index + 1,
     };
   });
+}
+
+/* ─── Session workout mapper ─── */
+
+function deriveMode(
+  modality: string | undefined,
+  category: string | undefined,
+  hasWeight: boolean,
+  hasDuration: boolean,
+  hasReps: boolean,
+): ExerciseMode {
+  if (modality === "cardio") return "cardio";
+  if ((modality === "core" || modality === "mobility") && hasDuration && !hasReps) return "timed";
+  if (modality === "strength" && !hasWeight) return "bodyweight";
+  return "weighted";
+}
+
+function formatTimeDuration(seconds: number): string {
+  if (seconds >= 60) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return s > 0 ? `${m}min ${s}sec` : `${m} min`;
+  }
+  return `${seconds} sec`;
+}
+
+export function mapSessionWorkout(
+  data: ProgramDayDetailData,
+  language: string,
+): SessionWorkout {
+  const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
+    (acc, set) => {
+      const current = acc[set.program_day_exercise_id] ?? [];
+      acc[set.program_day_exercise_id] = [...current, set];
+      return acc;
+    },
+    {},
+  );
+  const libraryById = new Map(data.libraryExercises.map((ex) => [ex.id, ex]));
+
+  const sortedSections = [...data.sections].sort((a, b) => a.sort_order - b.sort_order);
+  let globalOrder = 0;
+
+  const exercises: SessionExercise[] = sortedSections.flatMap((section) => {
+    const sectionExercises = data.exercises
+      .filter((ex) => ex.section_id === section.id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    return sectionExercises.map((exercise) => {
+      const lib = libraryById.get(exercise.exercise_id);
+      const rawSets = (setsByExerciseId[exercise.id] ?? []).sort(
+        (a, b) => a.set_number - b.set_number,
+      );
+      const firstSet = rawSets[0];
+      const firstWeightedSet = rawSets.find((s) => s.target_weight_value);
+
+      const weightValue =
+        exercise.initial_weight_value != null
+          ? Number(exercise.initial_weight_value)
+          : firstWeightedSet?.target_weight_value != null
+            ? Number(firstWeightedSet.target_weight_value)
+            : null;
+
+      const hasWeight = weightValue != null;
+      const hasDuration = rawSets.some((s) => s.target_duration_seconds != null);
+      const hasReps = rawSets.some(
+        (s) => s.target_reps_exact != null || s.target_reps_min != null,
+      );
+
+      const mode = deriveMode(lib?.modality, lib?.category, hasWeight, hasDuration, hasReps);
+
+      const name = getLocalizedText(
+        exercise.display_name_translations,
+        language,
+        exercise.display_name ??
+          getLocalizedText(lib?.name_translations ?? null, language, lib?.name ?? ""),
+      );
+
+      const primaryMuscle = lib?.primary_muscles?.[0] ?? "";
+      const catLabel = lib?.category ?? "";
+      const category = primaryMuscle
+        ? `${primaryMuscle} \u2022 ${catLabel}`
+        : section.section_kind === "treadmill_walk"
+          ? "treadmill"
+          : getLocalizedText(section.title_translations, language, section.title);
+
+      const sets: SessionExerciseSet[] = rawSets.map((s) => ({
+        id: s.id,
+        setNumber: s.set_number,
+        setKind: s.set_kind ?? "working",
+        targetWeight: s.target_weight_value != null ? Number(s.target_weight_value) : null,
+        targetWeightUnit: s.target_weight_unit ?? exercise.initial_weight_unit ?? "kg",
+        targetReps: s.target_reps_exact ?? s.target_reps_min ?? null,
+        targetRepsMin: s.target_reps_min ?? null,
+        targetRepsMax: s.target_reps_max ?? null,
+        targetDuration: s.target_duration_seconds ?? null,
+        restSeconds: s.rest_seconds ?? null,
+        displayLabel: s.display_label ?? null,
+      }));
+
+      const topSet = rawSets.find((s) => s.set_kind === "top_set");
+      const restSeconds =
+        firstSet?.rest_seconds ?? exercise.default_rest_seconds ?? 60;
+
+      globalOrder += 1;
+
+      return {
+        id: exercise.id,
+        exerciseLibraryId: exercise.exercise_id,
+        sectionId: section.id,
+        sectionKind: section.section_kind,
+        name,
+        category,
+        modality: lib?.modality ?? "strength",
+        exerciseCategory: lib?.category ?? "compound",
+        mode,
+        setCount: rawSets.length,
+        sets,
+        initialWeight: weightValue,
+        weightUnit: exercise.initial_weight_unit ?? "kg",
+        targetReps: firstSet?.target_reps_exact ?? firstSet?.target_reps_min ?? null,
+        targetDuration: firstSet?.target_duration_seconds ?? null,
+        restSeconds,
+        showWeight: mode === "weighted",
+        idealTime: firstSet?.target_duration_seconds
+          ? formatTimeDuration(firstSet.target_duration_seconds)
+          : undefined,
+        topTime: topSet?.target_duration_seconds
+          ? formatTimeDuration(topSet.target_duration_seconds)
+          : undefined,
+        sortOrder: globalOrder,
+      };
+    });
+  });
+
+  const weekNumber = data.week?.week_number ?? 1;
+  const dayNumber = data.day?.day_number ?? 1;
+
+  return {
+    programDayId: data.day.id,
+    title: getLocalizedText(data.day.title_translations, language, data.day.title),
+    weekLabel: `Week ${weekNumber}`,
+    dayLabel: `Day ${dayNumber}`,
+    weekNumber,
+    dayNumber,
+    exercises,
+  };
+}
+
+export function getScreenForExercise(
+  exercise: SessionExercise,
+): "WorkoutLog" | "TimerLog" | "CardioTimer" {
+  switch (exercise.mode) {
+    case "timed":
+      return "TimerLog";
+    case "cardio":
+      return "CardioTimer";
+    default:
+      return "WorkoutLog";
+  }
 }

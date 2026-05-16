@@ -4,6 +4,8 @@ import { useDispatch } from "react-redux";
 import { persistReducer, persistStore } from "redux-persist";
 import authReducer from "./slice/authSlice";
 import onboardingReducer from "./slice/onboardingSlice";
+import sessionReducer from "./slice/sessionSlice";
+import syncReducer from "./slice/syncSlice";
 import workoutReducer from "./slice/workoutSlice";
 
 const authPersistConfig = { key: "auth", storage: AsyncStorage };
@@ -23,6 +25,8 @@ export const store = configureStore({
     auth: persistedAuthReducer,
     onboarding: persistedOnboardingReducer,
     workout: persistedWorkoutReducer,
+    session: sessionReducer,
+    sync: syncReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

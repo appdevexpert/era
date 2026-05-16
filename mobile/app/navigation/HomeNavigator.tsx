@@ -49,6 +49,9 @@ const HomeNavigator = () => (
     <Stack.Screen
       name="WorkoutLog"
       component={WorkoutLogScreen}
+      options={({ route }) => ({
+        animation: route.params?.slideFrom === "left" ? "slide_from_left" : "slide_from_right",
+      })}
     />
     <Stack.Screen
       name="RestTimer"
@@ -57,10 +60,16 @@ const HomeNavigator = () => (
     <Stack.Screen
       name="TimerLog"
       component={TimerLogScreen}
+      options={({ route }) => ({
+        animation: route.params?.slideFrom === "left" ? "slide_from_left" : "slide_from_right",
+      })}
     />
     <Stack.Screen
       name="CardioTimer"
       component={CardioTimerScreen}
+      options={({ route }) => ({
+        animation: route.params?.slideFrom === "left" ? "slide_from_left" : "slide_from_right",
+      })}
     />
     <Stack.Screen
       name="Points"

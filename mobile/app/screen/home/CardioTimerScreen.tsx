@@ -1,11 +1,15 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
+import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
+import { useSessionTimer } from "@/app/hooks/useSessionTimer";
+import { useAppDispatch } from "@/app/stores/store";
+import { clearSession } from "@/app/stores/slice/sessionSlice";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -121,10 +125,19 @@ const ringStyles = StyleSheet.create({
 
 const CardioTimerScreen = () => {
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<HomeStackParamList, "CardioTimer">>();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
+  const {
+    sessionWorkout,
+    navigateToRest,
+    navigateToSessionComplete,
+    logCardioResult,
+    completeExerciseResult,
+    finishSession,
+  } = useWorkoutSession();
 
   const {
     exerciseName,
@@ -136,12 +149,8 @@ const CardioTimerScreen = () => {
     topTime,
   } = route.params;
 
-  // Session timer (top-right)
-  const [sessionElapsed, setSessionElapsed] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setSessionElapsed((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
+  // Session timer (shared across all workout screens)
+  const { formatted: sessionTimerText } = useSessionTimer();
 
   // Countdown
   const [remaining, setRemaining] = useState(duration);
@@ -185,12 +194,29 @@ const CardioTimerScreen = () => {
         exerciseCategory={exerciseCategory}
         exerciseIndex={exerciseIndex}
         totalExercises={totalExercises}
-        timer={formatMmSs(sessionElapsed)}
+        timer={sessionTimerText}
         activeSet={0}
         sets={1}
         canAddSet={false}
         onAddSet={() => undefined}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          Alert.alert(
+            t("workout.ui.quitTitle"),
+            t("workout.ui.quitMessage"),
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("workout.ui.quitConfirm"),
+                style: "destructive",
+                onPress: async () => {
+                  await finishSession();
+                  dispatch(clearSession());
+                  navigation.popToTop();
+                },
+              },
+            ],
+          );
+        }}
         scrollY={scrollY}
         topInset={insets.top}
         showSets={false}
@@ -262,18 +288,22 @@ const CardioTimerScreen = () => {
 
       {/* Complete Session button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.completeBtn} onPress={() =>
-          navigation.navigate("SessionComplete", {
-            programTitle: "Push-Heavy",
-            weekNumber: 1,
-            dayNumber: 2,
-            sessionDuration: formatMmSs(sessionElapsed),
-            setsLogged: 18,
-            eraPoints: 320,
-            newPRs: 0,
-            bonusPoints: 100,
-          })
-        }>
+        <Pressable style={styles.completeBtn} onPress={async () => {
+          const exIdx = exerciseIndex - 1;
+          const actualDuration = duration - remaining;
+
+          // Log cardio duration to session_sets + session_cardio_logs
+          await logCardioResult(exIdx, actualDuration);
+          await completeExerciseResult(exIdx);
+
+          const nextIdx = exIdx + 1;
+          const total = sessionWorkout?.exercises.length ?? 0;
+          if (nextIdx >= total) {
+            navigateToSessionComplete();
+          } else {
+            navigateToRest(nextIdx, 1);
+          }
+        }}>
           <LinearGradient
             colors={[
               "rgba(201,168,76,0.6)",

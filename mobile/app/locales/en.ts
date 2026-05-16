@@ -1,6 +1,7 @@
 const en = {
   common: {
     continue: "Continue",
+    cancel: "Cancel",
   },
   auth: {
     login: "Login",
@@ -275,6 +276,9 @@ const en = {
       reset: "Reset",
       cancel: "Cancel",
       completeSession: "Complete Session",
+      quitTitle: "Quit Workout?",
+      quitMessage: "Your logged sets are saved.",
+      quitConfirm: "Quit",
       sessionComplete: "Session Complete",
       sessionDuration: "Session Duration",
       setsLogged: "Sets Logged",

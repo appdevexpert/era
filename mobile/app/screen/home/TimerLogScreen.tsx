@@ -1,27 +1,25 @@
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
-import SetStatCards from "@/app/components/workout/SetStatCards";
+import ExerciseCompletedSheet from "@/app/components/workout/ExerciseCompletedSheet";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
-import { horizontalScale } from "@/app/utils/responsive";
+import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
+import { useSessionTimer } from "@/app/hooks/useSessionTimer";
+import { useAppDispatch } from "@/app/stores/store";
+import { clearSession } from "@/app/stores/slice/sessionSlice";
+import BottomSheet from "@gorhom/bottom-sheet";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
 } from "react-native-reanimated";
-
-const formatTime = (seconds: number) => {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-};
 
 const formatStopwatch = (ms: number) => {
   const totalSec = Math.floor(ms / 1000);
@@ -33,10 +31,23 @@ const formatStopwatch = (ms: number) => {
 
 const TimerLogScreen = () => {
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<HomeStackParamList, "TimerLog">>();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
+  const {
+    sessionWorkout,
+    navigateToExercise,
+    navigateToRest,
+    navigateToSessionComplete,
+    logSetResult,
+    completeExerciseResult,
+    finishSession,
+    addSet,
+    getSetCount,
+    getCompletedSetsForSheet,
+  } = useWorkoutSession();
 
   const {
     exerciseName,
@@ -44,26 +55,30 @@ const TimerLogScreen = () => {
     exerciseIndex,
     totalExercises,
     setCount,
+    currentSet: startSet = 0,
     idealTime,
     topTime,
   } = route.params;
 
-  // Session timer
-  const [sessionElapsed, setSessionElapsed] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setSessionElapsed((s) => s + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const sessionTimer = formatTime(sessionElapsed);
+  const exIdx = exerciseIndex - 1; // 0-based
+  const exercises = sessionWorkout?.exercises ?? [];
+  const total = exercises.length;
+  const prevEx = exIdx > 0 ? exercises[exIdx - 1] : undefined;
+  const nextEx = exIdx < total - 1 ? exercises[exIdx + 1] : undefined;
+
+  // Session timer (shared across all workout screens)
+  const { formatted: sessionTimer } = useSessionTimer();
 
   // Set state
   const MAX_SETS = 5;
-  const [activeSet] = useState(0);
-  const [sets, setSets] = useState(setCount || 3);
+  const [activeSet, setActiveSet] = useState(startSet);
+  const sets = getSetCount(exIdx) || setCount || 3;
   const canAddSet = sets < MAX_SETS;
-  const handleAddSet = () => {
-    if (canAddSet) setSets((s) => s + 1);
-  };
+  const isLastSet = activeSet >= sets - 1;
+  const handleAddSet = useCallback(async () => {
+    if (!canAddSet) return;
+    await addSet(exIdx);
+  }, [canAddSet, addSet, exIdx]);
 
   // Stopwatch
   const [stopwatchMs, setStopwatchMs] = useState(0);
@@ -94,6 +109,54 @@ const TimerLogScreen = () => {
     };
   }, []);
 
+  // Exercise completed bottom sheet
+  const sheetRef = useRef<BottomSheet>(null);
+  const lastSetLogged = useRef(false);
+
+  /** Complete Set (not last) → log duration + rest timer */
+  const handleCompleteSet = useCallback(() => {
+    const durationSec = Math.floor(stopwatchMs / 1000);
+    logSetResult(exIdx, activeSet, null, null, null, durationSec);
+    resetStopwatch();
+    navigateToRest(exIdx, activeSet + 2);
+    setActiveSet((s) => s + 1);
+  }, [stopwatchMs, activeSet, exIdx, logSetResult, resetStopwatch, navigateToRest]);
+
+  /** Complete Exercise (last set) → log once + show bottom sheet */
+  const handleCompleteExercise = useCallback(() => {
+    if (lastSetLogged.current) {
+      sheetRef.current?.expand();
+      return;
+    }
+    lastSetLogged.current = true;
+    const durationSec = Math.floor(stopwatchMs / 1000);
+    logSetResult(exIdx, activeSet, null, null, null, durationSec);
+    resetStopwatch();
+    sheetRef.current?.expand();
+  }, [stopwatchMs, activeSet, exIdx, logSetResult, resetStopwatch]);
+
+  /** Sheet "Continue" → complete exercise + move to next or session complete */
+  const handleSheetContinue = useCallback(
+    (_comment: string) => {
+      sheetRef.current?.close();
+      completeExerciseResult(exIdx, _comment);
+
+      const nextIdx = exIdx + 1;
+      if (nextIdx >= total) {
+        navigateToSessionComplete();
+        return;
+      }
+      navigateToRest(nextIdx, 1);
+    },
+    [exIdx, total, completeExerciseResult, navigateToRest, navigateToSessionComplete],
+  );
+
+  /** Navigate to a specific exercise by 0-based index */
+  const goToExercise = useCallback(
+    (idx: number, direction: "forward" | "back" = "forward") => navigateToExercise(idx, 0, direction),
+    [navigateToExercise],
+  );
+
   // Scroll
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler({
@@ -114,7 +177,24 @@ const TimerLogScreen = () => {
         sets={sets}
         canAddSet={canAddSet}
         onAddSet={handleAddSet}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          Alert.alert(
+            t("workout.ui.quitTitle"),
+            t("workout.ui.quitMessage"),
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: t("workout.ui.quitConfirm"),
+                style: "destructive",
+                onPress: async () => {
+                  await finishSession();
+                  dispatch(clearSession());
+                  navigation.popToTop();
+                },
+              },
+            ],
+          );
+        }}
         scrollY={scrollY}
         topInset={insets.top}
       />
@@ -185,11 +265,20 @@ const TimerLogScreen = () => {
       {/* Bottom bar */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <CompleteSetBar
-          onComplete={() => undefined}
-          onNext={() => undefined}
-          showNext
+          onComplete={isLastSet ? handleCompleteExercise : handleCompleteSet}
+          onNext={nextEx ? () => goToExercise(exIdx + 1, "forward") : undefined}
+          onPrevious={prevEx ? () => goToExercise(exIdx - 1, "back") : undefined}
+          showNext={!!nextEx}
+          showPrevious={!!prevEx}
+          isLastSet={isLastSet}
         />
       </View>
+
+      <ExerciseCompletedSheet
+        ref={sheetRef}
+        sets={getCompletedSetsForSheet(exIdx)}
+        onContinue={handleSheetContinue}
+      />
     </View>
   );
 };

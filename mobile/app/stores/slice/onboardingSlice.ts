@@ -1,5 +1,6 @@
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { insertGoal, type GoalData } from "@/app/services/onboardingService";
+import { signOutThunk } from "./authSlice";
 import type { RootState } from "@/app/stores/store";
 
 interface OnboardingState {
@@ -69,6 +70,7 @@ const onboardingSlice = createSlice({
       state.isLoading = false;
       state.error = action.payload as string;
     });
+    builder.addCase(signOutThunk.fulfilled, () => initialState);
   },
 });
 

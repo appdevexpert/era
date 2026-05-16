@@ -265,6 +265,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    marginTop: 8
   },
   startGradient: {
     ...StyleSheet.absoluteFillObject,

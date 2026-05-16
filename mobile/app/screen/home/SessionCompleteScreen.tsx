@@ -3,6 +3,8 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { PrTrophy } from "@/assets/images";
+import { useAppDispatch } from "@/app/stores/store";
+import { clearSession } from "@/app/stores/slice/sessionSlice";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -23,6 +25,7 @@ const SessionCompleteScreen = () => {
   const route = useRoute<RouteProp<HomeStackParamList, "SessionComplete">>();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
   const {
@@ -96,7 +99,10 @@ const SessionCompleteScreen = () => {
         {/* Continue */}
         <Pressable
           style={styles.continueBtn}
-          onPress={() => navigation.popToTop()}
+          onPress={() => {
+            dispatch(clearSession());
+            navigation.popToTop();
+          }}
         >
           <LinearGradient
             colors={[

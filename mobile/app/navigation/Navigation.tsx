@@ -10,6 +10,7 @@ import { login, clearSession } from "@/app/stores/slice/authSlice";
 import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
 import { submitGoalData } from "@/app/stores/slice/onboardingSlice";
 import { clearWorkoutCache } from "@/app/stores/slice/workoutSlice";
+import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
 import { mapSupabaseUser, supabase } from "@/app/utils/auth";
@@ -80,6 +81,7 @@ const handleDeepLink = async (url: string): Promise<boolean> => {
 
 const Navigation = () => {
   const dispatch = useAppDispatch();
+  const { flushQueue, queueLength } = useSyncQueue();
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const isOnboarded = useSelector((state: RootState) => state.auth.isOnboarded);
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
@@ -139,6 +141,11 @@ const Navigation = () => {
       subscription.unsubscribe();
     };
   }, [dispatch, isRecovery]);
+
+  // Flush any failed Supabase writes from the sync queue
+  useEffect(() => {
+    if (queueLength > 0) flushQueue();
+  }, [queueLength, flushQueue]);
 
   const clearRecovery = useCallback(() => {
     setIsRecovery(false);
