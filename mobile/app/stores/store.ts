@@ -13,7 +13,7 @@ const onboardingPersistConfig = { key: "onboarding", storage: AsyncStorage };
 const workoutPersistConfig = {
   key: "workout",
   storage: AsyncStorage,
-  whitelist: ["programId", "overview", "currentDayDetail", "loadedAt"],
+  whitelist: ["programId", "overview", "currentDayDetail", "completedDayIds", "loadedAt"],
 };
 
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);

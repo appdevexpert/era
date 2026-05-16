@@ -2,6 +2,7 @@
 export { default as ArrowBack } from "./arrow-back.svg";
 export { default as ChevronBack } from "./chevron-back.svg";
 export { default as InfoCircle } from "./info-circle.svg";
+export { default as InfoCircleGold } from "./info-circle-gold.svg";
 export { default as MedalBadge } from "./medal-badge.svg";
 export { default as ChevronDoubleRight } from "./chevron-double-right.svg";
 export { default as ChevronRight } from "./chevron-right.svg";

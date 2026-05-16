@@ -1,4 +1,5 @@
 import type { MuscleGroup } from "@/app/navigation/types";
+import { computeCurrentPosition, computeDateForDay, getSkippedDaysInfo, getToday, getWeekdayFromDate, isWeekAccessible } from "@/app/utils/programSchedule";
 import type {
   ExerciseListView,
   ExerciseMode,
@@ -125,45 +126,94 @@ export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
 export function mapWorkoutHome(
   data: WorkoutOverviewData,
   language: string,
+  programStartDate?: string | null,
+  completedDayIds?: string[],
 ): WorkoutHomeView {
-  const currentWeek = getWeekForDay(data.weeks, data.currentDay) ?? data.weeks[0];
-  const weekDays = data.days.filter((day) => day.week_id === data.currentDay.week_id);
+  // Determine current position from date math (or fallback to backend)
+  let currentDay = data.currentDay;
+  if (programStartDate) {
+    const config = { programStartDate, totalWeeks: data.program.duration_weeks };
+    const pos = computeCurrentPosition(config);
+    const found = data.days.find((d) => {
+      const w = data.weeks.find((wk) => wk.id === d.week_id);
+      return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+    });
+    if (found) currentDay = found;
+  }
+
+  const currentWeek = getWeekForDay(data.weeks, currentDay) ?? data.weeks[0];
+  const weekDays = data.days.filter((day) => day.week_id === currentDay.week_id);
+  const today = programStartDate ? getToday() : null;
+  const completed = new Set(completedDayIds ?? []);
 
   return {
     programId: data.program.id,
-    currentDayId: data.currentDay.id,
+    currentDayId: currentDay.id,
+    isCompleted: completed.has(currentDay.id),
     title: getLocalizedText(data.program.title_translations, language, data.program.title),
-    subtitle: getLocalizedText(data.currentDay.subtitle_translations, language, data.currentDay.subtitle ?? ""),
-    workoutName: getLocalizedText(data.currentDay.title_translations, language, data.currentDay.title),
+    subtitle: getLocalizedText(currentDay.subtitle_translations, language, currentDay.subtitle ?? ""),
+    workoutName: getLocalizedText(currentDay.title_translations, language, currentDay.title),
     exerciseCount: data.currentDayExerciseCount,
-    duration: formatWorkoutDuration(data.currentDay.estimated_minutes),
-    tags: data.currentDay.target_muscles.slice(0, 4).map((muscle) => localizeMuscle(muscle, language)),
-    targetMuscles: data.currentDay.target_muscles,
+    duration: formatWorkoutDuration(currentDay.estimated_minutes),
+    tags: currentDay.target_muscles.slice(0, 4).map((muscle) => localizeMuscle(muscle, language)),
+    targetMuscles: currentDay.target_muscles,
     programType: currentWeek
       ? getLocalizedText(currentWeek.focus_translations, language, currentWeek.focus ?? "")
       : "",
     programWeek: currentWeek
       ? formatWeekProgress(currentWeek.week_number, data.program.duration_weeks, language)
       : "",
-    programDay: formatDayLabel(data.currentDay.day_number, language),
-    days: weekDays.map((day) => ({
-      key: day.id,
-      label: getWeekdayLabel(day.weekday, language),
-      date: padDayNumber(day.day_number),
-      active: day.id === data.currentDay.id,
-    })),
+    programDay: formatDayLabel(currentDay.day_number, language),
+    days: weekDays.map((day) => {
+      let dayDate: string | null = null;
+      if (programStartDate && currentWeek) {
+        const config = { programStartDate, totalWeeks: data.program.duration_weeks };
+        dayDate = computeDateForDay(config, currentWeek.week_number, day.day_number);
+      }
+      const isCompleted = completed.has(day.id);
+      const isActive = day.id === currentDay.id;
+      const isPast = dayDate && today ? dayDate < today : false;
+      const isMissed = isPast && !isCompleted && !day.is_rest_day;
+
+      return {
+        key: day.id,
+        label: getWeekdayLabel(day.weekday, language),
+        date: dayDate ? dayDate.split("-")[2] : padDayNumber(day.day_number),
+        active: isActive,
+        completed: isCompleted,
+        missed: isMissed,
+      };
+    }),
   };
 }
 
 export function mapWorkoutPlan(
   data: WorkoutOverviewData,
   language: string,
+  programStartDate?: string | null,
+  completedDayIds?: string[],
 ): WorkoutPlanView {
-  const currentWeek = getWeekForDay(data.weeks, data.currentDay) ?? data.weeks[0];
+  // Determine current day from date math
+  let currentDay = data.currentDay;
+  if (programStartDate) {
+    const config = { programStartDate, totalWeeks: data.program.duration_weeks };
+    const pos = computeCurrentPosition(config);
+    const found = data.days.find((d) => {
+      const w = data.weeks.find((wk) => wk.id === d.week_id);
+      return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+    });
+    if (found) currentDay = found;
+  }
+
+  const currentWeek = getWeekForDay(data.weeks, currentDay) ?? data.weeks[0];
   const phases = buildPhases(data.weeks, currentWeek, language);
   const firstWeekDays = data.days
     .filter((day) => day.week_id === currentWeek?.id)
     .sort((a, b) => a.sort_order - b.sort_order);
+
+  const skippedInfo = programStartDate
+    ? getSkippedDaysInfo({ programStartDate, totalWeeks: data.program.duration_weeks })
+    : null;
 
   return {
     phases,
@@ -171,12 +221,19 @@ export function mapWorkoutPlan(
       mapPlanWeek({
         week,
         days: data.days.filter((day) => day.week_id === week.id),
+        allDays: data.days,
+        allWeeks: data.weeks,
         templateDays: firstWeekDays,
-        currentDay: data.currentDay,
+        currentDay,
         daysPerWeek: data.program.days_per_week,
         language,
+        programStartDate,
+        completedDayIds,
+        skippedInfo,
       }),
     ),
+    hasAdjustment: (skippedInfo?.count ?? 0) > 0,
+    skippedDayCount: skippedInfo?.count ?? 0,
   };
 }
 
@@ -283,40 +340,107 @@ function buildPhases(
 function mapPlanWeek({
   week,
   days,
+  allDays,
+  allWeeks,
   templateDays,
   currentDay,
   daysPerWeek,
   language,
+  programStartDate,
+  completedDayIds,
+  skippedInfo,
 }: {
   week: ProgramWeekRow;
   days: ProgramDayRow[];
+  allDays: ProgramDayRow[];
+  allWeeks: ProgramWeekRow[];
   templateDays: ProgramDayRow[];
   currentDay: ProgramDayRow;
   daysPerWeek: number;
   language: string;
+  programStartDate?: string | null;
+  completedDayIds?: string[];
+  skippedInfo?: { count: number; dayNumbers: number[]; signupWeekday: number } | null;
 }): WorkoutPlanWeekView {
-  const orderedDays = days.length > 0
+  let orderedDays = days.length > 0
     ? [...days].sort((a, b) => a.sort_order - b.sort_order)
     : buildFutureWeekDays(week, templateDays, daysPerWeek);
+
+  const skipped = skippedInfo?.count ?? 0;
+
+  // Week 1 partial: only show days from signup weekday onwards
+  if (week.week_number === 1 && skipped > 0 && skippedInfo) {
+    orderedDays = orderedDays.filter((d) => d.day_number >= skippedInfo.signupWeekday);
+  }
+
+  // Week 4 adjusted: append Week 1's skipped days after the normal 7
+  let adjustedDays: { day: ProgramDayRow; isAdjusted: boolean }[] = [];
+  if (week.week_number === 4 && skipped > 0 && skippedInfo) {
+    const week1 = allWeeks.find((w) => w.week_number === 1);
+    if (week1) {
+      const week1Skipped = allDays
+        .filter((d) => d.week_id === week1.id && d.day_number < skippedInfo.signupWeekday)
+        .sort((a, b) => a.sort_order - b.sort_order);
+      adjustedDays = week1Skipped.map((d) => ({ day: d, isAdjusted: true }));
+    }
+  }
+
   const isCurrentWeek = week.id === currentDay.week_id;
+  const completed = new Set(completedDayIds ?? []);
+  const today = programStartDate ? getToday() : null;
+  const config = programStartDate
+    ? { programStartDate, totalWeeks: 12 }
+    : null;
+  const isLocked = config
+    ? !isWeekAccessible(config, week.week_number, today ?? undefined)
+    : false;
+
+  // Build day entries: normal days + adjusted days (Week 4 only)
+  const allDayEntries = [
+    ...orderedDays.map((d) => ({ day: d, isAdjusted: false })),
+    ...adjustedDays,
+  ];
 
   return {
     weekNumber: week.week_number,
     title: getLocalizedText(week.title_translations, language, week.title),
     phase: getLocalizedText(week.focus_translations, language, week.focus ?? ""),
-    completedDays: 0,
-    totalDays: orderedDays.filter((day) => !day.is_rest_day).length,
-    days: orderedDays.map((day) => ({
-      programDayId: day.id,
-      isRestDay: day.is_rest_day,
-      date: padDayNumber(day.day_number),
-      dayLabel: getWeekdayLabel(day.weekday, language),
-      status: day.id === currentDay.id ? "active" : "future",
-      title: getLocalizedText(day.title_translations, language, day.title),
-      subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
-      muscles: mapMusclesToIcons(day.target_muscles),
-    })),
+    completedDays: allDayEntries.filter((e) => completed.has(e.day.id)).length,
+    totalDays: allDayEntries.filter((e) => !e.day.is_rest_day).length,
+    days: allDayEntries.map((entry) => {
+      const { day, isAdjusted } = entry;
+      let dayDate: string | null = null;
+      if (config) {
+        dayDate = computeDateForDay(config, week.week_number, day.day_number, isAdjusted);
+      }
+      // Use calendar date for weekday label when available
+      const weekday = dayDate ? getWeekdayFromDate(dayDate) : day.weekday;
+      const isCompleted = completed.has(day.id);
+      const isActive = day.id === currentDay.id;
+      const isPast = dayDate && today ? dayDate < today : false;
+      const isFuture = dayDate && today ? dayDate > today : !isActive;
+
+      let status: "completed" | "missed" | "active" | "future";
+      if (isCompleted) status = "completed";
+      else if (isActive) status = "active";
+      else if (isPast && !day.is_rest_day) status = "missed";
+      else if (isFuture) status = "future";
+      else status = "future";
+
+      return {
+        programDayId: day.id,
+        isRestDay: day.is_rest_day,
+        isToday: dayDate === today,
+        date: dayDate ? dayDate.split("-")[2] : padDayNumber(day.day_number),
+        dayLabel: getWeekdayLabel(weekday, language),
+        status,
+        title: getLocalizedText(day.title_translations, language, day.title),
+        subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
+        muscles: mapMusclesToIcons(day.target_muscles),
+      };
+    }),
     isCurrentWeek,
+    isLocked,
   };
 }
 

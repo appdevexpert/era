@@ -1,16 +1,19 @@
-import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { signOutThunk } from "./authSlice";
 import {
+  getCompletedSessionDayIds,
   getProgramDayDetail,
   getWorkoutOverview,
 } from "@/app/services/workoutService";
 import type { ProgramDayDetailData, WorkoutOverviewData } from "@/app/types/workout";
 import type { LoadingState } from "@/app/types";
+import type { RootState } from "@/app/stores/store";
 
 export type WorkoutBootstrapData = {
   programId: string;
   overview: WorkoutOverviewData;
   currentDayDetail: ProgramDayDetailData;
+  completedDayIds: string[];
   loadedAt: string;
 };
 
@@ -20,6 +23,8 @@ interface WorkoutState {
   programId: string | null;
   overview: WorkoutOverviewData | null;
   currentDayDetail: ProgramDayDetailData | null;
+  /** program_day_ids of days with completed workout sessions */
+  completedDayIds: string[];
   loadedAt: string | null;
 }
 
@@ -29,6 +34,7 @@ const initialState: WorkoutState = {
   programId: null,
   overview: null,
   currentDayDetail: null,
+  completedDayIds: [],
   loadedAt: null,
 };
 
@@ -40,10 +46,18 @@ type LoadWorkoutBootstrapArgs = {
 export const loadWorkoutBootstrap = createAsyncThunk<
   WorkoutBootstrapData,
   LoadWorkoutBootstrapArgs,
-  { rejectValue: string }
->("workout/loadBootstrap", async (args, { rejectWithValue }) => {
+  { rejectValue: string; state: RootState }
+>("workout/loadBootstrap", async (args, { rejectWithValue, getState }) => {
   try {
+    const userId = getState().auth.user?.id;
+
     const overview = await getWorkoutOverview(args?.programId);
+
+    // Fetch completed day IDs from workout_sessions
+    const completedDayIds = userId
+      ? await getCompletedSessionDayIds(userId)
+      : [];
+
     const currentDayDetail = await getProgramDayDetail(
       args?.programDayId ?? overview.currentDay.id,
     );
@@ -52,6 +66,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       programId: overview.program.id,
       overview,
       currentDayDetail,
+      completedDayIds,
       loadedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -66,6 +81,12 @@ const workoutSlice = createSlice({
   initialState,
   reducers: {
     clearWorkoutCache: () => initialState,
+    /** Optimistically mark a day as completed (after finishSession) */
+    markDayCompleted: (state, action: PayloadAction<string>) => {
+      if (!state.completedDayIds.includes(action.payload)) {
+        state.completedDayIds.push(action.payload);
+      }
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(loadWorkoutBootstrap.pending, (state) => {
@@ -78,6 +99,7 @@ const workoutSlice = createSlice({
       state.programId = action.payload.programId;
       state.overview = action.payload.overview;
       state.currentDayDetail = action.payload.currentDayDetail;
+      state.completedDayIds = action.payload.completedDayIds;
       state.loadedAt = action.payload.loadedAt;
     });
     builder.addCase(loadWorkoutBootstrap.rejected, (state, action) => {
@@ -88,6 +110,6 @@ const workoutSlice = createSlice({
   },
 });
 
-export const { clearWorkoutCache } = workoutSlice.actions;
+export const { clearWorkoutCache, markDayCompleted } = workoutSlice.actions;
 
 export default workoutSlice.reducer;

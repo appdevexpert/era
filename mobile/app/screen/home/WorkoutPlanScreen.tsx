@@ -9,7 +9,7 @@ import {
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
 import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
-import { useAppDispatch } from "@/app/stores/store";
+import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
   WorkoutPlanWeekView,
   WorkoutDayStatus,
@@ -20,13 +20,14 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AdjustmentInfoSheet, { type AdjustmentInfoSheetRef } from "@/app/components/workout/AdjustmentInfoSheet";
 import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import Svg, { Line } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { InfoCircle, MedalBadge } from "@/assets/icons";
+import { InfoCircleGold, MedalBadge } from "@/assets/icons";
 
 type DayPill = WorkoutPlanWeekView["days"][number];
 
@@ -59,7 +60,16 @@ const DashedTimeline = ({ isCurrentWeek }: { isCurrentWeek: boolean }) => {
   );
 };
 
-const getDayPillColors = (status: WorkoutDayStatus) => {
+const getDayPillColors = (status: WorkoutDayStatus, isToday = false) => {
+  // Today + completed = gold-to-green gradient (special state)
+  if (status === "completed" && isToday) {
+    return {
+      pillBg: ["rgba(201,168,76,0.35)", "rgba(4,95,16,0.35)"] as const,
+      circleBg: "rgba(61,202,122,0.2)",
+      textColor: COLORS.semantic.success,
+    };
+  }
+
   switch (status) {
     case "completed":
       return {
@@ -90,7 +100,7 @@ const getDayPillColors = (status: WorkoutDayStatus) => {
 };
 
 const DayPillItem = ({ pill, onPress }: { pill: DayPill; onPress?: () => void }) => {
-  const colors = getDayPillColors(pill.status);
+  const colors = getDayPillColors(pill.status, pill.isToday);
   const hasGradient = pill.status !== "future";
   const Wrapper = onPress ? Pressable : View;
 
@@ -144,10 +154,20 @@ const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
   );
 };
 
-const WeekSection = ({ week, isLast, onDayPress }: { week: WorkoutPlanWeekView; isLast: boolean; onDayPress: (pill: DayPill) => void }) => {
+const PILLS_PER_ROW = 4;
+
+const WeekSection = ({ week, isLast, hasAdjustment, onDayPress, onInfoPress }: { week: WorkoutPlanWeekView; isLast: boolean; hasAdjustment: boolean; onDayPress: (pill: DayPill) => void; onInfoPress: (weekNumber: number) => void }) => {
   const { t } = useTranslation();
-  const firstRow = week.days.slice(0, 4);
-  const secondRow = week.days.slice(4);
+
+  // Dynamic row chunking: rows of 4 pills max, badge in last row
+  const rows: DayPill[][] = [];
+  for (let i = 0; i < week.days.length; i += PILLS_PER_ROW) {
+    rows.push(week.days.slice(i, i + PILLS_PER_ROW));
+  }
+  // Ensure badge has room in last row (max 3 pills + badge)
+  if (rows.length === 0 || rows[rows.length - 1].length >= PILLS_PER_ROW) {
+    rows.push([]);
+  }
 
   return (
     <View style={[styles.weekSection, !week.isCurrentWeek && styles.weekDimmed]}>
@@ -170,40 +190,37 @@ const WeekSection = ({ week, isLast, onDayPress }: { week: WorkoutPlanWeekView; 
         {!isLast && <DashedTimeline isCurrentWeek={week.isCurrentWeek} />}
 
         <View style={[styles.daysCard, isLast && styles.daysCardNoTimeline]}>
-          <View style={styles.daysRow}>
-            {firstRow.map((pill) => (
-              <DayPillItem
-                key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
-                pill={pill}
-                onPress={pill.isRestDay ? undefined : () => onDayPress(pill)}
-              />
-            ))}
-          </View>
+          {rows.map((row, rowIndex) => {
+            const isLastRow = rowIndex === rows.length - 1;
+            const fullRow = row.length === PILLS_PER_ROW && !isLastRow;
 
-          <View style={styles.daysRow2}>
-            {secondRow.map((pill) => (
-              <DayPillItem
-                key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
-                pill={pill}
-                onPress={pill.isRestDay ? undefined : () => onDayPress(pill)}
-              />
-            ))}
-            <WeekBadge weekNumber={week.weekNumber} />
-          </View>
+            return (
+              <View key={rowIndex} style={fullRow ? styles.daysRow : styles.daysRow2}>
+                {row.map((pill) => (
+                  <DayPillItem
+                    key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
+                    pill={pill}
+                    onPress={week.isLocked || pill.isRestDay ? undefined : () => onDayPress(pill)}
+                  />
+                ))}
+                {isLastRow && <WeekBadge weekNumber={week.weekNumber} />}
+              </View>
+            );
+          })}
         </View>
       </View>
 
-      {week.weekNumber === 1 ? (
-        <View style={styles.infoRow}>
-          <InfoCircle width={18} height={18} />
+      {week.weekNumber === 1 && hasAdjustment ? (
+        <Pressable style={styles.infoRow} onPress={() => onInfoPress(1)}>
+          <InfoCircleGold width={18} height={18} />
           <Text style={styles.infoText}>{t("workout.ui.weekInitialNote")}</Text>
-        </View>
+        </Pressable>
       ) : null}
-      {week.weekNumber === 4 ? (
-        <View style={styles.infoRow}>
-          <InfoCircle width={18} height={18} />
+      {week.weekNumber === 4 && hasAdjustment ? (
+        <Pressable style={styles.infoRow} onPress={() => onInfoPress(4)}>
+          <InfoCircleGold width={18} height={18} />
           <Text style={styles.infoText}>{t("workout.ui.weekAdjustedNote")}</Text>
-        </View>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -216,9 +233,11 @@ const WorkoutPlanScreen = () => {
   const dispatch = useAppDispatch();
   const { t, i18n } = useTranslation();
   const overview = useSelector(selectWorkoutOverview);
+  const programStartDate = useSelector((state: RootState) => state.auth.programStartDate);
+  const completedDayIds = useSelector((state: RootState) => state.workout.completedDayIds);
   const plan = useMemo(
-    () => (overview ? mapWorkoutPlan(overview, i18n.language) : null),
-    [i18n.language, overview],
+    () => (overview ? mapWorkoutPlan(overview, i18n.language, programStartDate, completedDayIds) : null),
+    [i18n.language, overview, programStartDate, completedDayIds],
   );
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);
@@ -226,11 +245,42 @@ const WorkoutPlanScreen = () => {
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
 
+  const adjustmentSheetRef = useRef<AdjustmentInfoSheetRef>(null);
+  const hasAutoShown = useRef(false);
+
   useEffect(() => {
     if (!hasWorkoutBootstrap && workoutStatus === "idle") {
       dispatch(loadWorkoutBootstrap({ programId: route.params?.programId }));
     }
   }, [dispatch, hasWorkoutBootstrap, route.params?.programId, workoutStatus]);
+
+  // Auto-show adjustment sheet on first visit if mid-week start
+  useEffect(() => {
+    if (plan?.hasAdjustment && !hasAutoShown.current) {
+      hasAutoShown.current = true;
+      // Small delay to let the sheet mount
+      setTimeout(() => {
+        adjustmentSheetRef.current?.show(
+          t("workout.ui.adjustmentTitle"),
+          t("workout.ui.adjustmentMessage"),
+        );
+      }, 600);
+    }
+  }, [plan?.hasAdjustment, t]);
+
+  const handleInfoPress = useCallback((weekNumber: number) => {
+    if (weekNumber === 4) {
+      adjustmentSheetRef.current?.show(
+        t("workout.ui.adjustmentWeek4Title"),
+        t("workout.ui.adjustmentWeek4Message"),
+      );
+    } else {
+      adjustmentSheetRef.current?.show(
+        t("workout.ui.adjustmentTitle"),
+        t("workout.ui.adjustmentMessage"),
+      );
+    }
+  }, [t]);
 
   const handleDayPress = useCallback((pill: DayPill) => {
     navigation.navigate("ExerciseList", {
@@ -258,7 +308,7 @@ const WorkoutPlanScreen = () => {
             </View>
 
             {plan.weeks.map((week, index) => (
-              <WeekSection key={week.weekNumber} week={week} isLast={index === plan.weeks.length - 1} onDayPress={handleDayPress} />
+              <WeekSection key={week.weekNumber} week={week} isLast={index === plan.weeks.length - 1} hasAdjustment={plan.hasAdjustment} onDayPress={handleDayPress} onInfoPress={handleInfoPress} />
             ))}
           </>
         ) : (
@@ -269,6 +319,8 @@ const WorkoutPlanScreen = () => {
           </View>
         )}
       </ScrollView>
+
+      <AdjustmentInfoSheet ref={adjustmentSheetRef} />
     </View>
   );
 };

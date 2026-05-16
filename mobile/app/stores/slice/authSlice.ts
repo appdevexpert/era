@@ -16,6 +16,8 @@ interface AuthState {
   isLoggedIn: boolean;
   isOnboarded: boolean;
   isPlanGenerated: boolean;
+  /** YYYY-MM-DD when the user first completed plan generation */
+  programStartDate: string | null;
 
   loadingStatus: LoadingState;
   error: string | null;
@@ -26,6 +28,7 @@ const initialState: AuthState = {
   isLoggedIn: false,
   isOnboarded: false,
   isPlanGenerated: false,
+  programStartDate: null,
 
   loadingStatus: "idle",
   error: null,
@@ -99,7 +102,12 @@ const authSlice = createSlice({
       if (state.user) state.user = { ...state.user, ...action.payload };
     },
     completeOnboarding: (state) => { state.isOnboarded = true; },
-    completePlanGeneration: (state) => { state.isPlanGenerated = true; },
+    completePlanGeneration: (state) => {
+      state.isPlanGenerated = true;
+      if (!state.programStartDate) {
+        state.programStartDate = new Date().toISOString().split("T")[0];
+      }
+    },
     resetPlanGeneration: (state) => { state.isPlanGenerated = false; },
 
     clearError: (state) => {

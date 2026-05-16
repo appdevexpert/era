@@ -33,6 +33,7 @@ import {
   logCompletedSet,
   startSessionTimer,
 } from "@/app/stores/slice/sessionSlice";
+import { markDayCompleted } from "@/app/stores/slice/workoutSlice";
 import type { ExerciseStatSnapshot } from "@/app/stores/slice/sessionSlice";
 import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMappers";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
@@ -348,6 +349,11 @@ export const useWorkoutSession = () => {
 
     await finishSession();
 
+    // Optimistically mark this day as completed in Redux
+    if (sessionWorkout.programDayId) {
+      dispatch(markDayCompleted(sessionWorkout.programDayId));
+    }
+
     const elapsed = sessionStartedAt
       ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000)
       : 0;
@@ -364,7 +370,7 @@ export const useWorkoutSession = () => {
       newPRs: 0,
       bonusPoints: 100,
     });
-  }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession]);
+  }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch]);
 
   /** Add a dynamic set for an exercise (creates DB row + updates Redux) */
   const addSet = useCallback(

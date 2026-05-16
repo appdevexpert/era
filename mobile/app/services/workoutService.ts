@@ -252,3 +252,20 @@ async function getExerciseCount(programDayId: string, sectionIds: string[]) {
 
   return result.count ?? 0;
 }
+
+/** Get program_day_ids of all completed workout sessions for a user. */
+export async function getCompletedSessionDayIds(
+  userId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select("program_day_id")
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .not("program_day_id", "is", null);
+
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map((row) => row.program_day_id as string)
+    .filter(Boolean);
+}

@@ -20,6 +20,7 @@ interface WorkoutCardProps {
   programType?: string;
   programWeek?: string;
   programDay?: string;
+  completed?: boolean;
   onCardPress?: () => void;
   onStartPress?: () => void;
 }
@@ -33,6 +34,7 @@ const WorkoutCard = ({
   programType = "",
   programWeek = "",
   programDay = "",
+  completed = false,
   onCardPress,
   onStartPress,
 }: WorkoutCardProps) => {
@@ -86,12 +88,14 @@ const WorkoutCard = ({
           ) : null}
         </View>
 
-        {/* Program info — positioned at bottom-left of card (Figma: top 75%, left 24) */}
+        {/* Program info — positioned at bottom-left of card */}
         <View style={styles.programInfo}>
           <StrengthIconSvg width={36} height={36} />
           <View style={styles.programMeta}>
             <Text style={styles.programTitle}>
-              {programType}
+              {completed
+                ? t("workout.ui.completed").toUpperCase()
+                : programType}
             </Text>
             <View style={styles.programSubRow}>
               <Text style={styles.programSub}>
@@ -106,7 +110,7 @@ const WorkoutCard = ({
         </View>
       </Pressable>
 
-      {/* Start button — Figma: left 70%, top 66% of card */}
+      {/* Start / View button */}
       <Pressable onPress={onStartPress} style={styles.startButton}>
         <GlassView
           pointerEvents="none"
@@ -120,15 +124,21 @@ const WorkoutCard = ({
         />
         <LinearGradient
           pointerEvents="none"
-          colors={["rgba(201, 168, 76, 0.2)", "rgba(241, 203, 48, 0.2)"]}
+          colors={
+            completed
+              ? ["rgba(201, 168, 76, 0.12)", "rgba(241, 203, 48, 0.12)"]
+              : ["rgba(201, 168, 76, 0.2)", "rgba(241, 203, 48, 0.2)"]
+          }
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
           style={styles.startGradient}
         />
-        <Text style={styles.startText}>{t("workout.ui.start")}</Text>
+        <Text style={[styles.startText, completed && styles.startTextCompleted]}>
+          {completed ? t("workout.ui.view") : t("workout.ui.start")}
+        </Text>
       </Pressable>
 
-      
+
     </View>
   );
 };
@@ -152,7 +162,7 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
 
-  // Top content block — Figma: left:24, top:24, width: card-48
+  // Top content block
   topContent: {
     position: "absolute",
     top: "8%",
@@ -179,9 +189,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 2.3,
-  },
-  metaIcon: {
-    fontSize: 12,
   },
   metaText: {
     fontSize: 14,
@@ -219,7 +226,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.24,
   },
 
-  // Program info — Figma: left:25, top:222 in 337x297 = left 7.3%, top 74.7%
+  // Program info
   programInfo: {
     position: "absolute",
     left: "7.3%",
@@ -254,7 +261,7 @@ const styles = StyleSheet.create({
     color: "rgba(240, 240, 240, 0.6)",
   },
 
-  // Start button — Figma: left:237, top:197 in 337x297 = left 70.3%, top 66.3%
+  // Start/View button
   startButton: {
     position: "absolute",
     right: 0,
@@ -265,7 +272,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    marginTop: 8
+    marginTop: 8,
   },
   startGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -277,5 +284,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: COLORS.primary.dark,
     letterSpacing: -1.1,
+  },
+  startTextCompleted: {
+    fontSize: 24,
+    color: "rgba(180, 155, 65, 0.7)",
   },
 });

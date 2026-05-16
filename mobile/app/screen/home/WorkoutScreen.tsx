@@ -14,7 +14,7 @@ import {
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
 import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
-import { useAppDispatch } from "@/app/stores/store";
+import { useAppDispatch, type RootState } from "@/app/stores/store";
 import { mapMusclesToIcons, mapWorkoutHome } from "@/app/utils/workoutMappers";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { LinearGradient } from "expo-linear-gradient";
@@ -35,9 +35,11 @@ const WorkoutScreen = () => {
   const handleStreakPress = useCallback(() => streakRef.current?.present(), []);
   const user = useSelector(selectUser);
   const overview = useSelector(selectWorkoutOverview);
+  const programStartDate = useSelector((state: RootState) => state.auth.programStartDate);
+  const completedDayIds = useSelector((state: RootState) => state.workout.completedDayIds);
   const workout = useMemo(
-    () => (overview ? mapWorkoutHome(overview, i18n.language) : null),
-    [i18n.language, overview],
+    () => (overview ? mapWorkoutHome(overview, i18n.language, programStartDate, completedDayIds) : null),
+    [i18n.language, overview, programStartDate, completedDayIds],
   );
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);
@@ -136,6 +138,7 @@ const WorkoutScreen = () => {
           <WorkoutCard
             duration={workout.duration}
             exerciseCount={workout.exerciseCount}
+            completed={workout.isCompleted}
             onCardPress={openWorkoutPlan}
             onStartPress={startWorkout}
             programDay={workout.programDay}

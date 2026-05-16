@@ -121,6 +121,7 @@ export interface ProgramDayDetailData {
 export interface WorkoutHomeView {
   programId: string;
   currentDayId: string;
+  isCompleted: boolean;
   title: string;
   subtitle: string;
   workoutName: string;
@@ -154,6 +155,7 @@ export interface WorkoutPlanWeekView {
   days: {
     programDayId: string;
     isRestDay: boolean;
+    isToday: boolean;
     date: string;
     dayLabel: string;
     status: WorkoutDayStatus;
@@ -162,11 +164,14 @@ export interface WorkoutPlanWeekView {
     muscles: MuscleGroup[];
   }[];
   isCurrentWeek: boolean;
+  isLocked: boolean;
 }
 
 export interface WorkoutPlanView {
   phases: WorkoutPlanPhaseView[];
   weeks: WorkoutPlanWeekView[];
+  hasAdjustment: boolean;
+  skippedDayCount: number;
 }
 
 export interface ExerciseListExerciseView {
