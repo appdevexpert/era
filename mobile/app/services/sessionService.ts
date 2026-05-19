@@ -23,7 +23,6 @@ const throwIfError = (error: { message?: string } | null, fallback: string) => {
 export async function createWorkoutSession(params: {
   userId: string;
   programDayId: string;
-  scheduledWorkoutId?: string;
   totalExercises: number;
 }) {
   const { data, error } = await supabase
@@ -31,13 +30,11 @@ export async function createWorkoutSession(params: {
     .insert({
       user_id: params.userId,
       program_day_id: params.programDayId,
-      scheduled_workout_id: params.scheduledWorkoutId ?? null,
       status: "in_progress",
       started_at: new Date().toISOString(),
       total_exercises: params.totalExercises,
       exercises_completed: 0,
       sets_logged: 0,
-      current_exercise_index: 1,
     })
     .select("id")
     .single();
@@ -58,7 +55,6 @@ export async function createSessionExercises(
     sort_order: i + 1,
     display_name_snapshot: ex.name,
     category_snapshot: ex.exerciseCategory,
-    muscle_snapshot: [],
     status: "pending",
   }));
 
@@ -189,16 +185,10 @@ export async function completeExercise(
   throwIfError(error, "Failed to complete exercise");
 }
 
-export async function skipExercise(
-  sessionExerciseId: string,
-  reason?: string,
-) {
+export async function skipExercise(sessionExerciseId: string) {
   const { error } = await supabase
     .from("session_exercises")
-    .update({
-      status: "skipped",
-      skipped_reason: reason ?? null,
-    })
+    .update({ status: "skipped" })
     .eq("id", sessionExerciseId);
 
   throwIfError(error, "Failed to skip exercise");
@@ -211,7 +201,6 @@ export async function completeSession(params: {
   durationSeconds: number;
   exercisesCompleted: number;
   setsLogged: number;
-  notes?: string;
   pointsAwarded?: number;
 }) {
   const { error } = await supabase
@@ -222,7 +211,6 @@ export async function completeSession(params: {
       duration_seconds: params.durationSeconds,
       exercises_completed: params.exercisesCompleted,
       sets_logged: params.setsLogged,
-      session_notes: params.notes ?? null,
       points_awarded: params.pointsAwarded ?? 0,
     })
     .eq("id", params.sessionId);
@@ -402,8 +390,6 @@ export async function checkAndCreatePR(params: {
 export async function createPointEvent(params: {
   userId: string;
   sessionId?: string;
-  sessionExerciseId?: string;
-  personalRecordId?: string;
   eventType: "workout_completed" | "exercise_completed" | "personal_record" | "streak_added";
   title: string;
   points: number;
@@ -411,8 +397,6 @@ export async function createPointEvent(params: {
   const { error } = await supabase.from("era_point_events").insert({
     user_id: params.userId,
     session_id: params.sessionId ?? null,
-    session_exercise_id: params.sessionExerciseId ?? null,
-    personal_record_id: params.personalRecordId ?? null,
     event_type: params.eventType,
     title: params.title,
     points: params.points,

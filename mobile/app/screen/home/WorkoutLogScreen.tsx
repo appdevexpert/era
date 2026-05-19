@@ -11,10 +11,7 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale } from "@/app/utils/responsive";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
-import { useAppDispatch } from "@/app/stores/store";
-import { clearSession } from "@/app/stores/slice/sessionSlice";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
@@ -31,10 +28,7 @@ import Animated, {
 
 const WorkoutLogScreen = () => {
   const insets = useSafeAreaInsets();
-  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutLog">>();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
   const {
     exerciseName,
@@ -47,7 +41,7 @@ const WorkoutLogScreen = () => {
   } = route.params;
 
   const { t } = useTranslation();
-  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, finishSession, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet } = useWorkoutSession();
+  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet } = useWorkoutSession();
   const { formatted: timer } = useSessionTimer();
   const exercises = sessionWorkout?.exercises ?? [];
   const total = exercises.length;
@@ -160,10 +154,8 @@ const WorkoutLogScreen = () => {
               {
                 text: t("workout.ui.quitConfirm"),
                 style: "destructive",
-                onPress: async () => {
-                  await finishSession();
-                  dispatch(clearSession());
-                  navigation.popToTop();
+                onPress: () => {
+                  navigateToSessionComplete();
                 },
               },
             ],

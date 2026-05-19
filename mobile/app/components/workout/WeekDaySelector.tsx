@@ -127,14 +127,14 @@ const DayPill = ({
     );
   }
 
-  // State 5: Future / Inactive — dashed border with date
+  // State 5: Future / Pre-signup — dashed border with date, NOT clickable
   return (
-    <Pressable onPress={onPress} style={styles.pillInactive}>
+    <View style={styles.pillInactive}>
       <Text style={styles.labelInactive}>{day.label}</Text>
       <View style={styles.dateBadgeInactive}>
         <Text style={styles.dateTextInactive}>{day.date}</Text>
       </View>
-    </Pressable>
+    </View>
   );
 };
 

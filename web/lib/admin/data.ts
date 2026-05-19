@@ -88,12 +88,156 @@ export async function getDashboardStats(): Promise<AdminDataState<DashboardStats
   };
 }
 
+export type RecentUser = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string;
+  active_assignment_count: number;
+  created_at: string | null;
+};
+
+export async function getRecentUsers(
+  windowDays = 7,
+  limit = 20,
+): Promise<AdminDataState<RecentUser[]>> {
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: [], configError };
+
+  const since = new Date();
+  since.setDate(since.getDate() - windowDays);
+  const sinceMs = since.getTime();
+
+  const [authResult, profilesResult, assignmentsResult] = await Promise.all([
+    supabase.auth.admin.listUsers({ page: 1, perPage: 200 }),
+    supabase.from("profiles").select("id, full_name, avatar_url, role"),
+    supabase
+      .from("user_program_assignments")
+      .select("id, user_id")
+      .eq("status", "active"),
+  ]);
+
+  const profilesById = new Map(
+    (profilesResult.data ?? []).map((p) => [
+      p.id as string,
+      {
+        full_name: p.full_name as string | null,
+        avatar_url: p.avatar_url as string | null,
+        role: (p.role as string | null) ?? "user",
+      },
+    ]),
+  );
+
+  const assignmentsByUser = new Map<string, number>();
+  for (const row of assignmentsResult.data ?? []) {
+    const uid = row.user_id as string | null;
+    if (!uid) continue;
+    assignmentsByUser.set(uid, (assignmentsByUser.get(uid) ?? 0) + 1);
+  }
+
+  const users = (authResult.data?.users ?? [])
+    .filter((u) => u.created_at && new Date(u.created_at).getTime() >= sinceMs)
+    .sort(
+      (a, b) =>
+        new Date(b.created_at ?? 0).getTime() -
+        new Date(a.created_at ?? 0).getTime(),
+    )
+    .slice(0, limit)
+    .map<RecentUser>((u) => {
+      const profile = profilesById.get(u.id);
+      return {
+        id: u.id,
+        email: u.email ?? null,
+        full_name: profile?.full_name ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        role: profile?.role ?? "user",
+        active_assignment_count: assignmentsByUser.get(u.id) ?? 0,
+        created_at: u.created_at ?? null,
+      };
+    });
+
+  return {
+    data: users,
+    configError:
+      authResult.error?.message ??
+      profilesResult.error?.message ??
+      assignmentsResult.error?.message ??
+      null,
+  };
+}
+
+export type DashboardActivityPoint = {
+  date: string;
+  programs: number;
+  exercises: number;
+  users: number;
+};
+
+export async function getDashboardActivity(
+  windowDays = 90,
+): Promise<AdminDataState<DashboardActivityPoint[]>> {
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: [], configError };
+
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - (windowDays - 1));
+
+  const [programsResult, exercisesResult, profilesResult] = await Promise.all([
+    supabase
+      .from("workout_programs")
+      .select("created_at")
+      .gte("created_at", since.toISOString()),
+    supabase
+      .from("exercise_library")
+      .select("created_at")
+      .gte("created_at", since.toISOString()),
+    supabase
+      .from("profiles")
+      .select("created_at")
+      .gte("created_at", since.toISOString()),
+  ]);
+
+  const buckets = new Map<string, DashboardActivityPoint>();
+  for (let i = 0; i < windowDays; i++) {
+    const d = new Date(since);
+    d.setDate(since.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, { date: key, programs: 0, exercises: 0, users: 0 });
+  }
+
+  function tally(rows: { created_at?: string | null }[] | null | undefined, key: "programs" | "exercises" | "users") {
+    for (const row of rows ?? []) {
+      const day = row.created_at?.slice(0, 10);
+      if (!day) continue;
+      const bucket = buckets.get(day);
+      if (bucket) bucket[key]++;
+    }
+  }
+  tally(programsResult.data, "programs");
+  tally(exercisesResult.data, "exercises");
+  tally(profilesResult.data, "users");
+
+  return {
+    data: Array.from(buckets.values()),
+    configError:
+      programsResult.error?.message ??
+      exercisesResult.error?.message ??
+      profilesResult.error?.message ??
+      null,
+  };
+}
+
 const DEFAULT_PAGE_SIZE = 20;
+
+export type ExerciseStatusFilter = "all" | "active" | "inactive";
 
 export async function getExercises(
   page = 1,
   pageSize = DEFAULT_PAGE_SIZE,
   search = "",
+  statusFilter: ExerciseStatusFilter = "all",
 ): Promise<PaginatedDataState<ExerciseRow[]>> {
   const empty = { data: [] as ExerciseRow[], configError: null as string | null, page, pageSize, totalCount: 0, totalPages: 0 };
   const { supabase, configError } = getAdminClient();
@@ -110,6 +254,11 @@ export async function getExercises(
 
   if (search) {
     query = query.ilike("name", `%${search}%`);
+  }
+  if (statusFilter === "active") {
+    query = query.eq("is_active", true);
+  } else if (statusFilter === "inactive") {
+    query = query.eq("is_active", false);
   }
 
   const { data, error, count } = await query;

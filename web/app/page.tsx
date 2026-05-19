@@ -1,117 +1,229 @@
 import Link from "next/link";
+
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Activity,
-  Dumbbell,
-  FileStack,
-} from "lucide-react";
+  ArrowRight01Icon,
+  Crown02Icon,
+  UserCircleIcon,
+  UserIcon,
+  WorkoutRunIcon,
+} from "@hugeicons/core-free-icons";
 
 import { ConfigWarning } from "@/components/admin/config-warning";
-import { PageHeader } from "@/components/admin/page-header";
-import { StatCard } from "@/components/admin/stat-card";
+import { ChartAreaInteractive } from "@/components/chart-area-interactive";
+import { SectionCards, type SectionCardData } from "@/components/section-cards";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDashboardStats, getPrograms } from "@/lib/admin/data";
-import { dateText, translation } from "@/lib/admin/format";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  getDashboardActivity,
+  getDashboardStats,
+  getRecentUsers,
+  type RecentUser,
+} from "@/lib/admin/data";
+import { relativeTimeText } from "@/lib/admin/format";
 
 export default async function DashboardPage() {
-  const [statsState, programsState] = await Promise.all([
+  const [statsState, activityState, recentUsersState] = await Promise.all([
     getDashboardStats(),
-    getPrograms(),
+    getDashboardActivity(90),
+    getRecentUsers(7, 20),
   ]);
   const stats = statsState.data;
-  const recentPrograms = programsState.data.slice(0, 4);
-  const configError = statsState.configError ?? programsState.configError;
+  const configError =
+    statsState.configError ??
+    activityState.configError ??
+    recentUsersState.configError;
+
+  const cards: SectionCardData[] = [
+    {
+      label: "Total users",
+      value: stats.totalUsers,
+      caption: `${stats.activeUsers} active in last 30 days`,
+      hint:
+        stats.activeUsers > 0
+          ? "Engaged with the app recently"
+          : "No recent workout sessions",
+      href: "/users",
+      hrefLabel: "Manage users",
+    },
+    {
+      label: "Exercise library",
+      value: stats.totalExercises,
+      caption: "Bilingual entries (EN + NB)",
+      hint: "Used inside program day sections",
+      href: "/exercises",
+      hrefLabel: "Open library",
+    },
+    {
+      label: "Active programs",
+      value: stats.activePrograms,
+      caption:
+        stats.draftPrograms > 0
+          ? `${stats.draftPrograms} draft${stats.draftPrograms === 1 ? "" : "s"} in progress`
+          : "No drafts in progress",
+      hint: "Live and assignable to users",
+      href: "/programs",
+      hrefLabel: "Manage programs",
+    },
+    {
+      label: "All programs",
+      value: stats.totalPrograms,
+      caption: `${stats.activePrograms} active · ${stats.draftPrograms} draft`,
+      hint: "Includes archived programs",
+      href: "/programs",
+    },
+  ];
 
   return (
     <>
-      <PageHeader
-        eyebrow="Owner Dashboard"
-        title="ERA admin"
-        description="Manage workout programs, exercise content, and the users connected to the app."
-        action={
-          <Link
-            href="/programs"
-            className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-era-gold-light"
-          >
-            Manage programs
-          </Link>
-        }
-      />
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-era-gold-dark">
+            Owner Dashboard
+          </p>
+          <h2 className="mt-1 font-display text-3xl leading-tight text-foreground md:text-4xl">
+            ERA admin
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Programs, exercises, assignments, and the users connected to the app.
+          </p>
+        </div>
+        <Link
+          href="/programs"
+          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-era-gold-light"
+        >
+          <HugeiconsIcon icon={WorkoutRunIcon} size={16} strokeWidth={1.8} />
+          Manage programs
+        </Link>
+      </header>
 
       <ConfigWarning message={configError} />
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <StatCard
-          title="Users"
-          value={stats.totalUsers}
-          description="Registered users"
-          icon={Activity}
-          href="/users"
-        />
-        <StatCard
-          title="Exercises"
-          value={stats.totalExercises}
-          description="Exercise library entries"
-          icon={Dumbbell}
-          href="/exercises"
-        />
-        <StatCard
-          title="Programs"
-          value={stats.totalPrograms}
-          description="All workout programs"
-          icon={FileStack}
-          href="/programs"
-        />
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="rounded-lg border-border">
-          <CardHeader>
-            <CardTitle className="font-sans">Recent programs</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {recentPrograms.length ? (
-              recentPrograms.map((program) => (
-                <Link
-                  key={program.id}
-                  href={`/programs/${program.id}`}
-                  className="flex items-center justify-between rounded-lg border border-border bg-era-black-2 p-3 transition-colors hover:border-era-gold-60"
-                >
-                  <div>
-                    <p className="font-medium text-era-white">
-                      {translation(program.title_translations, "en", program.title)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {program.weekCount ?? 0} weeks, {program.dayCount ?? 0} days
-                    </p>
-                  </div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-era-gold-dark">
-                    {program.status}
-                  </p>
-                </Link>
-              ))
-            ) : (
-              <p className="text-sm text-muted-foreground">No programs created yet.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-lg border-border">
-          <CardHeader>
-            <CardTitle className="font-sans">Build order</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ol className="grid gap-3 text-sm text-muted-foreground">
-              <li>1. Add exercises with English and Norwegian names.</li>
-              <li>2. Create the 12-week program shell.</li>
-              <li>3. Add weeks, days, sections, exercises, and sets.</li>
-              <li>4. Assign the active program to users when ready.</li>
-            </ol>
-            <p className="mt-5 text-xs text-muted-foreground">
-              Last refreshed {dateText(new Date().toISOString())}
-            </p>
-          </CardContent>
-        </Card>
-      </section>
+      <div className="@container/main flex flex-col gap-4 md:gap-6">
+        <SectionCards cards={cards} />
+        <ChartAreaInteractive data={activityState.data} />
+        <NewUsers users={recentUsersState.data} />
+      </div>
     </>
+  );
+}
+
+function NewUsers({ users }: { users: RecentUser[] }) {
+  return (
+    <Card className="@container/card">
+      <CardHeader className="grid grid-cols-[1fr_auto] items-center">
+        <div>
+          <CardTitle className="font-sans">New users</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Accounts created in the last 7 days.
+          </p>
+        </div>
+        <Link
+          href="/users"
+          className="inline-flex items-center gap-1 text-xs font-medium text-era-gold-dark transition-colors hover:text-primary"
+        >
+          View all users
+          <HugeiconsIcon icon={ArrowRight01Icon} size={12} strokeWidth={2} />
+        </Link>
+      </CardHeader>
+      <CardContent className="px-0">
+        {users.length ? (
+          <Table>
+            <TableHeader className="bg-muted/60">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4 text-xs uppercase tracking-[0.12em]">
+                  User
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-[0.12em]">
+                  Email
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-[0.12em]">
+                  Role
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-[0.12em]">
+                  Assignments
+                </TableHead>
+                <TableHead className="pr-4 text-right text-xs uppercase tracking-[0.12em]">
+                  Joined
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => {
+                const display = user.full_name || user.email || "Unknown user";
+                const initial = (user.full_name || user.email || "?")
+                  .trim()
+                  .charAt(0)
+                  .toUpperCase();
+                const isStaff = user.role === "owner" || user.role === "admin";
+                return (
+                  <TableRow key={user.id} className="hover:bg-muted/50">
+                    <TableCell className="py-3 pl-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-era-gold-dark/15 text-xs font-medium text-primary">
+                          {user.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={user.avatar_url}
+                              alt={display}
+                              className="h-full w-full rounded-full object-cover"
+                            />
+                          ) : (
+                            initial
+                          )}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">
+                            {display}
+                          </p>
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {user.id}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3 text-muted-foreground">
+                      {user.email ?? "—"}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <Badge
+                        variant={isStaff ? "default" : "secondary"}
+                        className="gap-1 capitalize"
+                      >
+                        <HugeiconsIcon
+                          icon={isStaff ? Crown02Icon : UserIcon}
+                          size={12}
+                          strokeWidth={2}
+                        />
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-3 tabular-nums text-muted-foreground">
+                      {user.active_assignment_count}
+                    </TableCell>
+                    <TableCell className="py-3 pr-4 text-right text-muted-foreground">
+                      {relativeTimeText(user.created_at)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="flex items-center gap-2 px-6 pb-4 text-sm text-muted-foreground">
+            <HugeiconsIcon icon={UserCircleIcon} size={18} strokeWidth={1.8} />
+            No new users in the last 7 days.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

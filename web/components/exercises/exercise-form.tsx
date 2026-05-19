@@ -2,7 +2,7 @@
 
 import type { ReactElement } from "react";
 
-import { FormField, SelectField, TextAreaField } from "@/components/admin/form-field";
+import { FormField, SelectField } from "@/components/admin/form-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -66,8 +66,6 @@ export function ExerciseFormDialog({
               required
               defaultValue={translation(exercise?.name_translations, "nb", exercise?.name)}
             />
-            <FormField label="Internal name" name="name" defaultValue={exercise?.name} />
-            <FormField label="Slug" name="slug" defaultValue={exercise?.slug} />
             <SelectField
               label="Modality"
               name="modality"
@@ -80,7 +78,6 @@ export function ExerciseFormDialog({
               options={EXERCISE_CATEGORIES}
               defaultValue={exercise?.category}
             />
-            <FormField label="Equipment" name="equipment" defaultValue={exercise?.equipment} />
             <FormField
               label="Default rest seconds"
               name="default_rest_seconds"
@@ -92,42 +89,6 @@ export function ExerciseFormDialog({
               name="primary_muscles"
               placeholder="chest, shoulders, triceps"
               defaultValue={exercise?.primary_muscles?.join(", ")}
-            />
-            <FormField
-              label="Secondary muscles"
-              name="secondary_muscles"
-              placeholder="core, forearms"
-              defaultValue={exercise?.secondary_muscles?.join(", ")}
-            />
-            <div className="lg:col-span-2">
-              <FormField
-                label="Image URL"
-                name="thumbnail_url"
-                defaultValue={exercise?.thumbnail_url}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <TextAreaField
-              label="Instructions EN"
-              name="instructions_en"
-              defaultValue={translation(exercise?.instructions_translations, "en", exercise?.instructions)}
-            />
-            <TextAreaField
-              label="Instructions NO"
-              name="instructions_nb"
-              defaultValue={translation(exercise?.instructions_translations, "nb", exercise?.instructions)}
-            />
-            <TextAreaField
-              label="Coaching cues EN"
-              name="coaching_cues_en"
-              defaultValue={translation(exercise?.coaching_cues_translations, "en", exercise?.coaching_cues)}
-            />
-            <TextAreaField
-              label="Coaching cues NO"
-              name="coaching_cues_nb"
-              defaultValue={translation(exercise?.coaching_cues_translations, "nb", exercise?.coaching_cues)}
             />
           </div>
 

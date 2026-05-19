@@ -1,4 +1,5 @@
-import { Plus } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Add01Icon } from "@hugeicons/core-free-icons";
 
 import { ConfigWarning } from "@/components/admin/config-warning";
 import { PageHeader } from "@/components/admin/page-header";
@@ -31,7 +32,7 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
             program={null}
             trigger={
               <Button>
-                <Plus />
+                <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.8} />
                 Create program
               </Button>
             }

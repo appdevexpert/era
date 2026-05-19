@@ -192,46 +192,22 @@ create table if not exists public.exercise_library (
   name_translations jsonb not null default '{}'::jsonb,
   modality public.exercise_modality not null,
   category public.exercise_category not null,
-  equipment text,
   primary_muscles text[] not null default '{}',
-  secondary_muscles text[] not null default '{}',
-  instructions text,
-  instructions_translations jsonb not null default '{}'::jsonb,
-  coaching_cues text,
-  coaching_cues_translations jsonb not null default '{}'::jsonb,
-  video_url text,
-  thumbnail_url text,
   default_rest_seconds integer check (default_rest_seconds is null or default_rest_seconds >= 0),
-  default_weight_unit public.weight_unit not null default 'kg',
-  measurement_config jsonb not null default '{}'::jsonb,
   is_active boolean not null default true,
-  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
--- Program template or personalized user program, e.g. "12 Week Personalized".
+-- Program template, e.g. "12 Week Personalized".
 create table if not exists public.workout_programs (
   id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid references auth.users(id) on delete cascade,
-  onboarding_snapshot jsonb not null default '{}'::jsonb,
-  created_by uuid references auth.users(id) on delete set null,
   title text not null,
   title_translations jsonb not null default '{}'::jsonb,
-  subtitle text,
-  subtitle_translations jsonb not null default '{}'::jsonb,
-  description text,
-  description_translations jsonb not null default '{}'::jsonb,
   duration_weeks integer not null default 12 check (duration_weeks > 0),
   days_per_week integer not null default 6 check (days_per_week between 1 and 7),
-  program_goal text,
-  program_goal_translations jsonb not null default '{}'::jsonb,
-  status public.program_status not null default 'draft',
-  is_template boolean not null default false,
-  published_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  check (is_template = true or owner_user_id is not null)
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.program_weeks (
@@ -242,9 +218,6 @@ create table if not exists public.program_weeks (
   title_translations jsonb not null default '{}'::jsonb,
   focus text,
   focus_translations jsonb not null default '{}'::jsonb,
-  notes text,
-  notes_translations jsonb not null default '{}'::jsonb,
-  is_deload boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (program_id, week_number)
@@ -264,7 +237,6 @@ create table if not exists public.program_days (
   subtitle_translations jsonb not null default '{}'::jsonb,
   target_muscles text[] not null default '{}',
   estimated_minutes integer check (estimated_minutes is null or estimated_minutes >= 0),
-  points_available integer not null default 0 check (points_available >= 0),
   is_rest_day boolean not null default false,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
@@ -279,8 +251,6 @@ create table if not exists public.program_day_sections (
   section_kind public.workout_section_kind not null,
   title text not null,
   title_translations jsonb not null default '{}'::jsonb,
-  description text,
-  description_translations jsonb not null default '{}'::jsonb,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -296,15 +266,9 @@ create table if not exists public.program_day_exercises (
   sort_order integer not null default 0,
   display_name text,
   display_name_translations jsonb not null default '{}'::jsonb,
-  target_summary text,
-  target_summary_translations jsonb not null default '{}'::jsonb,
   initial_weight_value numeric(7,2),
   initial_weight_unit public.weight_unit not null default 'kg',
   default_rest_seconds integer check (default_rest_seconds is null or default_rest_seconds >= 0),
-  superset_group_key text,
-  coach_notes text,
-  coach_notes_translations jsonb not null default '{}'::jsonb,
-  is_optional boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (section_id, sort_order)
@@ -322,17 +286,7 @@ create table if not exists public.planned_exercise_sets (
   target_reps_min integer check (target_reps_min is null or target_reps_min > 0),
   target_reps_max integer check (target_reps_max is null or target_reps_max > 0),
   target_duration_seconds integer check (target_duration_seconds is null or target_duration_seconds >= 0),
-  target_distance_value numeric(8,2),
-  target_distance_unit public.distance_unit,
-  target_speed_value numeric(6,2),
-  target_incline_percent numeric(5,2),
-  display_label text,
-  display_label_translations jsonb not null default '{}'::jsonb,
   rest_seconds integer check (rest_seconds is null or rest_seconds >= 0),
-  rpe_target numeric(4,2) check (rpe_target is null or rpe_target between 1 and 10),
-  rir_target numeric(4,2) check (rir_target is null or rir_target >= 0),
-  tempo text,
-  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (program_day_exercise_id, set_number)
@@ -386,18 +340,15 @@ create table if not exists public.scheduled_workouts (
 create table if not exists public.workout_sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  scheduled_workout_id uuid references public.scheduled_workouts(id) on delete set null,
   program_day_id uuid references public.program_days(id) on delete set null,
   status public.workout_status not null default 'in_progress',
   started_at timestamptz not null default now(),
   completed_at timestamptz,
   duration_seconds integer check (duration_seconds is null or duration_seconds >= 0),
-  current_exercise_index integer not null default 1 check (current_exercise_index > 0),
   total_exercises integer not null default 0 check (total_exercises >= 0),
   exercises_completed integer not null default 0 check (exercises_completed >= 0),
   sets_logged integer not null default 0 check (sets_logged >= 0),
   points_awarded integer not null default 0 check (points_awarded >= 0),
-  session_notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -412,11 +363,8 @@ create table if not exists public.session_exercises (
   sort_order integer not null default 0,
   display_name_snapshot text not null,
   category_snapshot public.exercise_category,
-  muscle_snapshot text[] not null default '{}',
   status public.exercise_log_status not null default 'pending',
-  started_at timestamptz,
   completed_at timestamptz,
-  skipped_reason text,
   comment text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -489,10 +437,7 @@ create table if not exists public.session_cardio_logs (
   distance_value numeric(8,2),
   distance_unit public.distance_unit,
   speed_avg_value numeric(6,2),
-  speed_max_value numeric(6,2),
   incline_percent numeric(5,2),
-  intensity_label text,
-  calories integer check (calories is null or calories >= 0),
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -506,8 +451,6 @@ create table if not exists public.user_exercise_stats (
   last_weight_unit public.weight_unit not null default 'kg',
   last_reps integer,
   last_duration_seconds integer,
-  last_distance_value numeric(8,2),
-  last_distance_unit public.distance_unit,
   last_set_feedback public.load_feedback,
   last_set_session_set_id uuid references public.session_sets(id) on delete set null,
   best_weight_value numeric(7,2),
@@ -536,8 +479,6 @@ create table if not exists public.personal_records (
   weight_unit public.weight_unit,
   reps integer,
   duration_seconds integer,
-  distance_value numeric(8,2),
-  distance_unit public.distance_unit,
   previous_value_numeric numeric(10,2),
   previous_label text,
   points_awarded integer not null default 0 check (points_awarded >= 0),
@@ -549,12 +490,9 @@ create table if not exists public.era_point_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   session_id uuid references public.workout_sessions(id) on delete set null,
-  session_exercise_id uuid references public.session_exercises(id) on delete set null,
-  personal_record_id uuid references public.personal_records(id) on delete set null,
   event_type public.point_event_type not null,
   title text not null,
   points integer not null,
-  metadata jsonb not null default '{}'::jsonb,
   occurred_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
@@ -594,7 +532,6 @@ comment on column public.program_day_sections.title_translations is
 
 -- Indexes for the screens that need fast reads.
 create index if not exists idx_exercise_library_name on public.exercise_library(name);
-create index if not exists idx_workout_programs_owner on public.workout_programs(owner_user_id);
 create index if not exists idx_program_weeks_program_number on public.program_weeks(program_id, week_number);
 create index if not exists idx_program_days_program_week on public.program_days(program_id, week_id, day_number);
 create index if not exists idx_program_day_sections_day_order on public.program_day_sections(program_day_id, sort_order);
@@ -669,23 +606,10 @@ stable
 security definer
 set search_path = public
 as $$
-  select exists (
-    select 1
-    from public.workout_programs p
-    where p.id = program_uuid
-      and (
-        public.is_admin()
-        or p.owner_user_id = auth.uid()
-        or p.created_by = auth.uid()
-        or (p.is_template = true and p.status = 'active')
-        or exists (
-          select 1
-          from public.user_program_assignments a
-          where a.program_id = p.id
-            and a.user_id = auth.uid()
-        )
-      )
-  );
+  select auth.uid() is not null
+    and exists (
+      select 1 from public.workout_programs p where p.id = program_uuid
+    );
 $$;
 
 create or replace function public.can_access_program_day(day_uuid uuid)

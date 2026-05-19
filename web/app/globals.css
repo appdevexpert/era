@@ -87,37 +87,37 @@
   --era-gold-20: rgba(201, 168, 76, 0.2);
   --era-gold-60: rgba(201, 168, 76, 0.6);
 
-  --background: var(--era-black-2);
-  --foreground: var(--era-white);
-  --card: var(--era-black-3);
-  --card-foreground: var(--era-white);
-  --popover: var(--era-black-3);
-  --popover-foreground: var(--era-white);
-  --primary: var(--era-gold);
-  --primary-foreground: var(--era-black-2);
-  --secondary: var(--era-charcoal);
-  --secondary-foreground: var(--era-white);
-  --muted: var(--era-black-3);
-  --muted-foreground: var(--era-white-50);
-  --accent: var(--era-gold-16);
-  --accent-foreground: var(--era-gold);
-  --destructive: var(--era-danger);
-  --border: var(--era-white-08);
-  --input: var(--era-white-12);
+  --background: #ffffff;
+  --foreground: var(--era-black-2);
+  --card: #ffffff;
+  --card-foreground: var(--era-black-2);
+  --popover: #ffffff;
+  --popover-foreground: var(--era-black-2);
+  --primary: var(--era-gold-dark);
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: var(--era-black-2);
+  --muted: #f4f4f5;
+  --muted-foreground: rgba(10, 10, 10, 0.55);
+  --accent: rgba(201, 168, 76, 0.12);
+  --accent-foreground: var(--era-gold-dark);
+  --destructive: #d44747;
+  --border: rgba(10, 10, 10, 0.08);
+  --input: rgba(10, 10, 10, 0.12);
   --ring: var(--era-gold-60);
-  --chart-1: var(--era-gold-light);
+  --chart-1: var(--era-gold-dark);
   --chart-2: var(--era-gold);
-  --chart-3: var(--era-gold-dark);
+  --chart-3: var(--era-gold-light);
   --chart-4: var(--era-success);
   --chart-5: var(--era-slate);
   --radius: 0.5rem;
-  --sidebar: var(--era-black-3);
-  --sidebar-foreground: var(--era-white);
-  --sidebar-primary: var(--era-gold);
-  --sidebar-primary-foreground: var(--era-black-2);
-  --sidebar-accent: var(--era-gold-16);
-  --sidebar-accent-foreground: var(--era-gold);
-  --sidebar-border: var(--era-white-08);
+  --sidebar: #fafafa;
+  --sidebar-foreground: var(--era-black-2);
+  --sidebar-primary: var(--era-gold-dark);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(201, 168, 76, 0.12);
+  --sidebar-accent-foreground: var(--era-gold-dark);
+  --sidebar-border: rgba(10, 10, 10, 0.08);
   --sidebar-ring: var(--era-gold-60);
 }
 
@@ -159,5 +159,22 @@
   }
   html {
     @apply font-sans;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="menuitem"]:not([data-disabled]),
+  [role="option"]:not([data-disabled]),
+  [role="tab"]:not([data-disabled]),
+  [role="checkbox"]:not([data-disabled]),
+  [role="radio"]:not([data-disabled]),
+  summary,
+  label[for],
+  a[href] {
+    cursor: pointer !important;
+  }
+  button:disabled,
+  [data-disabled],
+  [aria-disabled="true"] {
+    cursor: not-allowed !important;
   }
 }

@@ -3,8 +3,6 @@ import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
-import { useAppDispatch } from "@/app/stores/store";
-import { clearSession } from "@/app/stores/slice/sessionSlice";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
@@ -12,8 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import Svg, {
   Circle,
   Defs,
@@ -125,10 +122,7 @@ const ringStyles = StyleSheet.create({
 
 const CardioTimerScreen = () => {
   const insets = useSafeAreaInsets();
-  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<HomeStackParamList, "CardioTimer">>();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
   const {
     sessionWorkout,
@@ -136,7 +130,6 @@ const CardioTimerScreen = () => {
     navigateToSessionComplete,
     logCardioResult,
     completeExerciseResult,
-    finishSession,
   } = useWorkoutSession();
 
   const {
@@ -208,10 +201,8 @@ const CardioTimerScreen = () => {
               {
                 text: t("workout.ui.quitConfirm"),
                 style: "destructive",
-                onPress: async () => {
-                  await finishSession();
-                  dispatch(clearSession());
-                  navigation.popToTop();
+                onPress: () => {
+                  navigateToSessionComplete();
                 },
               },
             ],

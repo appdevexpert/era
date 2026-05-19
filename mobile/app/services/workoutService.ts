@@ -56,7 +56,7 @@ export async function getWorkoutOverview(
   const programResult = await supabase
     .from("workout_programs")
     .select(
-      "id,title,title_translations,subtitle,subtitle_translations,duration_weeks,days_per_week",
+      "id,title,title_translations,duration_weeks,days_per_week",
     )
     .eq("id", programId)
     .single();
@@ -70,7 +70,7 @@ export async function getWorkoutOverview(
   const weeksResult = await supabase
     .from("program_weeks")
     .select(
-      "id,program_id,week_number,title,title_translations,focus,focus_translations,notes,notes_translations",
+      "id,program_id,week_number,title,title_translations,focus,focus_translations",
     )
     .eq("program_id", program.id)
     .order("week_number", { ascending: true });
@@ -84,7 +84,7 @@ export async function getWorkoutOverview(
   const daysResult = await supabase
     .from("program_days")
     .select(
-      "id,program_id,week_id,day_number,weekday,workout_kind,title,title_translations,subtitle,subtitle_translations,target_muscles,estimated_minutes,points_available,is_rest_day,sort_order",
+      "id,program_id,week_id,day_number,weekday,workout_kind,title,title_translations,subtitle,subtitle_translations,target_muscles,estimated_minutes,is_rest_day,sort_order",
     )
     .eq("program_id", program.id)
     .order("day_number", { ascending: true })
@@ -133,7 +133,7 @@ export async function getProgramDayDetail(
   const dayResult = await supabase
     .from("program_days")
     .select(
-      "id,program_id,week_id,day_number,weekday,workout_kind,title,title_translations,subtitle,subtitle_translations,target_muscles,estimated_minutes,points_available,is_rest_day,sort_order",
+      "id,program_id,week_id,day_number,weekday,workout_kind,title,title_translations,subtitle,subtitle_translations,target_muscles,estimated_minutes,is_rest_day,sort_order",
     )
     .eq("id", programDayId)
     .single();
@@ -147,7 +147,7 @@ export async function getProgramDayDetail(
   const weekResult = await supabase
     .from("program_weeks")
     .select(
-      "id,program_id,week_number,title,title_translations,focus,focus_translations,notes,notes_translations",
+      "id,program_id,week_number,title,title_translations,focus,focus_translations",
     )
     .eq("id", day.week_id)
     .single();
@@ -161,7 +161,7 @@ export async function getProgramDayDetail(
   const sectionsResult = await supabase
     .from("program_day_sections")
     .select(
-      "id,program_day_id,section_kind,title,title_translations,description,description_translations,sort_order",
+      "id,program_day_id,section_kind,title,title_translations,sort_order",
     )
     .eq("program_day_id", day.id)
     .order("sort_order", { ascending: true });
@@ -175,7 +175,7 @@ export async function getProgramDayDetail(
   const exercisesResult = await supabase
     .from("program_day_exercises")
     .select(
-      "id,program_day_id,section_id,exercise_id,sort_order,display_name,display_name_translations,target_summary,target_summary_translations,initial_weight_value,initial_weight_unit,default_rest_seconds,coach_notes,coach_notes_translations",
+      "id,program_day_id,section_id,exercise_id,sort_order,display_name,display_name_translations,initial_weight_value,initial_weight_unit,default_rest_seconds",
     )
     .eq("program_day_id", day.id)
     .order("sort_order", { ascending: true });
@@ -207,7 +207,7 @@ async function getPlannedSets(exerciseIds: string[]) {
   const result = await supabase
     .from("planned_exercise_sets")
     .select(
-      "id,program_day_exercise_id,set_number,set_kind,target_weight_value,target_weight_unit,target_reps_exact,target_reps_min,target_reps_max,target_duration_seconds,target_speed_value,target_incline_percent,display_label,display_label_translations,rest_seconds",
+      "id,program_day_exercise_id,set_number,set_kind,target_weight_value,target_weight_unit,target_reps_exact,target_reps_min,target_reps_max,target_duration_seconds,rest_seconds",
     )
     .in("program_day_exercise_id", exerciseIds)
     .order("set_number", { ascending: true });
@@ -223,7 +223,7 @@ async function getLibraryExercises(libraryIds: string[]) {
   const result = await supabase
     .from("exercise_library")
     .select(
-      "id,slug,name,name_translations,modality,category,primary_muscles,secondary_muscles",
+      "id,slug,name,name_translations,modality,category,primary_muscles",
     )
     .in("id", libraryIds);
 

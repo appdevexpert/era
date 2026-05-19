@@ -8,8 +8,6 @@ export interface WorkoutProgramRow {
   id: string;
   title: string;
   title_translations: TranslationMap;
-  subtitle: string | null;
-  subtitle_translations: TranslationMap;
   duration_weeks: number;
   days_per_week: number;
 }
@@ -22,8 +20,6 @@ export interface ProgramWeekRow {
   title_translations: TranslationMap;
   focus: string | null;
   focus_translations: TranslationMap;
-  notes: string | null;
-  notes_translations: TranslationMap;
 }
 
 export interface ProgramDayRow {
@@ -39,7 +35,6 @@ export interface ProgramDayRow {
   subtitle_translations: TranslationMap;
   target_muscles: string[];
   estimated_minutes: number | null;
-  points_available: number;
   is_rest_day: boolean;
   sort_order: number;
 }
@@ -50,8 +45,6 @@ export interface ProgramDaySectionRow {
   section_kind: string;
   title: string;
   title_translations: TranslationMap;
-  description: string | null;
-  description_translations: TranslationMap;
   sort_order: number;
 }
 
@@ -63,7 +56,6 @@ export interface ExerciseLibraryRow {
   modality: string;
   category: string;
   primary_muscles: string[];
-  secondary_muscles: string[];
 }
 
 export interface ProgramDayExerciseRow {
@@ -74,13 +66,9 @@ export interface ProgramDayExerciseRow {
   sort_order: number;
   display_name: string | null;
   display_name_translations: TranslationMap;
-  target_summary: string | null;
-  target_summary_translations: TranslationMap;
   initial_weight_value: number | string | null;
   initial_weight_unit: string;
   default_rest_seconds: number | null;
-  coach_notes: string | null;
-  coach_notes_translations: TranslationMap;
 }
 
 export interface PlannedExerciseSetRow {
@@ -94,10 +82,6 @@ export interface PlannedExerciseSetRow {
   target_reps_min: number | null;
   target_reps_max: number | null;
   target_duration_seconds: number | null;
-  target_speed_value: number | string | null;
-  target_incline_percent: number | string | null;
-  display_label: string | null;
-  display_label_translations: TranslationMap;
   rest_seconds: number | null;
 }
 

@@ -201,6 +201,7 @@ export function mapWorkoutHome(
   }
 
   // Map selector days with calendar dates and weekday labels
+  const startDate = config?.programStartDate ?? null;
   const days = allEntries.map((entry) => {
     const { day, isAdjusted } = entry;
     let dayDate: string | null = null;
@@ -208,10 +209,12 @@ export function mapWorkoutHome(
       dayDate = computeDateForDay(config, calendarWeekNumber, day.day_number, isAdjusted);
     }
     const weekday = dayDate ? getWeekdayFromDate(dayDate) : day.weekday;
-    const isCompleted = completed.has(day.id);
-    const isActive = day.id === currentDay.id;
+    // Pre-signup days (before programStartDate) are treated as future-style — not interactive
+    const isPreSignup = !!(dayDate && startDate && dayDate < startDate);
+    const isCompleted = !isPreSignup && completed.has(day.id);
+    const isActive = !isPreSignup && day.id === currentDay.id;
     const isPast = dayDate && today ? dayDate < today : false;
-    const isMissed = isPast && !isCompleted && !day.is_rest_day;
+    const isMissed = !isPreSignup && isPast && !isCompleted && !day.is_rest_day;
 
     return {
       key: day.id,
@@ -351,11 +354,7 @@ export function mapExerciseList(
           return {
             id: exercise.id,
             name,
-            prescription: getLocalizedText(
-              exercise.target_summary_translations,
-              language,
-              exercise.target_summary ?? formatSetSummary(exerciseSets, language),
-            ),
+            prescription: formatSetSummary(exerciseSets, language),
             weight: weight || undefined,
             showHandle: section.section_kind !== "treadmill_walk",
           };
@@ -430,11 +429,6 @@ function mapPlanWeek({
 
   const skipped = skippedInfo?.count ?? 0;
 
-  // Week 1 partial: only show days from signup weekday onwards
-  if (week.week_number === 1 && skipped > 0 && skippedInfo) {
-    orderedDays = orderedDays.filter((d) => d.day_number >= skippedInfo.signupWeekday);
-  }
-
   // Week 4 adjusted: append Week 1's skipped days after the normal 7
   let adjustedDays: { day: ProgramDayRow; isAdjusted: boolean }[] = [];
   if (week.week_number === 4 && skipped > 0 && skippedInfo) {
@@ -477,13 +471,16 @@ function mapPlanWeek({
       }
       // Use calendar date for weekday label when available
       const weekday = dayDate ? getWeekdayFromDate(dayDate) : day.weekday;
-      const isCompleted = completed.has(day.id);
-      const isActive = day.id === currentDay.id;
+      // Pre-signup days (before programStartDate) are treated as future — not interactive
+      const isPreSignup = !!(dayDate && programStartDate && dayDate < programStartDate);
+      const isCompleted = !isPreSignup && completed.has(day.id);
+      const isActive = !isPreSignup && day.id === currentDay.id;
       const isPast = dayDate && today ? dayDate < today : false;
       const isFuture = dayDate && today ? dayDate > today : !isActive;
 
       let status: "completed" | "missed" | "active" | "future";
-      if (isCompleted) status = "completed";
+      if (isPreSignup) status = "future";
+      else if (isCompleted) status = "completed";
       else if (isActive) status = "active";
       else if (isPast && !day.is_rest_day) status = "missed";
       else if (isFuture) status = "future";
@@ -530,7 +527,6 @@ function buildFutureWeekDays(
       subtitle_translations: template?.subtitle_translations ?? null,
       target_muscles: template?.target_muscles ?? [],
       estimated_minutes: template?.estimated_minutes ?? null,
-      points_available: template?.points_available ?? 0,
       is_rest_day: template?.is_rest_day ?? false,
       sort_order: index + 1,
     };
@@ -632,7 +628,7 @@ export function mapSessionWorkout(
         targetRepsMax: s.target_reps_max ?? null,
         targetDuration: s.target_duration_seconds ?? null,
         restSeconds: s.rest_seconds ?? null,
-        displayLabel: s.display_label ?? null,
+        displayLabel: null,
       }));
 
       const topSet = rawSets.find((s) => s.set_kind === "top_set");

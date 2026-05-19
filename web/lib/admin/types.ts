@@ -28,14 +28,7 @@ export type ExerciseRow = {
   name_translations: TranslationMap;
   modality: string;
   category: string;
-  equipment: string | null;
   primary_muscles: string[];
-  secondary_muscles: string[];
-  instructions: string | null;
-  instructions_translations: TranslationMap;
-  coaching_cues: string | null;
-  coaching_cues_translations: TranslationMap;
-  thumbnail_url: string | null;
   default_rest_seconds: number | null;
   is_active: boolean;
   updated_at: string;
@@ -45,16 +38,8 @@ export type ProgramRow = {
   id: string;
   title: string;
   title_translations: TranslationMap;
-  subtitle: string | null;
-  subtitle_translations: TranslationMap;
-  description: string | null;
-  description_translations: TranslationMap;
   duration_weeks: number;
   days_per_week: number;
-  program_goal: string | null;
-  program_goal_translations: TranslationMap;
-  status: "draft" | "active" | "archived";
-  is_template: boolean;
   created_at: string;
   updated_at: string;
   weekCount?: number;
@@ -80,9 +65,6 @@ export type ProgramWeekRow = {
   title_translations: TranslationMap;
   focus: string | null;
   focus_translations: TranslationMap;
-  notes: string | null;
-  notes_translations: TranslationMap;
-  is_deload: boolean;
   updated_at: string;
 };
 
@@ -121,8 +103,6 @@ export type DayExerciseRow = {
   sort_order: number;
   display_name: string | null;
   display_name_translations: TranslationMap;
-  target_summary: string | null;
-  target_summary_translations: TranslationMap;
   initial_weight_value: number | null;
   initial_weight_unit: string;
   default_rest_seconds: number | null;
@@ -143,8 +123,6 @@ export type PlannedSetRow = {
   target_reps_max: number | null;
   target_duration_seconds: number | null;
   rest_seconds: number | null;
-  display_label: string | null;
-  display_label_translations: TranslationMap;
 };
 
 export type ProgramDetail = {

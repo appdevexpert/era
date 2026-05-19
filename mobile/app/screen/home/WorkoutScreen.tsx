@@ -81,6 +81,9 @@ const WorkoutScreen = () => {
   const handleDayPress = useCallback((day: { key: string; title: string; subtitle: string; muscles: MuscleGroup[]; active?: boolean; completed?: boolean; missed?: boolean }) => {
     if (!workout) return;
 
+    // Future / pre-signup days are not interactive
+    if (!day.active && !day.completed && !day.missed) return;
+
     let dayStatus: "missed" | "completed" | "active" | "future" = "future";
     if (day.active) dayStatus = workout.isCompleted ? "completed" : "active";
     else if (day.completed) dayStatus = "completed";

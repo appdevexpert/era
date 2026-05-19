@@ -6,11 +6,8 @@ import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
-import { useAppDispatch } from "@/app/stores/store";
-import { clearSession } from "@/app/stores/slice/sessionSlice";
 import BottomSheet from "@gorhom/bottom-sheet";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
@@ -31,10 +28,7 @@ const formatStopwatch = (ms: number) => {
 
 const TimerLogScreen = () => {
   const insets = useSafeAreaInsets();
-  const dispatch = useAppDispatch();
   const route = useRoute<RouteProp<HomeStackParamList, "TimerLog">>();
-  const navigation =
-    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
   const {
     sessionWorkout,
@@ -43,7 +37,6 @@ const TimerLogScreen = () => {
     navigateToSessionComplete,
     logSetResult,
     completeExerciseResult,
-    finishSession,
     addSet,
     getSetCount,
     getCompletedSetsForSheet,
@@ -186,10 +179,8 @@ const TimerLogScreen = () => {
               {
                 text: t("workout.ui.quitConfirm"),
                 style: "destructive",
-                onPress: async () => {
-                  await finishSession();
-                  dispatch(clearSession());
-                  navigation.popToTop();
+                onPress: () => {
+                  navigateToSessionComplete();
                 },
               },
             ],

@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Trash2 } from "lucide-react"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { Delete02Icon } from "@hugeicons/core-free-icons"
 import { Toast } from "@base-ui/react/toast"
 
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,7 @@ export function DeleteMenuItem({ onConfirm }: { onConfirm: () => void }) {
       className="text-destructive focus:text-destructive"
       onClick={onConfirm}
     >
-      <Trash2 />
+      <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={1.8} />
       Delete
     </DropdownMenuItem>
   )

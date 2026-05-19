@@ -18,6 +18,6 @@ export const getLocalizedText = (
   fallback = "",
 ) => {
   const normalizedLanguage = normalizeLanguage(language);
-
-  return translations?.[normalizedLanguage] ?? translations?.en ?? fallback;
+  const value = translations?.[normalizedLanguage] || translations?.en;
+  return value || fallback;
 };

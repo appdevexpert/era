@@ -33,6 +33,7 @@ function textArray(formData: FormData, key: string) {
 }
 
 function translations(en: string, nb: string) {
+  if (!en && !nb) return {};
   return {
     en,
     nb: nb || en,
@@ -63,20 +64,7 @@ export async function saveExercise(formData: FormData) {
     name_translations: translations(nameEn || name, nameNb || name),
     modality: value(formData, "modality") || "strength",
     category: value(formData, "category") || "compound",
-    equipment: optionalValue(formData, "equipment"),
     primary_muscles: textArray(formData, "primary_muscles"),
-    secondary_muscles: textArray(formData, "secondary_muscles"),
-    instructions: optionalValue(formData, "instructions_en"),
-    instructions_translations: translations(
-      value(formData, "instructions_en"),
-      value(formData, "instructions_nb"),
-    ),
-    coaching_cues: optionalValue(formData, "coaching_cues_en"),
-    coaching_cues_translations: translations(
-      value(formData, "coaching_cues_en"),
-      value(formData, "coaching_cues_nb"),
-    ),
-    thumbnail_url: optionalValue(formData, "thumbnail_url"),
     default_rest_seconds: numberValue(formData, "default_rest_seconds"),
     is_active: formData.get("is_active") === "on",
   };
@@ -106,25 +94,8 @@ export async function saveProgram(formData: FormData) {
   const payload = {
     title,
     title_translations: translations(titleEn || title, titleNb || title),
-    subtitle: optionalValue(formData, "subtitle_en"),
-    subtitle_translations: translations(
-      value(formData, "subtitle_en"),
-      value(formData, "subtitle_nb"),
-    ),
-    description: optionalValue(formData, "description_en"),
-    description_translations: translations(
-      value(formData, "description_en"),
-      value(formData, "description_nb"),
-    ),
     duration_weeks: intValue(formData, "duration_weeks", 12),
     days_per_week: intValue(formData, "days_per_week", 6),
-    program_goal: optionalValue(formData, "program_goal_en"),
-    program_goal_translations: translations(
-      value(formData, "program_goal_en"),
-      value(formData, "program_goal_nb"),
-    ),
-    status: value(formData, "status") || "draft",
-    is_template: true,
   };
 
   const result = id
@@ -153,8 +124,6 @@ export async function saveProgramWeek(formData: FormData) {
       title_translations: translations(title, title),
       focus,
       focus_translations: translations(focus, focus),
-      notes: optionalValue(formData, "notes"),
-      is_deload: formData.get("is_deload") === "on",
     },
     { onConflict: "program_id,week_number" },
   );
@@ -235,11 +204,6 @@ export async function assignExerciseToDay(formData: FormData) {
     sort_order: intValue(formData, "sort_order", 0),
     display_name: displayNameEn || null,
     display_name_translations: translations(displayNameEn, displayNameNb),
-    target_summary: optionalValue(formData, "target_summary_en"),
-    target_summary_translations: translations(
-      value(formData, "target_summary_en"),
-      value(formData, "target_summary_nb"),
-    ),
     initial_weight_value: numberValue(formData, "initial_weight_value"),
     initial_weight_unit: "kg",
     default_rest_seconds: numberValue(formData, "default_rest_seconds"),
@@ -264,11 +228,6 @@ export async function addPlannedSet(formData: FormData) {
     target_reps_max: numberValue(formData, "target_reps_max"),
     target_duration_seconds: numberValue(formData, "target_duration_seconds"),
     rest_seconds: numberValue(formData, "rest_seconds"),
-    display_label: optionalValue(formData, "display_label_en"),
-    display_label_translations: translations(
-      value(formData, "display_label_en"),
-      value(formData, "display_label_nb"),
-    ),
   });
 
   if (error) throw new Error(error.message);
@@ -356,8 +315,6 @@ export async function duplicateDay(formData: FormData) {
     section_kind: section.section_kind,
     title: section.title,
     title_translations: section.title_translations,
-    description: section.description,
-    description_translations: section.description_translations,
     sort_order: section.sort_order,
   }));
 
@@ -395,14 +352,9 @@ export async function duplicateDay(formData: FormData) {
     sort_order: exercise.sort_order,
     display_name: exercise.display_name,
     display_name_translations: exercise.display_name_translations,
-    target_summary: exercise.target_summary,
-    target_summary_translations: exercise.target_summary_translations,
     initial_weight_value: exercise.initial_weight_value,
     initial_weight_unit: exercise.initial_weight_unit,
     default_rest_seconds: exercise.default_rest_seconds,
-    coach_notes: exercise.coach_notes,
-    coach_notes_translations: exercise.coach_notes_translations,
-    is_optional: exercise.is_optional,
   }));
 
   const { data: insertedExercises, error: insertExercisesError } = await supabase
@@ -442,17 +394,7 @@ export async function duplicateDay(formData: FormData) {
         target_reps_min: set.target_reps_min,
         target_reps_max: set.target_reps_max,
         target_duration_seconds: set.target_duration_seconds,
-        target_distance_value: set.target_distance_value,
-        target_distance_unit: set.target_distance_unit,
-        target_speed_value: set.target_speed_value,
-        target_incline_percent: set.target_incline_percent,
-        display_label: set.display_label,
-        display_label_translations: set.display_label_translations,
         rest_seconds: set.rest_seconds,
-        rpe_target: set.rpe_target,
-        rir_target: set.rir_target,
-        tempo: set.tempo,
-        notes: set.notes,
       }));
 
     const { error: insertSetsError } = await supabase
@@ -586,11 +528,6 @@ export async function updateDayExercise(formData: FormData) {
       sort_order: intValue(formData, "sort_order", 0),
       display_name: displayNameEn || null,
       display_name_translations: translations(displayNameEn, displayNameNb),
-      target_summary: optionalValue(formData, "target_summary_en"),
-      target_summary_translations: translations(
-        value(formData, "target_summary_en"),
-        value(formData, "target_summary_nb"),
-      ),
       initial_weight_value: numberValue(formData, "initial_weight_value"),
       initial_weight_unit: "kg",
       default_rest_seconds: numberValue(formData, "default_rest_seconds"),
@@ -618,11 +555,6 @@ export async function updatePlannedSet(formData: FormData) {
       target_reps_max: numberValue(formData, "target_reps_max"),
       target_duration_seconds: numberValue(formData, "target_duration_seconds"),
       rest_seconds: numberValue(formData, "rest_seconds"),
-      display_label: optionalValue(formData, "display_label_en"),
-      display_label_translations: translations(
-        value(formData, "display_label_en"),
-        value(formData, "display_label_nb"),
-      ),
     })
     .eq("id", id);
 

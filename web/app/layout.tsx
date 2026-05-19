@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { AdminShell } from "@/components/admin/admin-shell";
-import { TooltipProvider } from "@/components/ui/tooltip";
+
+import { ShellOrBare } from "@/components/admin/shell-or-bare";
+import { ThemeProvider } from "@/components/theme-provider";
 import { ToastProvider, Toaster } from "@/components/ui/toast";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { getCurrentAdminUser } from "@/lib/auth/current-user";
 import "./globals.css";
 
 const playfairDisplay = localFont({
@@ -22,23 +25,32 @@ export const metadata: Metadata = {
   description: "ERA workout administration dashboard",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getCurrentAdminUser().catch(() => null);
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${playfairDisplay.variable} ${italiana.variable} h-full antialiased`}
     >
       <body className="min-h-full">
-        <ToastProvider>
-          <TooltipProvider>
-            <AdminShell>{children}</AdminShell>
-          </TooltipProvider>
-          <Toaster />
-        </ToastProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <ToastProvider>
+            <TooltipProvider>
+              <ShellOrBare user={user}>{children}</ShellOrBare>
+            </TooltipProvider>
+            <Toaster />
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
