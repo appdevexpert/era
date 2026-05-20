@@ -43,6 +43,78 @@ export async function createWorkoutSession(params: {
   return data!;
 }
 
+/**
+ * Look up any existing session row for this user + program_day.
+ * Returns null when nothing exists. The unique index guarantees at most one row.
+ */
+export async function findExistingSession(params: {
+  userId: string;
+  programDayId: string;
+}): Promise<{ id: string; status: "in_progress" | "completed" | "abandoned" } | null> {
+  const { data, error } = await supabase
+    .from("workout_sessions")
+    .select("id, status")
+    .eq("user_id", params.userId)
+    .eq("program_day_id", params.programDayId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message ?? "Failed to look up workout session");
+  if (!data) return null;
+  return { id: data.id as string, status: data.status as "in_progress" | "completed" | "abandoned" };
+}
+
+/**
+ * Re-hydrate an in_progress session: read existing session_exercises + session_sets
+ * and rebuild the exerciseMap / setMap that Redux needs.
+ * Returns null when no children exist (corrupt session — caller should self-heal).
+ */
+export async function loadSessionState(sessionId: string): Promise<{
+  exerciseMap: Record<string, string>;
+  setMap: Record<string, string[]>;
+} | null> {
+  const { data: exRows, error: exError } = await supabase
+    .from("session_exercises")
+    .select("id, program_day_exercise_id")
+    .eq("session_id", sessionId);
+
+  if (exError) throw new Error(exError.message ?? "Failed to load session exercises");
+  if (!exRows || exRows.length === 0) return null;
+
+  const sessionExerciseIds = exRows.map((r) => r.id as string);
+  const { data: setRows, error: setError } = await supabase
+    .from("session_sets")
+    .select("id, set_number, session_exercise_id")
+    .in("session_exercise_id", sessionExerciseIds)
+    .order("set_number", { ascending: true });
+
+  if (setError) throw new Error(setError.message ?? "Failed to load session sets");
+
+  const exerciseMap: Record<string, string> = {};
+  for (const row of exRows) {
+    if (row.program_day_exercise_id) {
+      exerciseMap[row.program_day_exercise_id as string] = row.id as string;
+    }
+  }
+
+  const setMap: Record<string, string[]> = {};
+  for (const row of setRows ?? []) {
+    const seId = row.session_exercise_id as string;
+    if (!setMap[seId]) setMap[seId] = [];
+    setMap[seId].push(row.id as string);
+  }
+
+  return { exerciseMap, setMap };
+}
+
+/** Hard-delete a session row (cascade removes children). Used to self-heal corrupt sessions. */
+export async function deleteWorkoutSession(sessionId: string): Promise<void> {
+  const { error } = await supabase
+    .from("workout_sessions")
+    .delete()
+    .eq("id", sessionId);
+  throwIfError(error, "Failed to delete workout session");
+}
+
 export async function createSessionExercises(
   sessionId: string,
   exercises: SessionExercise[],

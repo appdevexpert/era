@@ -1,10 +1,14 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
-import { signOutThunk } from "./authSlice";
+import { setProgramStartDate, signOutThunk } from "./authSlice";
 import {
   getCompletedSessionDayIds,
   getProgramDayDetail,
   getWorkoutOverview,
 } from "@/app/services/workoutService";
+import {
+  fetchProgramStartDate,
+  saveProgramStartDate,
+} from "@/app/services/profileService";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import type { ProgramDayDetailData, WorkoutOverviewData } from "@/app/types/workout";
 import type { LoadingState } from "@/app/types";
@@ -48,9 +52,30 @@ export const loadWorkoutBootstrap = createAsyncThunk<
   WorkoutBootstrapData,
   LoadWorkoutBootstrapArgs,
   { rejectValue: string; state: RootState }
->("workout/loadBootstrap", async (args, { rejectWithValue, getState }) => {
+>("workout/loadBootstrap", async (args, { rejectWithValue, getState, dispatch }) => {
   try {
     const userId = getState().auth.user?.id;
+
+    // Sync programStartDate with Supabase before any date math runs.
+    // Supabase is the source of truth across devices; Redux is the local cache.
+    if (userId) {
+      try {
+        const remoteStart = await fetchProgramStartDate(userId);
+        const localStart = getState().auth.programStartDate;
+        if (remoteStart && remoteStart !== localStart) {
+          dispatch(setProgramStartDate(remoteStart));
+        } else if (!remoteStart && localStart) {
+          // Existing user with a Redux-only value — migrate it to Supabase.
+          try {
+            await saveProgramStartDate(userId, localStart);
+          } catch (error) {
+            console.warn("[workout] failed to migrate programStartDate", error);
+          }
+        }
+      } catch (error) {
+        console.warn("[workout] failed to fetch programStartDate", error);
+      }
+    }
 
     const overview = await getWorkoutOverview(args?.programId);
 

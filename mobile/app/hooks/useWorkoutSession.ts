@@ -66,39 +66,19 @@ export const useWorkoutSession = () => {
 
   const totalExercises = sessionWorkout?.exercises.length ?? 0;
 
-  /** Start the session — create rows in Supabase, store IDs in Redux */
-  const startSession = useCallback(async () => {
-    if (!sessionWorkout || !userId) return;
+  /**
+   * Start (or resume) the session.
+   * - If an in_progress row exists for (user, program_day) → resume it (load DB state into Redux).
+   * - If a completed row exists → block (do nothing; caller should route to a "view completed" screen).
+   * - Otherwise → insert fresh session + exercises + sets.
+   * On race conditions, the unique index throws; we catch and re-query, then resume.
+   */
+  const startSession = useCallback(async (): Promise<"started" | "resumed" | "already_completed" | "failed"> => {
+    if (!sessionWorkout || !userId) return "failed";
 
-    try {
-      const session = await sessionService.createWorkoutSession({
-        userId,
-        programDayId: sessionWorkout.programDayId,
-        totalExercises,
-      });
+    const programDayId = sessionWorkout.programDayId;
 
-      const seRows = await sessionService.createSessionExercises(
-        session.id,
-        sessionWorkout.exercises,
-      );
-
-      const exerciseMapObj: Record<string, string> = {};
-      for (const row of seRows) {
-        exerciseMapObj[row.program_day_exercise_id] = row.id;
-      }
-
-      // Create planned sets for each exercise
-      const setMapObj: Record<string, string[]> = {};
-      for (const ex of sessionWorkout.exercises) {
-        const seId = exerciseMapObj[ex.id];
-        if (!seId || ex.sets.length === 0) continue;
-        const setRows = await sessionService.createSessionSets(seId, ex.sets);
-        setMapObj[seId] = setRows
-          .sort((a, b) => a.set_number - b.set_number)
-          .map((r) => r.id);
-      }
-
-      // Fetch historical exercise stats for best/last set cards
+    const hydrateStats = async () => {
       const exerciseLibraryIds = sessionWorkout.exercises.map((ex) => ex.exerciseLibraryId);
       const statsMap = await sessionService.fetchUserExerciseStats(userId, exerciseLibraryIds);
       const statsObj: Record<string, ExerciseStatSnapshot> = {};
@@ -112,17 +92,98 @@ export const useWorkoutSession = () => {
           bestReps: stat.best_reps,
         };
       }
+      return statsObj;
+    };
 
-      // Store everything in Redux
-      dispatch(initSession({
-        sessionId: session.id,
-        exerciseMap: exerciseMapObj,
-        setMap: setMapObj,
-      }));
-      dispatch(setExerciseStats(statsObj));
+    const insertFresh = async () => {
+      const session = await sessionService.createWorkoutSession({
+        userId,
+        programDayId,
+        totalExercises,
+      });
+      const seRows = await sessionService.createSessionExercises(
+        session.id,
+        sessionWorkout.exercises,
+      );
+      const exerciseMapObj: Record<string, string> = {};
+      for (const row of seRows) {
+        exerciseMapObj[row.program_day_exercise_id] = row.id;
+      }
+      const setMapObj: Record<string, string[]> = {};
+      for (const ex of sessionWorkout.exercises) {
+        const seId = exerciseMapObj[ex.id];
+        if (!seId || ex.sets.length === 0) continue;
+        const setRows = await sessionService.createSessionSets(seId, ex.sets);
+        setMapObj[seId] = setRows
+          .sort((a, b) => a.set_number - b.set_number)
+          .map((r) => r.id);
+      }
+      return { sessionId: session.id, exerciseMap: exerciseMapObj, setMap: setMapObj };
+    };
+
+    try {
+      const existing = await sessionService.findExistingSession({ userId, programDayId });
+
+      if (existing?.status === "completed") {
+        return "already_completed";
+      }
+
+      if (existing?.status === "in_progress") {
+        const state = await sessionService.loadSessionState(existing.id);
+        if (!state) {
+          // Corrupt row (no children) — self-heal: delete it and start fresh.
+          console.warn("[session] corrupt in_progress row, recreating", existing.id);
+          await sessionService.deleteWorkoutSession(existing.id);
+          const fresh = await insertFresh();
+          dispatch(initSession(fresh));
+          dispatch(setExerciseStats(await hydrateStats()));
+          dispatch(startSessionTimer());
+          return "started";
+        }
+        dispatch(initSession({
+          sessionId: existing.id,
+          exerciseMap: state.exerciseMap,
+          setMap: state.setMap,
+        }));
+        dispatch(setExerciseStats(await hydrateStats()));
+        dispatch(startSessionTimer());
+        return "resumed";
+      }
+
+      // Nothing exists — insert fresh.
+      let fresh;
+      try {
+        fresh = await insertFresh();
+      } catch (err) {
+        // Race condition: another device inserted between our findExisting and insert.
+        // The unique index rejected us. Re-query and resume that row.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("workout_sessions_one_per_user_day") || msg.includes("duplicate key")) {
+          const winner = await sessionService.findExistingSession({ userId, programDayId });
+          if (winner?.status === "in_progress") {
+            const state = await sessionService.loadSessionState(winner.id);
+            if (state) {
+              dispatch(initSession({
+                sessionId: winner.id,
+                exerciseMap: state.exerciseMap,
+                setMap: state.setMap,
+              }));
+              dispatch(setExerciseStats(await hydrateStats()));
+              dispatch(startSessionTimer());
+              return "resumed";
+            }
+          }
+          if (winner?.status === "completed") return "already_completed";
+        }
+        throw err;
+      }
+      dispatch(initSession(fresh));
+      dispatch(setExerciseStats(await hydrateStats()));
       dispatch(startSessionTimer());
+      return "started";
     } catch (err) {
       console.error("Failed to start session:", err);
+      return "failed";
     }
   }, [sessionWorkout, userId, totalExercises, dispatch]);
 

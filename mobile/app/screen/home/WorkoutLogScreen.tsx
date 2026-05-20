@@ -1,5 +1,6 @@
 import AddComment from "@/app/components/workout/AddComment";
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
+import EndWorkoutSheet, { type EndWorkoutSheetRef } from "@/app/components/workout/EndWorkoutSheet";
 import ExerciseCompletedSheet from "@/app/components/workout/ExerciseCompletedSheet";
 import RepsPicker from "@/app/components/workout/RepsPicker";
 import SetFeedback from "@/app/components/workout/SetFeedback";
@@ -15,8 +16,7 @@ import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
-import { Alert, StyleSheet, View } from "react-native";
-import { useTranslation } from "react-i18next";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Extrapolation,
@@ -40,7 +40,6 @@ const WorkoutLogScreen = () => {
     currentSet: startSet = 0, // 0-based set to resume from
   } = route.params;
 
-  const { t } = useTranslation();
   const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet } = useWorkoutSession();
   const { formatted: timer } = useSessionTimer();
   const exercises = sessionWorkout?.exercises ?? [];
@@ -67,6 +66,7 @@ const WorkoutLogScreen = () => {
 
   // Exercise completed bottom sheet
   const sheetRef = useRef<BottomSheet>(null);
+  const endWorkoutSheetRef = useRef<EndWorkoutSheetRef>(null);
   const lastSetLogged = useRef(false);
 
   /** Navigate to a specific exercise by 0-based index */
@@ -145,22 +145,7 @@ const WorkoutLogScreen = () => {
         sets={sets}
         canAddSet={canAddSet}
         onAddSet={handleAddSet}
-        onBack={() => {
-          Alert.alert(
-            t("workout.ui.quitTitle"),
-            t("workout.ui.quitMessage"),
-            [
-              { text: t("common.cancel"), style: "cancel" },
-              {
-                text: t("workout.ui.quitConfirm"),
-                style: "destructive",
-                onPress: () => {
-                  navigateToSessionComplete();
-                },
-              },
-            ],
-          );
-        }}
+        onBack={() => endWorkoutSheetRef.current?.show()}
         scrollY={scrollY}
         topInset={insets.top}
       />
@@ -240,6 +225,10 @@ const WorkoutLogScreen = () => {
         ref={sheetRef}
         sets={getCompletedSetsForSheet(exIdx)}
         onContinue={handleSheetContinue}
+      />
+      <EndWorkoutSheet
+        ref={endWorkoutSheetRef}
+        onEnd={navigateToSessionComplete}
       />
     </View>
   );

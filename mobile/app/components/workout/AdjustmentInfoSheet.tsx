@@ -1,8 +1,12 @@
-import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
+import {
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 
 export interface AdjustmentInfoSheetRef {
   show: (title: string, message: string) => void;
@@ -22,11 +26,25 @@ const AdjustmentInfoSheet = forwardRef<AdjustmentInfoSheetRef>(
       },
     }));
 
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.6}
+          pressBehavior="close"
+        />
+      ),
+      [],
+    );
+
     return (
       <BottomSheetModal
         ref={sheetRef}
         enableDynamicSizing
         enablePanDownToClose
+        backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >

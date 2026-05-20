@@ -112,9 +112,13 @@ create table if not exists public.profiles (
   full_name text,
   avatar_url text,
   role public.app_role not null default 'user',
+  program_start_date date,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles
+  add column if not exists program_start_date date;
 
 create table if not exists public.user_reward_state (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -352,6 +356,10 @@ create table if not exists public.workout_sessions (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Enforces one session row per (user, program_day). Resume-or-create handled at app layer.
+create unique index if not exists workout_sessions_one_per_user_day
+  on public.workout_sessions (user_id, program_day_id);
 
 -- Runtime exercise inside a session, e.g. "1/5 EXERCISES - Deadlift".
 create table if not exists public.session_exercises (

@@ -7,7 +7,9 @@ import {
   resetPassword,
   signOut,
 } from "@/app/utils/auth";
+import { saveProgramStartDate } from "@/app/services/profileService";
 import type { LoadingState } from "@/app/types";
+import type { RootState } from "@/app/stores/store";
 
 export type { AuthUser };
 
@@ -78,6 +80,27 @@ export const signOutThunk = createAsyncThunk(
   },
 );
 
+/**
+ * Marks plan generation complete and persists programStartDate to Supabase
+ * so it follows the user across devices. Local-first: Redux update is
+ * synchronous via setPlanGenerationLocal; the remote push runs after and
+ * never blocks the UI. Push failures are retried on the next loadWorkoutBootstrap.
+ */
+export const completePlanGeneration = createAsyncThunk(
+  "auth/completePlanGeneration",
+  async (_, { getState, dispatch }) => {
+    dispatch(setPlanGenerationLocal());
+    const { user, programStartDate } = (getState() as RootState).auth;
+    if (user?.id && programStartDate) {
+      try {
+        await saveProgramStartDate(user.id, programStartDate);
+      } catch (error) {
+        console.warn("[auth] failed to push programStartDate", error);
+      }
+    }
+  },
+);
+
 // --- Slice ---
 
 const authSlice = createSlice({
@@ -102,11 +125,14 @@ const authSlice = createSlice({
       if (state.user) state.user = { ...state.user, ...action.payload };
     },
     completeOnboarding: (state) => { state.isOnboarded = true; },
-    completePlanGeneration: (state) => {
+    setPlanGenerationLocal: (state) => {
       state.isPlanGenerated = true;
       if (!state.programStartDate) {
         state.programStartDate = new Date().toISOString().split("T")[0];
       }
+    },
+    setProgramStartDate: (state, action: PayloadAction<string | null>) => {
+      state.programStartDate = action.payload;
     },
     resetPlanGeneration: (state) => { state.isPlanGenerated = false; },
 
@@ -186,7 +212,7 @@ const authSlice = createSlice({
 
 export const {
   login, logout, clearSession, updateUser, clearError,
-  completeOnboarding, completePlanGeneration, resetPlanGeneration,
+  completeOnboarding, setPlanGenerationLocal, setProgramStartDate, resetPlanGeneration,
 } = authSlice.actions;
 
 export default authSlice.reducer;

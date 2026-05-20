@@ -146,6 +146,29 @@ const CompletedExerciseRow = ({
   </Pressable>
 );
 
+const SkippedExerciseRow = ({
+  exercise,
+}: {
+  exercise: ExerciseListExerciseView;
+}) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.exerciseRow}>
+      <View style={[styles.exerciseCopy, { flex: 1 }]}>
+        <Text numberOfLines={1} style={styles.exerciseName}>
+          {exercise.name}
+        </Text>
+        <View style={styles.setChipsRow}>
+          <View style={styles.skippedChip}>
+            <Text style={styles.skippedChipText}>{t("workout.ui.skipped")}</Text>
+          </View>
+        </View>
+      </View>
+      <ChevronRight width={16} height={16} color="#F0F0F0" />
+    </View>
+  );
+};
+
 const ExerciseSection = ({
   section,
   mode,
@@ -315,7 +338,7 @@ const ExerciseListScreen = () => {
                     <View style={styles.exerciseList}>
                       {section.exercises.map((planned, index) => {
                         const completed = completedByName.get(planned.name);
-                        if (completed) {
+                        if (completed && completed.sets.length > 0) {
                           return (
                             <View key={planned.id}>
                               <CompletedExerciseRow
@@ -328,7 +351,7 @@ const ExerciseListScreen = () => {
                         }
                         return (
                           <View key={planned.id}>
-                            <ExerciseRow exercise={planned} mode="completed" />
+                            <SkippedExerciseRow exercise={planned} />
                             {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
                           </View>
                         );
@@ -350,10 +373,20 @@ const ExerciseListScreen = () => {
                 ))
               : null}
 
-            {/* Completed mode fallback: show planned if no session data */}
+            {/* Completed mode fallback: no session data — treat all as skipped */}
             {dayStatus === "completed" && !completedSession && !completedLoading
               ? workout.sections.map((section) => (
-                  <ExerciseSection key={section.id} section={section} mode={dayStatus} />
+                  <View key={section.id} style={styles.section}>
+                    <SectionHeader title={section.title} />
+                    <View style={styles.exerciseList}>
+                      {section.exercises.map((planned, index) => (
+                        <View key={planned.id}>
+                          <SkippedExerciseRow exercise={planned} />
+                          {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
+                        </View>
+                      ))}
+                    </View>
+                  </View>
                 ))
               : null}
           </>
@@ -585,6 +618,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "400",
     color: COLORS.primary.dark,
+    letterSpacing: 0.48,
+    textTransform: "uppercase",
+  },
+  skippedChip: {
+    backgroundColor: "rgba(230,119,119,0.16)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+  },
+  skippedChipText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    fontWeight: "400",
+    color: "#E67777",
     letterSpacing: 0.48,
     textTransform: "uppercase",
   },

@@ -452,10 +452,25 @@ function mapPlanWeek({
     : false;
 
   // Build day entries: normal days + adjusted days (Week 4 only)
-  const allDayEntries = [
+  const rawEntries = [
     ...orderedDays.map((d) => ({ day: d, isAdjusted: false })),
     ...adjustedDays,
   ];
+
+  // Attach calendar date once, then hide days before the user joined the program.
+  // Only the week containing programStartDate can lose entries here — every other
+  // week's dates are >= programStartDate so the filter is a no-op for them.
+  const allDayEntries = rawEntries
+    .map((entry) => ({
+      day: entry.day,
+      isAdjusted: entry.isAdjusted,
+      dayDate: config
+        ? computeDateForDay(config, week.week_number, entry.day.day_number, entry.isAdjusted)
+        : null,
+    }))
+    .filter(
+      (entry) => !(entry.dayDate && programStartDate && entry.dayDate < programStartDate),
+    );
 
   return {
     weekNumber: week.week_number,
@@ -464,23 +479,16 @@ function mapPlanWeek({
     completedDays: allDayEntries.filter((e) => completed.has(e.day.id)).length,
     totalDays: allDayEntries.filter((e) => !e.day.is_rest_day).length,
     days: allDayEntries.map((entry) => {
-      const { day, isAdjusted } = entry;
-      let dayDate: string | null = null;
-      if (config) {
-        dayDate = computeDateForDay(config, week.week_number, day.day_number, isAdjusted);
-      }
+      const { day, dayDate } = entry;
       // Use calendar date for weekday label when available
       const weekday = dayDate ? getWeekdayFromDate(dayDate) : day.weekday;
-      // Pre-signup days (before programStartDate) are treated as future — not interactive
-      const isPreSignup = !!(dayDate && programStartDate && dayDate < programStartDate);
-      const isCompleted = !isPreSignup && completed.has(day.id);
-      const isActive = !isPreSignup && day.id === currentDay.id;
+      const isCompleted = completed.has(day.id);
+      const isActive = day.id === currentDay.id;
       const isPast = dayDate && today ? dayDate < today : false;
       const isFuture = dayDate && today ? dayDate > today : !isActive;
 
       let status: "completed" | "missed" | "active" | "future";
-      if (isPreSignup) status = "future";
-      else if (isCompleted) status = "completed";
+      if (isCompleted) status = "completed";
       else if (isActive) status = "active";
       else if (isPast && !day.is_rest_day) status = "missed";
       else if (isFuture) status = "future";

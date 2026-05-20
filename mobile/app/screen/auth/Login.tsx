@@ -77,25 +77,19 @@ const Login = ({ navigation }: LoginProps) => {
       return
     }
 
-    dispatch(signInThunk({ email: email.trim(), password })).unwrap().then(() => {
-      Toast.show({ type: 'success', text2: t('auth.loginSuccess'), visibilityTime: 3000 })
-    }).catch(() => {})
+    dispatch(signInThunk({ email: email.trim(), password })).unwrap().catch(() => {})
   }
 
   const handleGoogleLogin = async () => {
     const result = await loginWithGoogle()
-    if (result.type === 'success') {
-      Toast.show({ type: 'success', text2: t('auth.loginSuccess'), visibilityTime: 3000 })
-    } else if (result.type === 'error') {
+    if (result.type === 'error') {
       Toast.show({ type: 'error', text2: result.error?.message ?? t('auth.errors.invalidEmail'), visibilityTime: 3000 })
     }
   }
 
   const handleAppleLogin = async () => {
     const result = await loginWithApple()
-    if (result.type === 'success') {
-      Toast.show({ type: 'success', text2: t('auth.loginSuccess'), visibilityTime: 3000 })
-    } else if (result.type === 'error') {
+    if (result.type === 'error') {
       Toast.show({ type: 'error', text2: result.error?.message ?? t('auth.errors.invalidEmail'), visibilityTime: 3000 })
     }
   }
