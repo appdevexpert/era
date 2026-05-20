@@ -8,12 +8,12 @@ import {
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 
-export interface AdjustmentInfoSheetRef {
+export interface AdjustmentInfoBottomSheetRef {
   show: (title: string, message: string) => void;
 }
 
-const AdjustmentInfoSheet = forwardRef<AdjustmentInfoSheetRef>(
-  function AdjustmentInfoSheet(_props, ref) {
+const AdjustmentInfoBottomSheet = forwardRef<AdjustmentInfoBottomSheetRef>(
+  function AdjustmentInfoBottomSheet(_props, ref) {
     const sheetRef = useRef<BottomSheetModal>(null);
     const [title, setTitle] = useState("");
     const [message, setMessage] = useState("");
@@ -61,9 +61,9 @@ const AdjustmentInfoSheet = forwardRef<AdjustmentInfoSheetRef>(
   },
 );
 
-AdjustmentInfoSheet.displayName = "AdjustmentInfoSheet";
+AdjustmentInfoBottomSheet.displayName = "AdjustmentInfoBottomSheet";
 
-export default AdjustmentInfoSheet;
+export default AdjustmentInfoBottomSheet;
 
 const styles = StyleSheet.create({
   sheetBg: {

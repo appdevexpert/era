@@ -5,7 +5,7 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { PrTrophy } from "@/assets/images";
 import { useAppDispatch } from "@/app/stores/store";
 import { clearSession } from "@/app/stores/slice/sessionSlice";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -84,12 +84,7 @@ const SessionCompleteScreen = () => {
       <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 16 }]}>
         {/* Capture Progress */}
         <Pressable style={styles.captureBtn}>
-          <GlassView
-            pointerEvents="none"
-            glassEffectStyle="regular"
-            colorScheme="dark"
-            style={StyleSheet.absoluteFill}
-          />
+          <GlassFill />
           <CameraIcon width={24} height={24} />
           <Text style={styles.captureBtnText}>
             {t("workout.ui.captureProgress")}
@@ -114,12 +109,7 @@ const SessionCompleteScreen = () => {
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}
           />
-          <GlassView
-            pointerEvents="none"
-            glassEffectStyle="regular"
-            colorScheme="dark"
-            style={StyleSheet.absoluteFill}
-          />
+          <GlassFill />
           <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
         </Pressable>
       </View>

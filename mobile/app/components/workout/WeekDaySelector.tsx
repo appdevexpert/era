@@ -1,7 +1,7 @@
+import GlassFill from "@/app/components/common/GlassFill";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { MuscleGroup } from "@/app/navigation/types";
-import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -33,12 +33,7 @@ const DayPill = ({
   if (day.active && day.completed) {
     return (
       <Pressable onPress={onPress} style={styles.pillBase}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.glassFill}
-        />
+        <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(201, 168, 76, 0.35)", "rgba(4, 95, 16, 0.35)"]}
@@ -58,12 +53,7 @@ const DayPill = ({
   if (day.missed) {
     return (
       <Pressable onPress={onPress} style={styles.pillBase}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.glassFill}
-        />
+        <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(10, 10, 10, 0.35)", "rgba(230, 119, 119, 0.35)"]}
@@ -83,12 +73,7 @@ const DayPill = ({
   if (day.completed) {
     return (
       <Pressable onPress={onPress} style={styles.pillBase}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.glassFill}
-        />
+        <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(10, 10, 10, 0.35)", "rgba(4, 95, 16, 0.35)"]}
@@ -108,12 +93,7 @@ const DayPill = ({
   if (day.active) {
     return (
       <Pressable onPress={onPress} style={styles.pillBase}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.glassFill}
-        />
+        <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(201, 168, 76, 0.35)", "rgba(201, 168, 76, 0.35)"]}

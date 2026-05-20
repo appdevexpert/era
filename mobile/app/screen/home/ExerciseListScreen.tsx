@@ -1,4 +1,4 @@
-import PrimaryButton from "@/app/components/ui/PrimaryButton";
+import PrimaryButton from "@/app/components/common/PrimaryButton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { DayStatus, HomeStackParamList } from "@/app/navigation/types";
@@ -164,7 +164,6 @@ const SkippedExerciseRow = ({
           </View>
         </View>
       </View>
-      <ChevronRight width={16} height={16} color="#F0F0F0" />
     </View>
   );
 };

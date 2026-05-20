@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import { verticalScale } from '@/app/utils/responsive'
-import AnimatedSelectableCard from '@/app/components/onboarding/AnimatedSelectableCard'
+import AnimatedSelectableCard from '@/app/components/common/AnimatedSelectableCard'
 import {
   GoalBuildMuscle,
   GoalGeneralFitness,

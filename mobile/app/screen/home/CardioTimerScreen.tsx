@@ -4,7 +4,7 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
@@ -305,12 +305,7 @@ const CardioTimerScreen = () => {
             end={{ x: 1, y: 0 }}
             style={StyleSheet.absoluteFill}
           />
-          <GlassView
-            pointerEvents="none"
-            glassEffectStyle="regular"
-            colorScheme="dark"
-            style={StyleSheet.absoluteFill}
-          />
+          <GlassFill />
           <Text style={styles.completeBtnText}>
             {t("workout.ui.completeSession")}
           </Text>

@@ -2,7 +2,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { PrTrophy } from "@/assets/images";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -73,12 +73,7 @@ const PRScreen = () => {
           end={{ x: 1, y: 0 }}
           style={StyleSheet.absoluteFill}
         />
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="regular"
-          colorScheme="dark"
-          style={StyleSheet.absoluteFill}
-        />
+        <GlassFill />
         <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
       </Pressable>
     </View>

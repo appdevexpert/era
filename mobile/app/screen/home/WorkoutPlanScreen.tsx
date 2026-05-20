@@ -18,10 +18,10 @@ import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { mapWorkoutPlan } from "@/app/utils/workoutMappers";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import AdjustmentInfoSheet, { type AdjustmentInfoSheetRef } from "@/app/components/workout/AdjustmentInfoSheet";
+import AdjustmentInfoBottomSheet, { type AdjustmentInfoBottomSheetRef } from "@/app/components/workout/AdjustmentInfoBottomSheet";
 import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -107,12 +107,7 @@ const DayPillItem = ({ pill, onPress }: { pill: DayPill; onPress?: () => void })
   return (
     <Wrapper style={styles.dayPillShadow} onPress={onPress}>
       <View style={styles.dayPillOuter}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.dayPillFill}
-        />
+        <GlassFill effect="clear" scheme="light" style={styles.dayPillFill} />
         {hasGradient ? (
           <LinearGradient
             pointerEvents="none"
@@ -139,12 +134,7 @@ const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
   return (
     <View style={styles.weekBadgeShadow}>
       <View style={styles.weekBadge}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.dayPillFill}
-        />
+        <GlassFill effect="clear" scheme="light" style={styles.dayPillFill} />
         <Text style={styles.weekBadgeText}>
           {t("workout.ui.weekBadge", { number: weekNumber })}
         </Text>
@@ -245,7 +235,7 @@ const WorkoutPlanScreen = () => {
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
 
-  const adjustmentSheetRef = useRef<AdjustmentInfoSheetRef>(null);
+  const adjustmentSheetRef = useRef<AdjustmentInfoBottomSheetRef>(null);
   const hasAutoShown = useRef(false);
 
   useEffect(() => {
@@ -321,7 +311,7 @@ const WorkoutPlanScreen = () => {
         )}
       </ScrollView>
 
-      <AdjustmentInfoSheet ref={adjustmentSheetRef} />
+      <AdjustmentInfoBottomSheet ref={adjustmentSheetRef} />
     </View>
   );
 };

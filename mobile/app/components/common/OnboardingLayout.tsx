@@ -13,9 +13,9 @@ import Animated, {
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import { horizontalScale, verticalScale } from '@/app/utils/responsive'
-import GradientBackground from '@/app/components/layout/GradientBackground'
-import BackButton from '@/app/components/ui/BackButton'
-import PrimaryButton from '@/app/components/ui/PrimaryButton'
+import GradientBackground from '@/app/components/common/GradientBackground'
+import BackButton from '@/app/components/common/BackButton'
+import PrimaryButton from '@/app/components/common/PrimaryButton'
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient)
 

@@ -1,5 +1,5 @@
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
-import ExerciseCompletedSheet from "@/app/components/workout/ExerciseCompletedSheet";
+import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -265,7 +265,7 @@ const TimerLogScreen = () => {
         />
       </View>
 
-      <ExerciseCompletedSheet
+      <ExerciseCompletedBottomSheet
         ref={sheetRef}
         sets={getCompletedSetsForSheet(exIdx)}
         onContinue={handleSheetContinue}

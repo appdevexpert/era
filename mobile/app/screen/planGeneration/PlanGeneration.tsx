@@ -12,7 +12,7 @@ import { useSelector } from "react-redux";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
-import GradientBackground from "@/app/components/layout/GradientBackground";
+import GradientBackground from "@/app/components/common/GradientBackground";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { PlanGenerationStackParamList } from "@/app/navigation/types";

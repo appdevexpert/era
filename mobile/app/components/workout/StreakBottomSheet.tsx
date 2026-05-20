@@ -2,14 +2,14 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { FireRing } from "@/assets/icons";
 import WeekDaySelector, { type DayItem } from "@/app/components/workout/WeekDaySelector";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
 
-type StreakSheetProps = {
+type StreakBottomSheetProps = {
   streak: number;
   days: DayItem[];
   exercises: number;
@@ -20,8 +20,8 @@ type StreakSheetProps = {
 
 const RING_SIZE = 140;
 
-const StreakSheet = forwardRef<BottomSheetModal, StreakSheetProps>(
-  function StreakSheet({ streak, days, exercises, minutes, points, onViewPoints }, ref) {
+const StreakBottomSheet = forwardRef<BottomSheetModal, StreakBottomSheetProps>(
+  function StreakBottomSheet({ streak, days, exercises, minutes, points, onViewPoints }, ref) {
     const { t } = useTranslation();
 
     return (
@@ -74,12 +74,7 @@ const StreakSheet = forwardRef<BottomSheetModal, StreakSheetProps>(
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={StyleSheet.absoluteFill}
-            />
+            <GlassFill />
             <Text style={styles.viewBtnText}>{t("workout.ui.viewEraPoints")}</Text>
           </Pressable>
         </BottomSheetView>
@@ -88,9 +83,9 @@ const StreakSheet = forwardRef<BottomSheetModal, StreakSheetProps>(
   },
 );
 
-StreakSheet.displayName = "StreakSheet";
+StreakBottomSheet.displayName = "StreakBottomSheet";
 
-export default StreakSheet;
+export default StreakBottomSheet;
 
 const styles = StyleSheet.create({
   sheetBg: {

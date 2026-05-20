@@ -3,9 +3,9 @@ import {
   SolarDumbbellBoldDuotone,
   SolarHomeAngle2BoldDuotone,
   SolarLunchBoldDuotone,
-} from "@/app/components/icons/SolarTabIcons";
+} from "@/app/components/common/SolarTabIcons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { ComponentType, useEffect } from "react";
@@ -87,12 +87,7 @@ const TabItem = ({
       layout={LinearTransition.duration(TIMING_CONFIG.duration).easing(TIMING_CONFIG.easing)}
       style={[styles.tabSurface, isActive ? styles.activeSize : styles.inactiveSize]}
     >
-      <GlassView
-        pointerEvents="none"
-        glassEffectStyle="clear"
-        colorScheme="dark"
-        style={styles.glassFill}
-      />
+      <GlassFill effect="clear" style={styles.glassFill} />
       {isActive && (
         <Animated.View
           pointerEvents="none"
@@ -111,12 +106,7 @@ const TabItem = ({
             end={{ x: 0.5, y: 1 }}
             style={styles.glassFill}
           >
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={styles.glassFill}
-            />
+            <GlassFill style={styles.glassFill} />
           </LinearGradient>
         </Animated.View>
       )}

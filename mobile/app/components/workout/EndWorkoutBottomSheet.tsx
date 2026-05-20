@@ -1,3 +1,4 @@
+import TintButton from "@/app/components/common/TintButton";
 import { FONTS } from "@/app/constants/fonts";
 import {
   BottomSheetBackdrop,
@@ -5,24 +6,22 @@ import {
   BottomSheetModal,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
-import { GlassView } from "expo-glass-effect";
-import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
-export interface EndWorkoutSheetRef {
+export interface EndWorkoutBottomSheetRef {
   show: () => void;
   hide: () => void;
 }
 
-interface EndWorkoutSheetProps {
+interface EndWorkoutBottomSheetProps {
   onEnd?: () => void;
   onKeepGoing?: () => void;
 }
 
-const EndWorkoutSheet = forwardRef<EndWorkoutSheetRef, EndWorkoutSheetProps>(
-  function EndWorkoutSheet({ onEnd, onKeepGoing }, ref) {
+const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBottomSheetProps>(
+  function EndWorkoutBottomSheet({ onEnd, onKeepGoing }, ref) {
     const { t } = useTranslation();
     const sheetRef = useRef<BottomSheetModal>(null);
 
@@ -74,37 +73,18 @@ const EndWorkoutSheet = forwardRef<EndWorkoutSheetRef, EndWorkoutSheetProps>(
             </View>
           </View>
           <View style={styles.actions}>
-            <Pressable style={styles.buttonBase} onPress={handleEnd}>
-              <GlassView
-                pointerEvents="none"
-                glassEffectStyle="clear"
-                colorScheme="light"
-                style={styles.glassFill}
-              />
-              <View pointerEvents="none" style={[styles.glassFill, styles.endTint]} />
-              <Text style={styles.buttonLabel}>{t("workout.ui.endWorkout")}</Text>
-            </Pressable>
-            <Pressable style={styles.buttonBase} onPress={handleKeepGoing}>
-              <GlassView
-                pointerEvents="none"
-                glassEffectStyle="clear"
-                colorScheme="light"
-                style={styles.glassFill}
-              />
-              <LinearGradient
-                pointerEvents="none"
-                colors={[
-                  "rgba(252, 243, 192, 0.6)",
-                  "rgba(247, 224, 111, 0.6)",
-                  "rgba(201, 168, 76, 0.6)",
-                ]}
-                locations={[0, 0.1964, 0.8354]}
-                start={{ x: 1, y: 0.5 }}
-                end={{ x: 0, y: 0.5 }}
-                style={styles.glassFill}
-              />
-              <Text style={styles.buttonLabel}>{t("workout.ui.keepGoing")}</Text>
-            </Pressable>
+            <TintButton
+              label={t("workout.ui.endWorkout")}
+              onPress={handleEnd}
+              variant="destructive"
+              style={styles.actionItem}
+            />
+            <TintButton
+              label={t("workout.ui.keepGoing")}
+              onPress={handleKeepGoing}
+              variant="gold"
+              style={styles.actionItem}
+            />
           </View>
         </BottomSheetView>
       </BottomSheetModal>
@@ -112,9 +92,9 @@ const EndWorkoutSheet = forwardRef<EndWorkoutSheetRef, EndWorkoutSheetProps>(
   },
 );
 
-EndWorkoutSheet.displayName = "EndWorkoutSheet";
+EndWorkoutBottomSheet.displayName = "EndWorkoutBottomSheet";
 
-export default EndWorkoutSheet;
+export default EndWorkoutBottomSheet;
 
 const styles = StyleSheet.create({
   sheetBg: {
@@ -175,28 +155,7 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 16,
   },
-  buttonBase: {
+  actionItem: {
     flex: 1,
-    borderRadius: 138.122,
-    paddingVertical: 16,
-    paddingHorizontal: 20.626,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  glassFill: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 138.122,
-  },
-  endTint: {
-    backgroundColor: "rgba(230,119,119,0.36)",
-  },
-  buttonLabel: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#F0F0F0",
-    textAlign: "center",
-    letterSpacing: 0.36,
   },
 });

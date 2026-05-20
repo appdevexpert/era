@@ -3,7 +3,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -218,12 +218,7 @@ const RestTimerScreen = () => {
           </Text>
         </View>
         <Pressable style={styles.upNextChevron} onPress={goToExercise}>
-          <GlassView
-            pointerEvents="none"
-            glassEffectStyle="regular"
-            colorScheme="light"
-            style={StyleSheet.absoluteFill}
-          />
+          <GlassFill scheme="light" />
           <LinearGradient
             pointerEvents="none"
             colors={["rgba(201,168,76,0.12)", "rgba(241,203,48,0.12)"]}

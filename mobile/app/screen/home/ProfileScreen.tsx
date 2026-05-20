@@ -1,4 +1,4 @@
-import BackButton from "@/app/components/ui/BackButton";
+import BackButton from "@/app/components/common/BackButton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { selectUser } from "@/app/stores/selectors/authSelectors";

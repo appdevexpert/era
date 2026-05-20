@@ -1,4 +1,4 @@
-import BottomWorkoutTabBar from "@/app/components/navigation/BottomWorkoutTabBar";
+import BottomWorkoutTabBar from "@/app/components/common/BottomWorkoutTabBar";
 import MealScreen from "@/app/screen/home/MealScreen";
 import StatsScreen from "@/app/screen/home/StatsScreen";
 import TrainingScreen from "@/app/screen/home/TrainingScreen";

@@ -1,5 +1,5 @@
 import StatsChipsRow from "@/app/components/workout/StatsChipsRow";
-import StreakSheet from "@/app/components/workout/StreakSheet";
+import StreakBottomSheet from "@/app/components/workout/StreakBottomSheet";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import WeekDaySelector from "@/app/components/workout/WeekDaySelector";
 import WorkoutCard from "@/app/components/workout/WorkoutCard";
@@ -178,7 +178,7 @@ const WorkoutScreen = () => {
         )}
       </ScrollView>
 
-      <StreakSheet
+      <StreakBottomSheet
         ref={streakRef}
         streak={5}
         days={[

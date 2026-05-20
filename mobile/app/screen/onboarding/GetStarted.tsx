@@ -7,7 +7,7 @@ import { Image } from "expo-image";
 import Svg, { Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from "react-native-svg";
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { OnboardingStackParamList } from "@/app/navigation/types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -115,12 +115,7 @@ const GetStarted = () => {
       {/* Slide-to-start Button */}
       <View style={[styles.buttonContainer, { bottom: insets.bottom + 20 }]}>
         <View style={styles.button}>
-          <GlassView
-            pointerEvents="none"
-            glassEffectStyle="regular"
-            colorScheme="dark"
-            style={styles.buttonGlass}
-          />
+          <GlassFill style={styles.buttonGlass} />
 
           {/* Button Text */}
           <Animated.Text style={[styles.buttonText, textStyle]}>

@@ -2,7 +2,7 @@ import { ArrowBack } from "@/assets/icons";
 import { COLORS, GRADIENTS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { horizontalScale } from "@/app/utils/responsive";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -217,12 +217,7 @@ const WorkoutLogHeader = ({
           <View
             style={[styles.addSetBtn, !canAddSet && styles.addSetBtnDisabled]}
           >
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={StyleSheet.absoluteFill}
-            />
+            <GlassFill />
             <LinearGradient
               pointerEvents="none"
               colors={["rgba(201,168,76,0.12)", "rgba(241,203,48,0.12)"]}

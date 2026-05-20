@@ -1,7 +1,7 @@
 import AddComment from "@/app/components/workout/AddComment";
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
-import EndWorkoutSheet, { type EndWorkoutSheetRef } from "@/app/components/workout/EndWorkoutSheet";
-import ExerciseCompletedSheet from "@/app/components/workout/ExerciseCompletedSheet";
+import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
+import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";
 import RepsPicker from "@/app/components/workout/RepsPicker";
 import SetFeedback from "@/app/components/workout/SetFeedback";
 import SetStatCards from "@/app/components/workout/SetStatCards";
@@ -66,7 +66,7 @@ const WorkoutLogScreen = () => {
 
   // Exercise completed bottom sheet
   const sheetRef = useRef<BottomSheet>(null);
-  const endWorkoutSheetRef = useRef<EndWorkoutSheetRef>(null);
+  const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
   const lastSetLogged = useRef(false);
 
   /** Navigate to a specific exercise by 0-based index */
@@ -221,12 +221,12 @@ const WorkoutLogScreen = () => {
         />
       </View>
 
-      <ExerciseCompletedSheet
+      <ExerciseCompletedBottomSheet
         ref={sheetRef}
         sets={getCompletedSetsForSheet(exIdx)}
         onContinue={handleSheetContinue}
       />
-      <EndWorkoutSheet
+      <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
         onEnd={navigateToSessionComplete}
       />

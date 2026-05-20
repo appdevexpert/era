@@ -1,7 +1,7 @@
 import AddComment from "@/app/components/workout/AddComment";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
-import { GlassView } from "expo-glass-effect";
+import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { forwardRef, useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -15,7 +15,7 @@ type SetSummary = {
   duration?: number | null;
 };
 
-type ExerciseCompletedSheetProps = {
+type ExerciseCompletedBottomSheetProps = {
   sets: SetSummary[];
   onContinue: (comment: string) => void;
 };
@@ -43,8 +43,8 @@ const SetCard = ({ set }: { set: SetSummary }) => {
   );
 };
 
-const ExerciseCompletedSheet = forwardRef<BottomSheet, ExerciseCompletedSheetProps>(
-  function ExerciseCompletedSheet({ sets, onContinue }, ref) {
+const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBottomSheetProps>(
+  function ExerciseCompletedBottomSheet({ sets, onContinue }, ref) {
     const { t } = useTranslation();
     const [comment, setComment] = useState("");
 
@@ -91,12 +91,7 @@ const ExerciseCompletedSheet = forwardRef<BottomSheet, ExerciseCompletedSheetPro
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={StyleSheet.absoluteFill}
-            />
+            <GlassFill />
             <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
           </Pressable>
         </BottomSheetView>
@@ -105,9 +100,9 @@ const ExerciseCompletedSheet = forwardRef<BottomSheet, ExerciseCompletedSheetPro
   },
 );
 
-ExerciseCompletedSheet.displayName = "ExerciseCompletedSheet";
+ExerciseCompletedBottomSheet.displayName = "ExerciseCompletedBottomSheet";
 
-export default ExerciseCompletedSheet;
+export default ExerciseCompletedBottomSheet;
 
 const styles = StyleSheet.create({
   sheetBg: {

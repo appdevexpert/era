@@ -1,4 +1,4 @@
-import WorkoutPlanHeader from "@/app/components/navigation/WorkoutPlanHeader";
+import WorkoutPlanHeader from "@/app/components/common/WorkoutPlanHeader";
 import ExerciseDetailScreen from "@/app/screen/home/ExerciseDetailScreen";
 import ExerciseListScreen from "@/app/screen/home/ExerciseListScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";

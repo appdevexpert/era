@@ -1,6 +1,6 @@
-import { GlassView } from 'expo-glass-effect'
 import { LinearGradient } from 'expo-linear-gradient'
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
+import GlassFill from '@/app/components/common/GlassFill'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 
@@ -24,12 +24,7 @@ const PrimaryButton = ({ label, onPress, disabled = false, loading = false }: Pr
         end={{ x: 0, y: 0.5 }}
         style={styles.button}
       >
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="regular"
-          colorScheme="dark"
-          style={styles.glass}
-        />
+        <GlassFill />
         {loading ? (
           <ActivityIndicator size="small" color={COLORS.neutral.white} />
         ) : (
@@ -50,13 +45,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     paddingHorizontal: 20,
-  },
-  glass: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
   label: {
     fontFamily: FONTS.semiBold,

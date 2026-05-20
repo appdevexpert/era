@@ -2,6 +2,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { StatStopwatch, StatStretching, StrengthIcon as StrengthIconSvg } from "@/assets/icons";
 import { WorkoutCard as WorkoutCardBg } from "@/assets/images";
+import GlassFill from "@/app/components/common/GlassFill";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -75,12 +76,7 @@ const WorkoutCard = ({
             <View style={styles.tagRow}>
               {tags.map((tag) => (
                 <View key={tag} style={styles.tag}>
-                  <GlassView
-                    pointerEvents="none"
-                    glassEffectStyle="clear"
-                    colorScheme="dark"
-                    style={styles.tagGlass}
-                  />
+                  <GlassFill effect="clear" style={styles.tagGlass} />
                   <Text style={styles.tagText}>{tag}</Text>
                 </View>
               ))}

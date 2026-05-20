@@ -193,13 +193,8 @@ Current seeded workout data is based on Rami’s training journal and Figma work
 ```text
 app/
   components/
-    common/          shared app components
-    icons/           custom icon wrappers/components
-    layout/          layout/background components
-    navigation/      headers, tab bar, navigation UI
-    onboarding/      onboarding shared UI
-    ui/              general reusable UI
-    workout/         workout cards, chips, progress, selectors
+    common/          all shared/reusable components (buttons, headers, layouts, icons, onboarding cards, toast config, tab bars)
+    workout/         workout-specific components (cards, chips, progress, selectors, bottom sheets)
   config/            app environment/config helpers
   constants/         colors, fonts, design tokens
   hooks/             reusable hooks
@@ -229,9 +224,69 @@ types/
   svg.d.ts           SVG module declarations
 ```
 
+## Reusable UI Components
+
+Prefer these shared components over inlining gradients, glass effects, or one-off button styles.
+
+### `app/components/common/GlassFill.tsx`
+
+Wraps `GlassView` with sensible defaults. Use this anywhere you want the iOS glass effect — buttons, sheets, tab bars, card backgrounds.
+
+- Defaults: `effect="regular"`, `scheme="dark"`, `pointerEvents="none"`, `style={StyleSheet.absoluteFillObject}`.
+- Props: `effect?: "regular" | "clear"`, `scheme?: "dark" | "light"`, `style?`.
+- Pass `style` for `borderRadius` to match parent shape.
+
+```tsx
+<GlassFill />                                    // most common: regular + dark
+<GlassFill effect="clear" scheme="light" />      // dashed pill backgrounds (WeekDaySelector)
+<GlassFill style={{ borderRadius: 138 }} />      // matches parent's pill radius
+```
+
+**Do not** import `GlassView` directly unless you need the animated object-form `glassEffectStyle` (e.g., `WorkoutCard`'s primary card background).
+
+### `app/components/common/PrimaryButton.tsx`
+
+Full-width gold CTA. Use for auth and onboarding screens where the screen has one main action.
+
+- Props: `label`, `onPress`, `disabled?`, `loading?`.
+- Built-in `ActivityIndicator` when `loading={true}` — use it for async submits (login, signup, plan generation).
+- Fixed height 56. No `style` override. Not for inline rows.
+
+### `app/components/common/TintButton.tsx`
+
+Reusable pill button for bottom sheets, modals, and inline action rows.
+
+- Props: `label`, `onPress`, `variant: "gold" | "destructive"`, `style?`, `disabled?`.
+- Pass `style={{ flex: 1 }}` for side-by-side layout (e.g. End Workout + Keep Going).
+- `gold` variant matches `PrimaryButton`'s gradient visually but has flexible sizing.
+- `destructive` is translucent red — use for End, Delete, Discard actions.
+
+```tsx
+<TintButton label="End Workout" variant="destructive" onPress={end} style={{ flex: 1 }} />
+<TintButton label="Keep Going"  variant="gold"        onPress={keep} style={{ flex: 1 }} />
+```
+
+### When to pick which button
+
+| Context | Use |
+|---|---|
+| Auth/onboarding main CTA (with loading state) | `PrimaryButton` |
+| Bottom sheet / modal actions | `TintButton` |
+| Inline workout action row (Complete Set bar) | `TintButton` for main + custom icon button for skip |
+| Destructive confirmation (End, Delete, Discard) | `TintButton variant="destructive"` |
+
+### Specialization rule
+
+Keep components specialized by context — match the **visual**, not the **API**:
+
+- `PrimaryButton` and `TintButton` look identical for the gold variant by design. Do not merge them.
+- Do not add `children` or icon support to `PrimaryButton` — its API is intentionally text-only with loading.
+- If a new gold-button shape appears (e.g., icon-only circle), build a small dedicated helper inside its parent component rather than overloading the shared APIs.
+
 ## Design/Implementation Rules
 
 - Follow existing component and styling patterns.
+- Use `GlassFill` instead of raw `GlassView` for the common pattern; use `PrimaryButton` or `TintButton` instead of hand-rolling gold buttons.
 - Keep screens readable; move data shaping into services, slices, selectors, or mappers.
 - Keep Supabase fetch code out of UI components when Redux cache should be used.
 - Keep user-visible text localized.
