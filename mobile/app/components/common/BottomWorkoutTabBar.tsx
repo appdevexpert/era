@@ -31,14 +31,14 @@ const TAB_ICONS: Record<
 > = {
   Workout: SolarHomeAngle2BoldDuotone,
   Training: SolarDumbbellBoldDuotone,
-  Meal: SolarLunchBoldDuotone,
+  Nutrition: SolarLunchBoldDuotone,
   Stats: SolarChartBoldDuotone,
 };
 
 const TAB_LABEL_KEYS: Record<string, string> = {
   Workout: "tabs.workout",
   Training: "tabs.training",
-  Meal: "tabs.meals",
+  Nutrition: "tabs.nutrition",
   Stats: "tabs.stats",
 };
 

@@ -218,7 +218,7 @@ const en = {
   tabs: {
     workout: "Workout",
     training: "Training",
-    meals: "Meals",
+    nutrition: "Nutrition",
     stats: "Stats",
   },
   screens: {
@@ -228,6 +228,32 @@ const en = {
   },
   profile: {
     fallbackName: "User",
+  },
+  nutrition: {
+    title: "Nutrition",
+    eyebrow: "fuel your performance",
+    phase: "Hypertrophy",
+    weekProgress: "{{current}}/{{total}}",
+    weekLabel: "Week",
+    dailyTargets: "Daily Targets",
+    caloriesUnit: "kCal",
+    proteinLabel: "Protein",
+    carbsLabel: "Carbs",
+    fatsLabel: "Fats",
+    gramsLeft: "{{value}}g left",
+    mealsTitle: "Meals Logs & Suggestions",
+    logMeal: "Log Meal",
+    suggestedTag: "{{meal}} • Suggested",
+    breakfast: "Breakfast",
+    lunch: "Lunch",
+    eveningSnack: "Evening Snack",
+    dinner: "Dinner",
+    waterConsumption: "Water consumption today",
+    waterValue: "{{value}} ml",
+    waterIncrement: "{{value}}ml",
+    glassesProgress: "{{current}}/{{total}} glasses",
+    dailyGoalLiters: "Daily goal",
+    dailyGoalLitersValue: "{{value}}L",
   },
   workout: {
     ui: {

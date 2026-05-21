@@ -15,7 +15,7 @@ export type AuthStackParamList = {
 export type HomeTabParamList = {
   Workout: undefined;
   Training: undefined;
-  Meal: undefined;
+  Nutrition: undefined;
   Stats: undefined;
 };
 

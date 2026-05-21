@@ -1,5 +1,5 @@
 import BottomWorkoutTabBar from "@/app/components/common/BottomWorkoutTabBar";
-import MealScreen from "@/app/screen/home/MealScreen";
+import NutritionScreen from "@/app/screen/home/NutritionScreen";
 import StatsScreen from "@/app/screen/home/StatsScreen";
 import TrainingScreen from "@/app/screen/home/TrainingScreen";
 import WorkoutScreen from "@/app/screen/home/WorkoutScreen";
@@ -17,7 +17,7 @@ const BottomTabNavigator = () => (
   >
     <Tab.Screen name="Workout" component={WorkoutScreen} />
     <Tab.Screen name="Training" component={TrainingScreen} />
-    <Tab.Screen name="Meal" component={MealScreen} />
+    <Tab.Screen name="Nutrition" component={NutritionScreen} />
     <Tab.Screen name="Stats" component={StatsScreen} />
   </Tab.Navigator>
 );

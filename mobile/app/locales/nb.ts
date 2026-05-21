@@ -218,7 +218,7 @@ const nb = {
   tabs: {
     workout: "Trening",
     training: "Øvelser",
-    meals: "Måltider",
+    nutrition: "Ernæring",
     stats: "Statistikk",
   },
   screens: {
@@ -228,6 +228,32 @@ const nb = {
   },
   profile: {
     fallbackName: "Bruker",
+  },
+  nutrition: {
+    title: "Ernæring",
+    eyebrow: "drivstoff for ytelsen din",
+    phase: "Hypertrofi",
+    weekProgress: "{{current}}/{{total}}",
+    weekLabel: "Uke",
+    dailyTargets: "Daglige mål",
+    caloriesUnit: "kcal",
+    proteinLabel: "Protein",
+    carbsLabel: "Karbohydrater",
+    fatsLabel: "Fett",
+    gramsLeft: "{{value}}g igjen",
+    mealsTitle: "Måltidslogger og forslag",
+    logMeal: "Logg måltid",
+    suggestedTag: "{{meal}} • Foreslått",
+    breakfast: "Frokost",
+    lunch: "Lunsj",
+    eveningSnack: "Kveldssnack",
+    dinner: "Middag",
+    waterConsumption: "Vanninntak i dag",
+    waterValue: "{{value}} ml",
+    waterIncrement: "{{value}} ml",
+    glassesProgress: "{{current}}/{{total}} glass",
+    dailyGoalLiters: "Daglig mål",
+    dailyGoalLitersValue: "{{value}}L",
   },
   workout: {
     ui: {
