@@ -1,0 +1,42 @@
+<svg width="36" height="47" viewBox="0 0 35.5658 46.8349" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g filter="url(#filter_d_silver)">
+    <path d="M5.79799 20.6484H23.1946V39.9998L14.4963 34.3206L5.79799 39.9998V20.6484Z" fill="#CE4444"/>
+    <path d="M5.79799 18.7646H23.1946V38.116L14.4963 32.4368L5.79799 38.116V18.7646Z" fill="#983535"/>
+    <path d="M23.1956 39.9998V20.6484H21.8273V39.1064L23.1956 39.9998Z" fill="#CE4444"/>
+    <path d="M5.79886 39.9998V20.6484H7.16713V39.1064L5.79886 39.9998Z" fill="#CE4444"/>
+    <rect x="5.79799" y="22.2822" width="17.3967" height="12.7054" fill="url(#ribbon_shade_silver)"/>
+    <circle cx="14.4963" cy="15.5391" r="13.2942" fill="#FFDE69" stroke="#6E5600" stroke-width="0.581592"/>
+    <ellipse cx="14.5697" cy="15.6294" rx="10.1545" ry="10.0933" fill="#9C7A01"/>
+    <mask id="m_silver_0" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="4" y="6" width="22" height="21">
+      <circle cx="15.0618" cy="16.6866" r="10.1368" fill="#C28B37"/>
+    </mask>
+    <g mask="url(#m_silver_0)">
+      <circle cx="14.5208" cy="15.6075" r="10.1368" fill="#C09525"/>
+    </g>
+    <path d="M14.5929 3.68262C21.2671 3.68262 26.7442 8.99874 26.7443 15.6377C26.7443 22.2767 21.2671 27.5938 14.5929 27.5938C7.91881 27.5936 2.44252 22.2766 2.44252 15.6377C2.44259 8.99884 7.91885 3.68276 14.5929 3.68262Z" fill="#4D4D4C" stroke="#C2C2C2" stroke-width="3.97318"/>
+    <mask id="m_silver_1" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="4" y="6" width="22" height="21">
+      <circle cx="15.0564" cy="16.6773" r="10.1022" fill="#C28B37"/>
+    </mask>
+    <g mask="url(#m_silver_1)">
+      <circle cx="14.5193" cy="15.6002" r="10.1022" fill="#797979"/>
+    </g>
+    <path d="M16.8117 12.9034L16.9514 13.1797L17.259 13.2178L21.6223 13.7559L18.6135 17.0909L18.424 17.3008L18.4719 17.5782L19.3 22.4288L14.8508 20.2305L14.594 20.1036L14.3362 20.2305L9.88791 22.4278L10.7248 17.5792L10.7727 17.2999L10.5822 17.0899L7.56662 13.7559L11.928 13.2178L12.2365 13.1797L12.3762 12.9034L14.593 8.52056L16.8117 12.9034Z" fill="#F0F0F0" stroke="#C1C0C0" stroke-width="1.16318"/>
+    <path d="M22.4019 7.69792L23.5679 5.13195L22.4019 2.56597L24.9679 3.73189L27.5339 2.56597L26.368 5.13195L27.5339 7.69792L24.9679 6.53201L22.4019 7.69792Z" fill="white"/>
+  </g>
+  <defs>
+    <filter id="filter_d_silver" x="0" y="1.24009" width="35.5658" height="45.5948" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dx="3.18973" dy="3.18973"/>
+      <feGaussianBlur stdDeviation="1.82271"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.3 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_silver"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_silver" result="shape"/>
+    </filter>
+    <linearGradient id="ribbon_shade_silver" x1="14.4963" y1="22.2822" x2="14.4963" y2="34.9876" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4A0D0D"/>
+      <stop offset="1" stop-color="#983535" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>

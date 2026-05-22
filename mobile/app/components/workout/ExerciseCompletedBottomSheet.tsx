@@ -1,4 +1,4 @@
-import AddComment from "@/app/components/workout/AddComment";
+import AddComment from "@/app/components/common/AddComment";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import GlassFill from "@/app/components/common/GlassFill";

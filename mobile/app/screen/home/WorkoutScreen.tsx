@@ -1,3 +1,4 @@
+import ProfileAvatar from "@/app/components/common/ProfileAvatar";
 import StatsChipsRow from "@/app/components/workout/StatsChipsRow";
 import StreakBottomSheet from "@/app/components/workout/StreakBottomSheet";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
@@ -17,10 +18,9 @@ import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import { mapMusclesToIcons, mapWorkoutHome } from "@/app/utils/workoutMappers";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -120,17 +120,7 @@ const WorkoutScreen = () => {
             <Text style={styles.greetingDim}>{t("workout.ui.greeting")} </Text>
             {displayName}
           </Text>
-          <Pressable
-            onPress={() => navigation.navigate("Profile")}
-            style={styles.avatar}
-            hitSlop={10}
-          >
-            <LinearGradient
-              colors={[COLORS.primary.dark, COLORS.primary.base]}
-              style={StyleSheet.absoluteFill}
-            />
-            <Text style={styles.avatarText}>{avatarInitial}</Text>
-          </Pressable>
+          <ProfileAvatar initial={avatarInitial} marginBottom={0} />
         </View>
 
         {/* Title */}
@@ -223,7 +213,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: verticalScale(0),
+    marginBottom: verticalScale(-8),
   },
   greeting: {
     flex: 1,
@@ -235,19 +225,6 @@ const styles = StyleSheet.create({
   },
   greetingDim: {
     color: "rgba(240, 240, 240, 0.6)",
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 100,
-    overflow: "hidden",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1a1a1a",
   },
 
   // Title

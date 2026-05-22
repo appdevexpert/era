@@ -14,9 +14,9 @@ export type AuthStackParamList = {
 
 export type HomeTabParamList = {
   Workout: undefined;
-  Training: undefined;
+  Weights: undefined;
   Nutrition: undefined;
-  Stats: undefined;
+  Progress: undefined;
 };
 
 export type PlanGenerationStackParamList = {
@@ -99,6 +99,10 @@ export type HomeStackParamList = {
   Notification: undefined;
   WorkoutPlan: WorkoutPlanParams | undefined;
   ExerciseList: WorkoutPlanParams | undefined;
+  ExerciseHistory: WorkoutPlanParams | undefined;
+  PrHistory: WorkoutPlanParams | undefined;
+  ExercisePrHistory: WorkoutPlanParams | undefined;
+  TransformationGallery: WorkoutPlanParams | undefined;
   WorkoutCountdown: WorkoutCountdownParams;
   WorkoutLog: WorkoutLogParams;
   RestTimer: RestTimerParams;
@@ -111,6 +115,7 @@ export type HomeStackParamList = {
     sessionDurationMinutes?: number; // total session duration
   };
   Points: undefined;
+  Leaderboard: undefined;
   SessionComplete: {
     programTitle: string;
     weekNumber: number;

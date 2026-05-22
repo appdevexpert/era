@@ -1,9 +1,12 @@
 import { ArrowBack, FireGold, IconDumbbell, CameraIcon, ChartGold, ChevronBack } from "@/assets/icons";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import PointsOptimizeBottomSheet, {
+  type PointsOptimizeBottomSheetRef,
+} from "@/app/components/workout/PointsOptimizeBottomSheet";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { useRef } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,6 +68,7 @@ const PointsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
+  const optimizeSheetRef = useRef<PointsOptimizeBottomSheetRef>(null);
 
   return (
     <View style={styles.root}>
@@ -76,7 +80,7 @@ const PointsScreen = () => {
         ]}
       >
         {/* Tip card */}
-        <Pressable style={styles.tipCard}>
+        <Pressable style={styles.tipCard} onPress={() => optimizeSheetRef.current?.show()}>
           <ChartGold width={42} height={42} />
           <View style={styles.tipContent}>
             <Text style={styles.tipTitle}>{t("workout.ui.howToOptimise")}</Text>
@@ -151,6 +155,8 @@ const PointsScreen = () => {
         locations={[0, 0.51]}
         style={styles.bottomFade}
       />
+
+      <PointsOptimizeBottomSheet ref={optimizeSheetRef} />
     </View>
   );
 };

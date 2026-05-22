@@ -1,0 +1,28 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shield_body" x1="0" y1="10" x2="18" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="shield_face" x1="0" y1="2" x2="4" y2="2" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="shield_chest" x1="0" y1="2" x2="8" y2="2" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(3 2)" opacity="0.5">
+    <path d="M0 8.4167C0 5.21907 8.9407e-08 3.62028 0.37752 3.08241C0.75503 2.54454 2.25832 2.02996 5.26491 1.00079L5.83772 0.80472C7.405 0.26824 8.1886 0 9 0C9.8114 0 10.595 0.26824 12.1623 0.80472L12.7351 1.00079C15.7417 2.02996 17.245 2.54454 17.6225 3.08241C18 3.62028 18 5.21907 18 8.4167V9.9914C18 15.6294 13.761 18.3655 11.1014 19.5273C10.38 19.8424 10.0193 20 9 20C7.9807 20 7.62 19.8424 6.89856 19.5273C4.23896 18.3655 0 15.6294 0 9.9914V8.4167Z" fill="url(#shield_body)"/>
+  </g>
+  <g transform="translate(10 7)">
+    <path d="M4 2C4 3.1046 3.1046 4 2 4C0.8954 4 0 3.1046 0 2C0 0.89543 0.8954 0 2 0C3.1046 0 4 0.89543 4 2Z" fill="url(#shield_face)"/>
+  </g>
+  <g transform="translate(8 13)">
+    <path d="M4 4C8 4 8 3.1046 8 2C8 0.8954 6.2091 0 4 0C1.79086 0 0 0.8954 0 2C0 3.1046 0 4 4 4Z" fill="url(#shield_chest)"/>
+  </g>
+</svg>

@@ -27,6 +27,8 @@ type WeightRulerProps = {
   min?: number;
   max?: number;
   step?: number;
+  /** Hide the label + gold-gradient value text above the ruler (the parent renders its own). */
+  headerless?: boolean;
 };
 
 /* ─── Tick helpers ─── */
@@ -47,6 +49,7 @@ const WeightRuler = ({
   min = 20,
   max = 200,
   step = 1,
+  headerless = false,
 }: WeightRulerProps) => {
   const tickCount = Math.floor((max - min) / step);
   const halfScreen = SCREEN_WIDTH / 2;
@@ -77,30 +80,32 @@ const WeightRuler = ({
 
   return (
     <View style={styles.container}>
-      {/* Label + value */}
-      <View style={styles.header}>
-        <Text style={styles.label}>{label}</Text>
-        <Svg height={34} width={SCREEN_WIDTH} style={styles.valueSvg}>
-          <Defs>
-            <SvgGradient id="goldTextGrad" x1="1" y1="0" x2="0" y2="0">
-              <Stop offset="0" stopColor={COLORS.primary.light} />
-              <Stop offset="0.196" stopColor={COLORS.primary.base} />
-              <Stop offset="0.835" stopColor={COLORS.primary.dark} />
-            </SvgGradient>
-          </Defs>
-          <SvgText
-            fill="url(#goldTextGrad)"
-            fontSize={28}
-            fontWeight="500"
-            fontFamily={Platform.OS === "ios" ? "System" : "Roboto"}
-            x="45%"
-            y={26}
-            textAnchor="middle"
-          >
-            {value} {unit}
-          </SvgText>
-        </Svg>
-      </View>
+      {/* Label + value (skipped when parent renders its own) */}
+      {headerless ? null : (
+        <View style={styles.header}>
+          <Text style={styles.label}>{label}</Text>
+          <Svg height={34} width={SCREEN_WIDTH} style={styles.valueSvg}>
+            <Defs>
+              <SvgGradient id="goldTextGrad" x1="1" y1="0" x2="0" y2="0">
+                <Stop offset="0" stopColor={COLORS.primary.light} />
+                <Stop offset="0.196" stopColor={COLORS.primary.base} />
+                <Stop offset="0.835" stopColor={COLORS.primary.dark} />
+              </SvgGradient>
+            </Defs>
+            <SvgText
+              fill="url(#goldTextGrad)"
+              fontSize={28}
+              fontWeight="500"
+              fontFamily={Platform.OS === "ios" ? "System" : "Roboto"}
+              x="45%"
+              y={26}
+              textAnchor="middle"
+            >
+              {value} {unit}
+            </SvgText>
+          </Svg>
+        </View>
+      )}
 
       {/* Ruler */}
       <View style={styles.rulerWrap}>

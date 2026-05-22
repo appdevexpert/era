@@ -1,0 +1,42 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="globe_left" x1="0" y1="10" x2="9.97227" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="globe_upper" x1="0" y1="4.625" x2="9.9723" y2="4.625" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="globe_lower" x1="0" y1="4.625" x2="9.9723" y2="4.625" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="globe_centerA" x1="0" y1="3.927" x2="6.81384" y2="3.927" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="globe_centerB" x1="0" y1="13.282" x2="6.81384" y2="13.282" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(2.028 2)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M0 9.25C0.38353 4.07745 4.70174 0 9.97227 0C9.14147 0 8.40167 0.36421 7.7931 0.92113C7.18758 1.47525 6.67588 2.24878 6.262 3.16315C5.84569 4.08292 5.5223 5.15868 5.30343 6.32611C5.12797 7.26194 5.0212 8.2485 4.98561 9.25H0ZM0 10.75H4.98561C5.0212 11.7515 5.12797 12.7381 5.30343 13.6739C5.5223 14.8413 5.84568 15.9171 6.262 16.8368C6.67588 17.7512 7.18758 18.5247 7.7931 19.0789C8.40167 19.6358 9.14147 20 9.97227 20C4.70174 20 0.38353 15.9226 0 10.75Z" fill="url(#globe_left)"/>
+  </g>
+  <g transform="translate(12 2)">
+    <path d="M0 0C0.8309 0 1.5707 0.36421 2.1792 0.92113C2.7848 1.47525 3.2965 2.24878 3.7103 3.16315C4.1266 4.08292 4.45 5.15868 4.6689 6.32612C4.8444 7.26194 4.9511 8.2485 4.9867 9.25H9.9723C9.5888 4.07745 5.2706 0 0 0Z" fill="url(#globe_upper)"/>
+  </g>
+  <g transform="translate(12 12.75)">
+    <path d="M4.6689 2.9239C4.45 4.0913 4.1266 5.1671 3.7103 6.0868C3.2965 7.0012 2.7848 7.7747 2.1792 8.3289C1.5707 8.8858 0.8309 9.25 0 9.25C5.2706 9.25 9.5888 5.1726 9.9723 0H4.9867C4.9511 1.0015 4.8444 1.9881 4.6689 2.9239Z" fill="url(#globe_lower)"/>
+  </g>
+  <g transform="translate(8.5944 3.396)" opacity="0.5">
+    <path d="M3.40694 0C3.13194 0 2.77664 0.11701 2.36354 0.49507C1.94734 0.87591 1.53074 1.4728 1.16264 2.28602C0.796991 3.09385 0.50008 4.06905 0.29576 5.15884C0.13485 6.01707 0.03503 6.92679 0 7.85469H6.81384C6.77884 6.92679 6.67904 6.01707 6.51804 5.15884C6.31374 4.06906 6.01684 3.09386 5.65124 2.28602C5.28314 1.4728 4.86644 0.87591 4.45034 0.49507C4.03724 0.11701 3.68194 0 3.40694 0Z" fill="url(#globe_centerA)"/>
+    <path d="M0.29576 12.0505C0.50008 13.1403 0.796991 14.1155 1.16264 14.9233C1.53074 15.7365 1.94734 16.3334 2.36354 16.7142C2.77664 17.0923 3.13194 17.2093 3.40694 17.2093C3.68194 17.2093 4.03724 17.0923 4.45034 16.7142C4.86644 16.3334 5.28314 15.7365 5.65124 14.9233C6.01684 14.1155 6.31374 13.1403 6.51804 12.0505C6.67904 11.1922 6.77884 10.2825 6.81384 9.35469H0C0.03503 10.2825 0.13485 11.1922 0.29576 12.0505Z" fill="url(#globe_centerB)"/>
+  </g>
+</svg>

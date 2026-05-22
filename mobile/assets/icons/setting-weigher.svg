@@ -1,0 +1,28 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="weigher_body" x1="0" y1="10" x2="18" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="weigher_line" x1="0" y1="0.75" x2="9.5" y2="0.75" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="weigher_dial" x1="0" y1="2.5" x2="10" y2="2.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(3 2)">
+    <path opacity="0.5" d="M0 8C0 4.22876 0 2.34315 1.17157 1.17157C2.34315 0 4.22876 0 8 0H10C13.7712 0 15.6569 0 16.8284 1.17157C18 2.34315 18 4.22876 18 8V12C18 15.7712 18 17.6569 16.8284 18.8284C15.6569 20 13.7712 20 10 20H8C4.22876 20 2.34315 20 1.17157 18.8284C0 17.6569 0 15.7712 0 12V8Z" fill="url(#weigher_body)"/>
+  </g>
+  <g transform="translate(7.25 17.25)">
+    <path d="M0 0.75C0 0.3358 0.33579 0 0.75 0H8.75C9.1642 0 9.5 0.3358 9.5 0.75C9.5 1.1642 9.1642 1.5 8.75 1.5H0.75C0.33579 1.5 0 1.1642 0 0.75Z" fill="url(#weigher_line)"/>
+  </g>
+  <g transform="translate(7 6)">
+    <path d="M1.6447 0.30984C3.86626 -0.10328 6.13376 -0.10328 8.35526 0.30984L8.83106 0.39831C9.71136 0.562 10.2307 1.59158 9.89916 2.51607L9.15476 4.5925C9.04696 4.8934 8.75636 5.0592 8.47456 4.9806C6.92666 4.5488 5.33036 4.41 3.75136 4.5641L2.99888 2.22236C2.84255 1.73584 2.36233 1.48283 1.92628 1.65725C1.49023 1.83168 1.26347 2.36748 1.4198 2.854L2.05914 4.8437C1.88069 4.8855 1.70277 4.9311 1.52549 4.9806C1.24366 5.0592 0.953096 4.8934 0.845206 4.5925L0.100806 2.51607C-0.230624 1.59158 0.288656 0.562 1.16893 0.39831L1.6447 0.30984Z" fill="url(#weigher_dial)"/>
+  </g>
+</svg>

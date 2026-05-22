@@ -1,0 +1,20 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="logout_door" x1="0" y1="10" x2="13" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="logout_arrow" x1="0" y1="3.75" x2="14.5" y2="3.75" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCF3C0"/>
+      <stop offset="0.5" stop-color="#F7E06F"/>
+      <stop offset="1" stop-color="#C9A84C"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(9 2)" opacity="0.5">
+    <path d="M6.99957 0H5.99957C3.17117 0 1.75737 0.000230074 0.87868 0.87891C2.38419e-07 1.75759 0 3.1718 0 6.00023V14.0002C0 16.8287 2.38419e-07 18.2429 0.87868 19.1215C1.75717 20 3.17037 20 5.99737 20H5.99957H6.99957C9.82797 20 11.2422 20 12.1209 19.1213C12.9996 18.2426 12.9996 16.8284 12.9996 14V6C12.9996 3.17159 12.9996 1.75736 12.1209 0.87868C11.2422 0 9.82797 0 6.99957 0Z" fill="url(#logout_door)"/>
+  </g>
+  <g transform="translate(1.25 8.25)">
+    <path fill-rule="evenodd" clip-rule="evenodd" d="M14.5 3.75003C14.5 3.33583 14.1642 3.00003 13.75 3.00003H2.77744L4.73809 1.31946C5.05259 1.04989 5.08901 0.576417 4.81944 0.261917C4.54988 -0.0525733 4.0764 -0.0889936 3.76191 0.180566L0.26191 3.18053C0.09567 3.32303 0 3.53103 0 3.75003C0 3.96893 0.09567 4.17693 0.26191 4.31943L3.76191 7.31943C4.0764 7.58903 4.54988 7.55263 4.81944 7.23813C5.08901 6.92363 5.05259 6.45013 4.73809 6.18053L2.77744 4.50003H13.75C14.1642 4.50003 14.5 4.16423 14.5 3.75003Z" fill="url(#logout_arrow)"/>
+  </g>
+</svg>

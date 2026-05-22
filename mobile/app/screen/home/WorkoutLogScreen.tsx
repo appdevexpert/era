@@ -1,4 +1,4 @@
-import AddComment from "@/app/components/workout/AddComment";
+import AddComment from "@/app/components/common/AddComment";
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
 import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";

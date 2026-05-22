@@ -1,10 +1,15 @@
 import WorkoutPlanHeader from "@/app/components/common/WorkoutPlanHeader";
 import ExerciseDetailScreen from "@/app/screen/home/ExerciseDetailScreen";
+import ExerciseHistoryScreen from "@/app/screen/home/ExerciseHistoryScreen";
 import ExerciseListScreen from "@/app/screen/home/ExerciseListScreen";
+import ExercisePrHistoryScreen from "@/app/screen/home/ExercisePrHistoryScreen";
+import PrHistoryScreen from "@/app/screen/home/PrHistoryScreen";
+import TransformationGalleryScreen from "@/app/screen/home/TransformationGalleryScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";
 import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
 import CardioTimerScreen from "@/app/screen/home/CardioTimerScreen";
+import LeaderboardScreen from "@/app/screen/home/LeaderboardScreen";
 import PointsScreen from "@/app/screen/home/PointsScreen";
 import SessionCompleteScreen from "@/app/screen/home/SessionCompleteScreen";
 import PRScreen from "@/app/screen/home/PRScreen";
@@ -53,6 +58,42 @@ const HomeNavigator = () => (
       }}
     />
     <Stack.Screen
+      name="ExerciseHistory"
+      component={ExerciseHistoryScreen}
+      options={{
+        headerShown: true,
+        header: (props) => <WorkoutPlanHeader {...props} />,
+        headerTransparent: true,
+      }}
+    />
+    <Stack.Screen
+      name="PrHistory"
+      component={PrHistoryScreen}
+      options={{
+        headerShown: true,
+        header: (props) => <WorkoutPlanHeader {...props} />,
+        headerTransparent: true,
+      }}
+    />
+    <Stack.Screen
+      name="ExercisePrHistory"
+      component={ExercisePrHistoryScreen}
+      options={{
+        headerShown: true,
+        header: (props) => <WorkoutPlanHeader {...props} />,
+        headerTransparent: true,
+      }}
+    />
+    <Stack.Screen
+      name="TransformationGallery"
+      component={TransformationGalleryScreen}
+      options={{
+        headerShown: true,
+        header: (props) => <WorkoutPlanHeader {...props} />,
+        headerTransparent: true,
+      }}
+    />
+    <Stack.Screen
       name="WorkoutCountdown"
       component={WorkoutCountdownScreen}
     />
@@ -84,6 +125,10 @@ const HomeNavigator = () => (
     <Stack.Screen
       name="Points"
       component={PointsScreen}
+    />
+    <Stack.Screen
+      name="Leaderboard"
+      component={LeaderboardScreen}
     />
     <Stack.Screen
       name="SessionComplete"
