@@ -14,10 +14,22 @@ export interface ChartPoint {
   label: string;
   /** Numeric Y value (e.g. weight in kg). */
   value: number;
+  /**
+   * When true, this point carries actual logged data. False means it's a
+   * carry-forward placeholder used to keep the x-axis shape (e.g. W1..W5)
+   * even when only a single week has data. The halo marker is drawn on the
+   * last point where `isReal !== false`. Defaults to true.
+   */
+  isReal?: boolean;
 }
 
 interface WeightProgressChartProps {
   data: ChartPoint[];
+  /** Optional explicit list of x-axis tick labels (e.g. W1..W5). When the
+   * length exceeds `data`, the chart still renders the full tick row but the
+   * data line only spans the data points — leaving empty space under the
+   * trailing ticks. Defaults to `data.map(d => d.label)`. */
+  xTickLabels?: string[];
   /** Lowest tick on the Y axis (default 80). */
   yMin?: number;
   /** Highest tick on the Y axis (default 100). */
@@ -68,6 +80,7 @@ const EndPointMarker = () => (
  */
 const WeightProgressChart = ({
   data,
+  xTickLabels,
   yMin = 80,
   yMax = 100,
   yStep = 5,
@@ -85,7 +98,21 @@ const WeightProgressChart = ({
     setSize({ w: width, h: height });
   };
 
-  if (data.length < 2) return null;
+  if (data.length === 0) return null;
+
+  // Effective tick labels — defaults to data labels but can be longer (e.g.
+  // when the screen wants the W1..W5 shell with only 2 data points).
+  const ticks = xTickLabels && xTickLabels.length > 0 ? xTickLabels : data.map((d) => d.label);
+  const tickCount = Math.max(ticks.length, data.length);
+
+  // Index of the latest *real* data point — the halo marker sits there.
+  // Falls back to the last array index when no point is flagged.
+  const lastRealIndex = (() => {
+    for (let i = data.length - 1; i >= 0; i--) {
+      if (data[i].isReal !== false) return i;
+    }
+    return data.length - 1;
+  })();
 
   const showUnit = !!unit;
   const noOfSections = Math.max(1, Math.round((yMax - yMin) / yStep));
@@ -99,8 +126,10 @@ const WeightProgressChart = ({
   const spacing = pageWidth / pageSize;
   const initialSpacing = Math.min(spacing / 2, MAX_INITIAL_SPACING);
   const endSpacing = Math.max(0, spacing - initialSpacing);
+  // Total width is keyed to the *tick* count so the x-axis spans the full
+  // W1..WN shell even when the data line is shorter.
   const totalChartWidth =
-    initialSpacing + (data.length - 1) * spacing + endSpacing;
+    initialSpacing + (tickCount - 1) * spacing + endSpacing;
 
   // Plot area excludes the bottom strip reserved for our custom x-axis labels.
   const plotHeight = Math.max(0, size.h - X_AXIS_ROW_HEIGHT);
@@ -110,10 +139,10 @@ const WeightProgressChart = ({
   dataRef.current = data.map((d, i) => ({
     value: Math.max(0, d.value - yMin),
     label: "",
-    hideDataPoint: i !== data.length - 1,
+    hideDataPoint: i !== lastRealIndex,
     dataPointWidth: MARKER_SIZE,
     dataPointHeight: MARKER_SIZE,
-    customDataPoint: i === data.length - 1 ? EndPointMarker : undefined,
+    customDataPoint: i === lastRealIndex ? EndPointMarker : undefined,
   }));
 
   // Y-axis labels, top -> bottom (e.g. 84, 83, 82, 81, 80).
@@ -182,7 +211,8 @@ const WeightProgressChart = ({
 
               {/* Custom x-axis labels — absolute-positioned at the bottom
                   of the wrapper so they never get clipped by gifted-charts'
-                  internal padding. */}
+                  internal padding. Rendered from `ticks` (independent of the
+                  data line length) so empty-week ticks still appear. */}
               <View
                 pointerEvents="none"
                 style={[
@@ -190,18 +220,18 @@ const WeightProgressChart = ({
                   { width: totalChartWidth },
                 ]}
               >
-                {data.map((d, i) => {
+                {ticks.map((label, i) => {
                   const pointX = initialSpacing + i * spacing;
                   return (
                     <Text
-                      key={`${d.label}-${i}`}
+                      key={`${label}-${i}`}
                       style={[
                         styles.xAxisText,
                         styles.xLabel,
                         { left: pointX - LABEL_SLOT_WIDTH / 2 },
                       ]}
                     >
-                      {d.label}
+                      {label}
                     </Text>
                   );
                 })}

@@ -1,3 +1,4 @@
+import GlassFill from "@/app/components/common/GlassFill";
 import IconButton from "@/app/components/common/IconButton";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
 import { FONTS } from "@/app/constants/fonts";
@@ -9,18 +10,106 @@ import {
   BottomSheetScrollView,
   BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
 export interface AddLogMealBottomSheetRef {
   show: () => void;
   hide: () => void;
 }
 
-type MealTag = "breakfast" | "lunch" | "eveningSnack" | "dinner";
+export type MealTag = "breakfast" | "lunch" | "eveningSnack" | "dinner";
+
+export interface SavedMealItem {
+  name: string;
+  servingSize: string;
+  units: string;
+}
+
+export interface SaveMealPayload {
+  tag: MealTag;
+  /** All items the user added in this sheet — at least 1 by the time Save fires. */
+  items: SavedMealItem[];
+  comments: string;
+}
 
 const TAGS: MealTag[] = ["breakfast", "lunch", "eveningSnack", "dinner"];
+
+const SELECT_DURATION = 220;
+const SELECT_EASING = Easing.bezier(0.32, 0.72, 0.32, 1);
+
+/**
+ * Animated meal-category chip — Figma node 5818:3137.
+ * Cross-fades a dark glass background and a solid gold background as the
+ * selection state changes. Adds a subtle scale-down on press for tactile
+ * feedback. Pure reanimated worklets — no JS-side state interpolation.
+ */
+const MealTagChip = ({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) => {
+  const selected = useSharedValue(active ? 1 : 0);
+  const pressed = useSharedValue(0);
+
+  useEffect(() => {
+    selected.value = withTiming(active ? 1 : 0, {
+      duration: SELECT_DURATION,
+      easing: SELECT_EASING,
+    });
+  }, [active, selected]);
+
+  const goldStyle = useAnimatedStyle(() => ({
+    opacity: selected.value,
+  }));
+
+  const inactiveStyle = useAnimatedStyle(() => ({
+    opacity: 1 - selected.value,
+  }));
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 - pressed.value * 0.04 }],
+  }));
+
+  return (
+    <Animated.View style={containerStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => {
+          pressed.value = withSpring(1, { mass: 0.4, damping: 14, stiffness: 220 });
+        }}
+        onPressOut={() => {
+          pressed.value = withSpring(0, { mass: 0.4, damping: 14, stiffness: 220 });
+        }}
+        style={styles.tagChip}
+      >
+        {/* Inactive layer: glass + dark tint, fades out as the chip activates. */}
+        <Animated.View style={[StyleSheet.absoluteFill, inactiveStyle]}>
+          <GlassFill style={styles.tagGlass} />
+          <View style={styles.tagInactiveTint} pointerEvents="none" />
+        </Animated.View>
+        {/* Active layer: solid gold, fades in. */}
+        <Animated.View
+          style={[styles.tagChipActive, StyleSheet.absoluteFill, goldStyle]}
+          pointerEvents="none"
+        />
+        <Text style={styles.tagText}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 // Food serving units shown when "Select Units" is tapped.
 const UNIT_OPTIONS: { value: string; label: string }[] = [
@@ -38,7 +127,11 @@ const UNIT_OPTIONS: { value: string; label: string }[] = [
 ];
 
 interface AddLogMealBottomSheetProps {
-  onSave?: (payload: { tag: MealTag | null; itemName: string; servingSize: string; units: string; comments: string }) => void;
+  /**
+   * Async save handler. The parent runs the AI estimate + Redux dispatch.
+   * Throw an Error to surface a user-visible message inside the sheet.
+   */
+  onSave?: (payload: SaveMealPayload) => Promise<void>;
 }
 
 const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBottomSheetProps>(
@@ -52,6 +145,116 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
     const [units, setUnits] = useState("");
     const [unitsOpen, setUnitsOpen] = useState(false);
     const [comments, setComments] = useState("");
+    const [stagedItems, setStagedItems] = useState<SavedMealItem[]>([]);
+    // Index of the chip currently loaded in the form for editing.
+    // null = the form represents a *new* item that will append on add.
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const clearItemFields = useCallback(() => {
+      setItemName("");
+      setServingSize("");
+      setUnits("");
+      setUnitsOpen(false);
+    }, []);
+
+    const resetForm = useCallback(() => {
+      setSelectedTag(null);
+      clearItemFields();
+      setComments("");
+      setStagedItems([]);
+      setEditingIndex(null);
+      setError(null);
+    }, [clearItemFields]);
+
+    // Build the canonical items list to send when saving — handles three
+    // cases:
+    //   - editing a chip + form has content → replace that chip in-place
+    //   - new draft (editing=null) + form has content → append as a final item
+    //   - form empty → just the existing staged list
+    const composeItemsForSave = useCallback((): SavedMealItem[] => {
+      const trimmed = itemName.trim();
+      if (!trimmed) return stagedItems;
+      const draft: SavedMealItem = {
+        name: trimmed,
+        servingSize: servingSize.trim(),
+        units,
+      };
+      if (editingIndex !== null) {
+        const copy = [...stagedItems];
+        copy[editingIndex] = draft;
+        return copy;
+      }
+      return [...stagedItems, draft];
+    }, [editingIndex, itemName, servingSize, stagedItems, units]);
+
+    // "+ Add Item" when editingIndex === null, "Update Item" otherwise.
+    const handleUpsertItem = useCallback(() => {
+      const trimmed = itemName.trim();
+      if (!trimmed) {
+        setError("Add a name for the item first.");
+        return;
+      }
+      setError(null);
+      const draft: SavedMealItem = {
+        name: trimmed,
+        servingSize: servingSize.trim(),
+        units,
+      };
+      if (editingIndex !== null) {
+        setStagedItems((prev) => prev.map((it, i) => (i === editingIndex ? draft : it)));
+      } else {
+        setStagedItems((prev) => [...prev, draft]);
+      }
+      setEditingIndex(null);
+      clearItemFields();
+    }, [clearItemFields, editingIndex, itemName, servingSize, units]);
+
+    // Tap a chip → load its values into the form. If the user was already
+    // editing a different chip and had unsaved field content, stash that
+    // back into its slot first so no edits are lost.
+    const handleSelectChip = useCallback(
+      (index: number) => {
+        if (index === editingIndex) return; // already editing — no-op
+        const trimmed = itemName.trim();
+        let next = stagedItems;
+        if (trimmed && editingIndex !== null) {
+          next = stagedItems.map((it, i) =>
+            i === editingIndex
+              ? { name: trimmed, servingSize: servingSize.trim(), units }
+              : it,
+          );
+          setStagedItems(next);
+        }
+        const target = next[index];
+        if (!target) return;
+        setItemName(target.name);
+        setServingSize(target.servingSize);
+        setUnits(target.units);
+        setEditingIndex(index);
+        setError(null);
+      },
+      [editingIndex, itemName, servingSize, stagedItems, units],
+    );
+
+    const handleRemoveStagedItem = useCallback(
+      (index: number) => {
+        setStagedItems((prev) => prev.filter((_, i) => i !== index));
+        // If we delete the chip currently loaded for editing, clear the
+        // form so the user isn't stranded mid-edit. Other indices shift
+        // down by one when the deleted one was earlier in the list.
+        setEditingIndex((curr) => {
+          if (curr === null) return null;
+          if (curr === index) {
+            clearItemFields();
+            return null;
+          }
+          return curr > index ? curr - 1 : curr;
+        });
+      },
+      [clearItemFields],
+    );
 
     useImperativeHandle(ref, () => ({
       show: () => sheetRef.current?.present(),
@@ -71,10 +274,32 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       [],
     );
 
-    const handleSave = () => {
-      onSave?.({ tag: selectedTag, itemName, servingSize, units, comments });
-      sheetRef.current?.dismiss();
-    };
+    // Save needs a tag + at least one item (staged OR currently typed).
+    const canSave =
+      !!selectedTag &&
+      !saving &&
+      (stagedItems.length > 0 || itemName.trim().length > 0);
+
+    const handleSave = useCallback(async () => {
+      if (!selectedTag) return;
+      const items = composeItemsForSave();
+      if (items.length === 0) return;
+      setSaving(true);
+      setError(null);
+      try {
+        await onSave?.({
+          tag: selectedTag,
+          items,
+          comments: comments.trim(),
+        });
+        resetForm();
+        sheetRef.current?.dismiss();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not save meal.");
+      } finally {
+        setSaving(false);
+      }
+    }, [comments, composeItemsForSave, onSave, resetForm, selectedTag]);
 
     return (
       <BottomSheetModal
@@ -106,13 +331,12 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                 {TAGS.map((tag) => {
                   const active = selectedTag === tag;
                   return (
-                    <Pressable
+                    <MealTagChip
                       key={tag}
+                      label={t(`nutrition.${tag}`)}
+                      active={active}
                       onPress={() => setSelectedTag(active ? null : tag)}
-                      style={[styles.tagChip, active && styles.tagChipActive]}
-                    >
-                      <Text style={styles.tagText}>{t(`nutrition.${tag}`)}</Text>
-                    </Pressable>
+                    />
                   );
                 })}
               </View>
@@ -121,6 +345,41 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
             {/* Items in this meal */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>{t("nutrition.logMealSheet.itemsInMeal")}</Text>
+
+              {stagedItems.length > 0 ? (
+                <View style={styles.stagedList}>
+                  {stagedItems.map((item, index) => {
+                    const portion = [item.servingSize, item.units]
+                      .filter(Boolean)
+                      .join(" ")
+                      .trim();
+                    const label = portion ? `${item.name} (${portion})` : item.name;
+                    const isEditing = editingIndex === index;
+                    return (
+                      <Pressable
+                        key={`${item.name}-${index}`}
+                        onPress={() => handleSelectChip(index)}
+                        style={({ pressed }) => [
+                          styles.stagedRow,
+                          isEditing && styles.stagedRowEditing,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                      >
+                        <Text style={styles.stagedText} numberOfLines={1}>
+                          {label}
+                        </Text>
+                        <Pressable
+                          onPress={() => handleRemoveStagedItem(index)}
+                          hitSlop={8}
+                          style={styles.stagedRemoveBtn}
+                        >
+                          <Text style={styles.stagedRemoveText}>×</Text>
+                        </Pressable>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
 
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.itemName")}</Text>
@@ -188,9 +447,21 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                 </View>
               ) : null}
 
-              <Pressable style={styles.addItemButton}>
+              <Pressable
+                onPress={handleUpsertItem}
+                disabled={saving || itemName.trim().length === 0}
+                style={({ pressed }) => [
+                  styles.addItemButton,
+                  (saving || itemName.trim().length === 0) && styles.addItemButtonDisabled,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
                 <TablerPlus width={14} height={14} color="#F0F0F0" />
-                <Text style={styles.addItemText}>{t("nutrition.logMealSheet.addItem")}</Text>
+                <Text style={styles.addItemText}>
+                  {editingIndex !== null
+                    ? t("nutrition.logMealSheet.updateItem")
+                    : t("nutrition.logMealSheet.addItem")}
+                </Text>
               </Pressable>
             </View>
 
@@ -215,9 +486,15 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
             </View>
           </View>
 
-          {/* Save button */}
+          {/* Save button + error */}
           <View style={styles.saveButtonWrap}>
-            <PrimaryButton label={t("nutrition.logMealSheet.saveMeal")} onPress={handleSave} />
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <PrimaryButton
+              label={t("nutrition.logMealSheet.saveMeal")}
+              onPress={handleSave}
+              disabled={!canSave}
+              loading={saving}
+            />
           </View>
         </BottomSheetScrollView>
       </BottomSheetModal>
@@ -276,20 +553,29 @@ const styles = StyleSheet.create({
     lineHeight: 19.2,
   },
 
-  // Tags
+  // Tags — Figma node 5818:3137
   tagRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   tagChip: {
-    backgroundColor: "rgba(201,168,76,0.10)",
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    overflow: "hidden",
+    backgroundColor: "transparent",
+  },
+  tagGlass: {
+    borderRadius: 999,
+  },
+  tagInactiveTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(38,38,38,0.25)",
+    borderRadius: 999,
   },
   tagChipActive: {
-    backgroundColor: "rgba(201,168,76,0.25)",
+    backgroundColor: "rgba(201,168,76,0.6)",
   },
   tagText: {
     fontFamily: FONTS.regular,
@@ -386,6 +672,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // Staged items list
+  stagedList: {
+    gap: 8,
+  },
+  stagedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "#1E1E1E",
+    borderRadius: 10,
+    paddingLeft: 12,
+    paddingRight: 4,
+    paddingVertical: 4,
+  },
+  stagedRowEditing: {
+    borderColor: "rgba(201,168,76,0.6)",
+    backgroundColor: "rgba(201,168,76,0.10)",
+  },
+  stagedText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#F0F0F0",
+    lineHeight: 16,
+  },
+  stagedRemoveBtn: {
+    width: 28,
+    height: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+  stagedRemoveText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 20,
+    color: "rgba(240,240,240,0.7)",
+    lineHeight: 22,
+  },
+
   // Add item button
   addItemButton: {
     alignSelf: "flex-start",
@@ -396,6 +723,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
+  },
+  addItemButtonDisabled: {
+    opacity: 0.4,
   },
   addItemText: {
     fontFamily: FONTS.medium,
@@ -434,5 +764,12 @@ const styles = StyleSheet.create({
   saveButtonWrap: {
     paddingHorizontal: 20,
     paddingTop: 36,
+    gap: 12,
+  },
+  errorText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#F87171",
+    textAlign: "center",
   },
 });

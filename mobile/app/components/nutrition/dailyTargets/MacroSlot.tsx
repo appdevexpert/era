@@ -1,4 +1,5 @@
 import { FONTS } from "@/app/constants/fonts";
+import { useAnimatedCounter } from "@/app/hooks/useAnimatedCounter";
 import { ComponentType } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { type SvgProps } from "react-native-svg";
@@ -14,21 +15,25 @@ interface MacroSlotProps {
   total: number;
 }
 
-const MacroSlot = ({ label, Icon, iconSize = 16, value, left, total }: MacroSlotProps) => (
-  <View style={styles.slot}>
-    <Text style={styles.label}>{label}</Text>
-    <View style={styles.gaugeWrap}>
-      <MacroGauge value={value} total={total} />
-      <View style={styles.iconTop} pointerEvents="none">
-        <Icon width={iconSize} height={iconSize} />
+const MacroSlot = ({ label, Icon, iconSize = 16, value, left, total }: MacroSlotProps) => {
+  const displayValue = useAnimatedCounter(value);
+  const displayLeft = useAnimatedCounter(left);
+  return (
+    <View style={styles.slot}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.gaugeWrap}>
+        <MacroGauge value={value} total={total} />
+        <View style={styles.iconTop} pointerEvents="none">
+          <Icon width={iconSize} height={iconSize} />
+        </View>
+        <View style={styles.valueCenter} pointerEvents="none">
+          <Text style={styles.value}>{`${displayValue}g`}</Text>
+        </View>
       </View>
-      <View style={styles.valueCenter} pointerEvents="none">
-        <Text style={styles.value}>{`${value}g`}</Text>
-      </View>
+      <Text style={styles.leftText}>{`${displayLeft}g left`}</Text>
     </View>
-    <Text style={styles.leftText}>{`${left}g left`}</Text>
-  </View>
-);
+  );
+};
 
 export default MacroSlot;
 

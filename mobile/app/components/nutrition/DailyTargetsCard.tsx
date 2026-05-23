@@ -32,7 +32,12 @@ interface DailyTargetsCardProps {
   protein: MacroData;
   carbs: MacroData;
   fats: MacroData;
-  waterConsumedMl?: number;
+  waterConsumedMl: number;
+  waterGoalMl: number;
+  onWaterIncrement?: () => void;
+  onWaterDecrement?: () => void;
+  /** When true, the water +/− buttons render as faded and non-interactive. */
+  waterDisabled?: boolean;
 }
 
 // Horizontal padding on the outer screen (matches NutritionScreen.scrollContent).
@@ -69,7 +74,11 @@ const DailyTargetsCard = ({
   protein,
   carbs,
   fats,
-  waterConsumedMl = 1250,
+  waterConsumedMl,
+  waterGoalMl,
+  onWaterIncrement,
+  onWaterDecrement,
+  waterDisabled,
 }: DailyTargetsCardProps) => {
   const { t } = useTranslation();
   const { width: windowWidth } = useWindowDimensions();
@@ -116,7 +125,13 @@ const DailyTargetsCard = ({
           />
         </View>
         <View style={{ width: pageWidth }}>
-          <WaterCard consumedMl={waterConsumedMl} />
+          <WaterCard
+            consumedMl={waterConsumedMl}
+            goalMl={waterGoalMl}
+            onIncrement={onWaterIncrement}
+            onDecrement={onWaterDecrement}
+            disabled={waterDisabled}
+          />
         </View>
       </Animated.ScrollView>
       <View style={styles.dotsRow}>

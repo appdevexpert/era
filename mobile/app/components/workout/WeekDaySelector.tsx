@@ -20,14 +20,22 @@ export interface DayItem {
 interface WeekDaySelectorProps {
   days: DayItem[];
   onDayPress?: (day: DayItem) => void;
+  /**
+   * When true, the dashed (future / pre-signup) pill becomes Pressable so
+   * callers can preview a future day (e.g. Nutrition users planning tomorrow's
+   * groceries). Defaults to false — Weights/Workout keep future days inert.
+   */
+  enableInactivePress?: boolean;
 }
 
 const DayPill = ({
   day,
   onPress,
+  enableInactivePress,
 }: {
   day: DayItem;
   onPress?: () => void;
+  enableInactivePress?: boolean;
 }) => {
   // State 3: Today + Completed — gold-to-green gradient with ✓
   if (day.active && day.completed) {
@@ -107,18 +115,29 @@ const DayPill = ({
     );
   }
 
-  // State 5: Future / Pre-signup — dashed border with date, NOT clickable
-  return (
-    <View style={styles.pillInactive}>
+  // State 5: Future / Pre-signup — dashed border with date.
+  // Opt-in clickability: WeightsScreen leaves these inert, NutritionScreen
+  // enables presses so users can preview tomorrow's planned meals.
+  const inactiveContent = (
+    <>
       <Text style={styles.labelInactive}>{day.label}</Text>
       <View style={styles.dateBadgeInactive}>
         <Text style={styles.dateTextInactive}>{day.date}</Text>
       </View>
-    </View>
+    </>
   );
+
+  if (enableInactivePress) {
+    return (
+      <Pressable onPress={onPress} style={styles.pillInactive}>
+        {inactiveContent}
+      </Pressable>
+    );
+  }
+  return <View style={styles.pillInactive}>{inactiveContent}</View>;
 };
 
-const WeekDaySelector = ({ days, onDayPress }: WeekDaySelectorProps) => {
+const WeekDaySelector = ({ days, onDayPress, enableInactivePress }: WeekDaySelectorProps) => {
   return (
     <View style={styles.container}>
       {days.map((day) => (
@@ -126,6 +145,7 @@ const WeekDaySelector = ({ days, onDayPress }: WeekDaySelectorProps) => {
           key={day.key}
           day={day}
           onPress={() => onDayPress?.(day)}
+          enableInactivePress={enableInactivePress}
         />
       ))}
     </View>

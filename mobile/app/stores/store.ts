@@ -3,6 +3,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch } from "react-redux";
 import { persistReducer, persistStore } from "redux-persist";
 import authReducer from "./slice/authSlice";
+import nutritionReducer from "./slice/nutritionSlice";
 import onboardingReducer from "./slice/onboardingSlice";
 import sessionReducer from "./slice/sessionSlice";
 import syncReducer from "./slice/syncSlice";
@@ -15,16 +16,23 @@ const workoutPersistConfig = {
   storage: AsyncStorage,
   whitelist: ["programId", "overview", "currentDayDetail", "completedDayIds", "loadedAt"],
 };
+const nutritionPersistConfig = {
+  key: "nutrition",
+  storage: AsyncStorage,
+  whitelist: ["bootstrap", "logsByDate", "waterByDate", "selectedDate", "loadedAt"],
+};
 
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 const persistedOnboardingReducer = persistReducer(onboardingPersistConfig, onboardingReducer);
 const persistedWorkoutReducer = persistReducer(workoutPersistConfig, workoutReducer);
+const persistedNutritionReducer = persistReducer(nutritionPersistConfig, nutritionReducer);
 
 export const store = configureStore({
   reducer: {
     auth: persistedAuthReducer,
     onboarding: persistedOnboardingReducer,
     workout: persistedWorkoutReducer,
+    nutrition: persistedNutritionReducer,
     session: sessionReducer,
     sync: syncReducer,
   },

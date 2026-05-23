@@ -145,6 +145,9 @@ const Onboarding = () => {
       setDirection('forward')
       setStepIndex(stepIndex + 1)
     } else {
+      // At this point the user still has no auth.user.id — the Supabase
+      // write happens later, on SIGNED_IN (after they sign up / log in).
+      // See Navigation.tsx and submitGoalData's empty-data guard.
       dispatch(completeOnboarding())
     }
   }

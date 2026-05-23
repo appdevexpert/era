@@ -1,3 +1,10 @@
+import { useEffect } from "react";
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
 import {
   GOLD,
@@ -11,13 +18,10 @@ import {
 } from "./tokens";
 
 // Exact gauge path from Figma — open rounded rectangle with a gap at the top.
-// Path direction: starts at top-right of gap (43,3), goes clockwise, ends at top-left of gap (16.5,3).
 const GAUGE_PATH =
   "M43 3 C50.1797 3 56 8.8203 56 16 V37 C56 45.8366 48.8366 53 40 53 H19 C10.1634 53 3 45.8366 3 37 V16.5 C3 9.04416 9.04416 3 16.5 3";
 
-// Perimeter (viewBox units):
-//   top-right quarter (r=13) + right side (21) + bottom-right quarter (r=16) + bottom (21)
-// + bottom-left quarter (r=16) + left side (20.5) + top-left quarter (r=13.5)
+// Perimeter (viewBox units): clockwise from start point.
 const GAUGE_PERIMETER =
   (Math.PI * 13) / 2 +
   21 +
@@ -27,16 +31,31 @@ const GAUGE_PERIMETER =
   20.5 +
   (Math.PI * 13.5) / 2;
 
+const TWEEN_DURATION_MS = 900;
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
 interface MacroGaugeProps {
   value: number;
   total: number;
 }
 
-/** Rounded-square gauge with a gap at the top. Bright stroke sits on top of
- *  the dim track and fills clockwise from the right side of the gap. */
 const MacroGauge = ({ value, total }: MacroGaugeProps) => {
-  const ratio = total > 0 ? Math.min(value / total, 1) : 0;
-  const filledLength = ratio * GAUGE_PERIMETER;
+  const target = total > 0 ? Math.min(value / total, 1) : 0;
+  const filledLength = useSharedValue(target * GAUGE_PERIMETER);
+
+  useEffect(() => {
+    filledLength.value = withTiming(target * GAUGE_PERIMETER, {
+      duration: TWEEN_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [filledLength, target]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    // Space-separated string form — react-native-svg parses this on the
+    // native side. Returning an array from a worklet trips the prop diff.
+    strokeDasharray: `${filledLength.value} ${GAUGE_PERIMETER - filledLength.value}`,
+  }));
 
   return (
     <Svg
@@ -58,17 +77,15 @@ const MacroGauge = ({ value, total }: MacroGaugeProps) => {
         fill="none"
         strokeLinecap="round"
       />
-      {/* Filled portion — slightly thicker, sits on top of the dim track */}
-      {ratio > 0 ? (
-        <Path
-          d={GAUGE_PATH}
-          stroke="url(#macroLit)"
-          strokeWidth={MACRO_BRIGHT_STROKE}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={`${filledLength} ${GAUGE_PERIMETER - filledLength}`}
-        />
-      ) : null}
+      {/* Animated filled stroke — always mounted so the dasharray can tween from/to 0. */}
+      <AnimatedPath
+        d={GAUGE_PATH}
+        stroke="url(#macroLit)"
+        strokeWidth={MACRO_BRIGHT_STROKE}
+        fill="none"
+        strokeLinecap="round"
+        animatedProps={animatedProps}
+      />
     </Svg>
   );
 };

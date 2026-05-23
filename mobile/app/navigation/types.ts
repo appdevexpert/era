@@ -42,6 +42,16 @@ export type WorkoutPlanParams = {
   dayStatus?: DayStatus;
 };
 
+export type ExerciseHistoryParams = {
+  /** Exercise library id (required to fetch history). */
+  exerciseId?: string;
+  /** Exercise display name. */
+  title?: string;
+  /** Eyebrow text — e.g. "Back • Compound". */
+  subtitle?: string;
+  muscles?: MuscleGroup[];
+};
+
 export type WorkoutCountdownParams = {
   weekLabel: string;
   dayLabel: string;
@@ -99,7 +109,7 @@ export type HomeStackParamList = {
   Notification: undefined;
   WorkoutPlan: WorkoutPlanParams | undefined;
   ExerciseList: WorkoutPlanParams | undefined;
-  ExerciseHistory: WorkoutPlanParams | undefined;
+  ExerciseHistory: ExerciseHistoryParams | undefined;
   PrHistory: WorkoutPlanParams | undefined;
   ExercisePrHistory: WorkoutPlanParams | undefined;
   TransformationGallery: WorkoutPlanParams | undefined;

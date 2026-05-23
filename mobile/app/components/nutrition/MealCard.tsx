@@ -28,9 +28,12 @@ interface MealCardProps {
   meal: MealRow;
   /** Fired when the user taps the +/− button. */
   onToggle?: (meal: MealRow) => void;
+  /** Renders the +/− button as faded and non-interactive. Used when the
+   *  Nutrition tab is viewing a non-today date (preview-only). */
+  disabled?: boolean;
 }
 
-const MealCard = ({ meal, onToggle }: MealCardProps) => {
+const MealCard = ({ meal, onToggle, disabled }: MealCardProps) => {
   const { t } = useTranslation();
   const added = !!meal.added;
   const source: MealSource = meal.source ?? "custom";
@@ -65,7 +68,8 @@ const MealCard = ({ meal, onToggle }: MealCardProps) => {
           <IconButton
             size={40}
             tint={added ? "subtle" : "emphasized"}
-            onPress={onToggle ? () => onToggle(meal) : undefined}
+            onPress={!disabled && onToggle ? () => onToggle(meal) : undefined}
+            style={disabled ? { opacity: 0.4 } : undefined}
           >
             {added ? (
               <TablerMinus width={20} height={20} color={BUTTON_ICON_COLOR} />

@@ -1,4 +1,7 @@
 import PrimaryButton from "@/app/components/common/PrimaryButton";
+import ExerciseListScreenSkeleton, {
+  ExerciseSectionsSkeleton,
+} from "@/app/components/skeleton/ExerciseListScreenSkeleton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { DayStatus, HomeStackParamList } from "@/app/navigation/types";
@@ -360,9 +363,10 @@ const ExerciseListScreen = () => {
                 );
               })
             ) : dayStatus === "completed" && completedLoading ? (
-              <View style={styles.statusBox}>
-                <Text style={styles.statusText}>{t("workout.ui.loadingWorkout")}</Text>
-              </View>
+              // Inner loading: View-button flow fetches the completed session.
+              // Stats row is already rendered above, so we only skeleton the
+              // section list here, not the full page.
+              <ExerciseSectionsSkeleton />
             ) : null}
 
             {/* Non-completed modes: show planned exercise sections */}
@@ -389,11 +393,11 @@ const ExerciseListScreen = () => {
                 ))
               : null}
           </>
+        ) : isLoading ? (
+          <ExerciseListScreenSkeleton showHandle={dayStatus === "active"} />
         ) : (
           <View style={styles.statusBox}>
-            <Text style={styles.statusText}>
-              {isLoading ? t("workout.ui.loadingWorkout") : errorMessage}
-            </Text>
+            <Text style={styles.statusText}>{errorMessage}</Text>
           </View>
         )}
       </ScrollView>

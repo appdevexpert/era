@@ -1,81 +1,102 @@
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
+import { useEffect, useId } from "react";
+import Animated, {
+  Easing,
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import Svg, {
+  ClipPath,
+  Defs,
+  G,
+  LinearGradient as SvgLinearGradient,
+  Path,
+  Rect,
+  Stop,
+} from "react-native-svg";
 
-// Empty / full drop outline — viewBox 38 × 52.
-const FULL_DROP_PATH =
+// Drop silhouette — viewBox 38 × 52.
+const DROP_PATH =
   "M0 33.4559C0 23.3819 9.58288 9.53854 15.3496 2.12003C17.5496 -0.710194 21.6784 -0.70997 23.8517 2.14082C29.284 9.26638 38 22.419 38 33.4559C38 42.1829 33.7553 51.9246 19.6064 51.9246C5.45745 51.9246 0 43.8065 0 33.4559Z";
 
-// Half-fill drop outline — viewBox 39 × 55.
-const HALF_DROP_PATH =
-  "M0.159668 36.5314C0.159668 26.4574 9.74255 12.614 15.5092 5.19547C17.7093 2.36525 21.8381 2.36547 24.0114 5.21626C29.4436 12.3418 38.1597 25.4945 38.1597 36.5314C38.1597 45.2583 33.915 55 19.7661 55C5.61712 55 0.159668 46.8819 0.159668 36.5314Z";
-
-// Gold wave that fills the lower portion of the half-drop.
-const HALF_WAVE_PATH =
-  "M19.6072 54.9997C5.4583 54.9997 0.000854492 46.8816 0.000854492 36.531C0.000854492 33.2967 0.98866 29.6738 2.52083 25.9997C4.78175 24.7754 9.61362 25.3207 16.8036 29.8267C27.5009 36.5308 35.5529 30.5 37.0009 29C41.0009 43.5 34.7711 54.9997 19.6072 54.9997Z";
+const VIEW_BOX_WIDTH = 38;
+const VIEW_BOX_HEIGHT = 52;
 
 const DARK = "#312D20";
 const GRADIENT_TOP = "#C9A84C";
 const GRADIENT_BOTTOM = "#FBEFAF";
 
+// Reanimated wrapper — hoisted so the wrapper isn't re-created per render.
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
+
 interface WaterDropProps {
-  /** 0 = empty (dark only), 1 = full (gold), in between = half (gold wave). */
+  /** Target fill: 0 = empty, 1 = full. Anything in between animates to it. */
   filled: number;
-  /** Rendered width in px (default 38). Height scales with the drop's natural aspect. */
+  /** Rendered width in px (default 38). Height scales with the drop's aspect ratio. */
   size?: number;
 }
 
 const WaterDrop = ({ filled, size = 38 }: WaterDropProps) => {
+  // SVG-internal ids must be unique per instance, otherwise multiple drops
+  // share the same clip path and animate together (React Native SVG resolves
+  // url(#id) globally inside an Svg, but ids should still be unique per def).
+  const rawId = useId().replace(/:/g, "");
+  const clipId = `drop-clip-${rawId}`;
+  const gradId = `drop-grad-${rawId}`;
+
   const clamped = Math.max(0, Math.min(1, filled));
+  const progress = useSharedValue(clamped);
 
-  // Empty drop — just the dark outline.
-  if (clamped <= 0) {
-    return (
-      <Svg width={size} height={size * (52 / 38)} viewBox="0 0 38 52">
-        <Path d={FULL_DROP_PATH} fill={DARK} />
-      </Svg>
-    );
-  }
+  // Each prop change runs withTiming from the current SharedValue to the new
+  // target. On first mount the value is already correct, so withTiming is a
+  // no-op. Subsequent +/− taps animate.
+  useEffect(() => {
+    progress.value = withTiming(clamped, {
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [clamped, progress]);
 
-  // Full drop — dark base + gold gradient over the whole shape.
-  if (clamped >= 1) {
-    return (
-      <Svg width={size} height={size * (52 / 38)} viewBox="0 0 38 52">
-        <Defs>
-          <SvgLinearGradient
-            id="dropFull"
-            x1="19"
-            y1="-3.07544"
-            x2="19"
-            y2="51.9246"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor={GRADIENT_TOP} />
-            <Stop offset="1" stopColor={GRADIENT_BOTTOM} />
-          </SvgLinearGradient>
-        </Defs>
-        <Path d={FULL_DROP_PATH} fill={DARK} />
-        <Path d={FULL_DROP_PATH} fill="url(#dropFull)" />
-      </Svg>
-    );
-  }
+  // Animated clip rect — y moves from VIEW_BOX_HEIGHT (no gold visible) up
+  // to 0 (fully covered). Everything ABOVE the rect is clipped, so as y
+  // shrinks the gold layer is revealed from the bottom up.
+  const animatedClipProps = useAnimatedProps(() => ({
+    y: (1 - progress.value) * VIEW_BOX_HEIGHT,
+  }));
 
-  // Half drop — dark outline + gold wave filling the bottom portion.
   return (
-    <Svg width={size} height={size * (55 / 39)} viewBox="0 0 39 55">
+    <Svg
+      width={size}
+      height={size * (VIEW_BOX_HEIGHT / VIEW_BOX_WIDTH)}
+      viewBox={`0 0 ${VIEW_BOX_WIDTH} ${VIEW_BOX_HEIGHT}`}
+    >
       <Defs>
         <SvgLinearGradient
-          id="dropHalf"
-          x1="19.706"
-          y1="22.5063"
-          x2="19.706"
-          y2="54.8719"
+          id={gradId}
+          x1="19"
+          y1="-3.07544"
+          x2="19"
+          y2="51.9246"
           gradientUnits="userSpaceOnUse"
         >
           <Stop offset="0" stopColor={GRADIENT_TOP} />
           <Stop offset="1" stopColor={GRADIENT_BOTTOM} />
         </SvgLinearGradient>
+        <ClipPath id={clipId}>
+          <AnimatedRect
+            x={0}
+            width={VIEW_BOX_WIDTH}
+            height={VIEW_BOX_HEIGHT}
+            animatedProps={animatedClipProps}
+          />
+        </ClipPath>
       </Defs>
-      <Path d={HALF_DROP_PATH} fill={DARK} />
-      <Path d={HALF_WAVE_PATH} fill="url(#dropHalf)" />
+      {/* Dark base — always visible. */}
+      <Path d={DROP_PATH} fill={DARK} />
+      {/* Gold gradient on top, revealed from the bottom up via the clip rect. */}
+      <G clipPath={`url(#${clipId})`}>
+        <Path d={DROP_PATH} fill={`url(#${gradId})`} />
+      </G>
     </Svg>
   );
 };

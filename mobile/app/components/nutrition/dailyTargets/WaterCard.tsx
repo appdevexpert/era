@@ -1,33 +1,52 @@
 import IconButton from "@/app/components/common/IconButton";
 import { FONTS } from "@/app/constants/fonts";
+import { useAnimatedCounter } from "@/app/hooks/useAnimatedCounter";
 import { LinearGradient } from "expo-linear-gradient";
+import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import WaterDrop from "./WaterDrop";
 import { CARD_MIN_HEIGHT, GOLD } from "./tokens";
+
+// Hoisted so React doesn't rebuild the animated wrapper on every render.
+const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient);
 
 interface WaterCardProps {
   consumedMl: number;
   /** Daily goal in ml — default 2000 (2L). */
   goalMl?: number;
-  /** Number of glasses target — default 8. */
-  totalGlasses?: number;
   /** ml per increment button tap — default 250. */
   incrementMl?: number;
   onIncrement?: () => void;
   onDecrement?: () => void;
+  /** Renders the +/− buttons as faded and non-interactive. Used when the
+   *  Nutrition tab is viewing a non-today date (preview-only). */
+  disabled?: boolean;
 }
 
 const IncButton = ({
   symbol,
   emphasized,
   onPress,
+  disabled,
 }: {
   symbol: "−" | "+";
   emphasized?: boolean;
   onPress?: () => void;
+  disabled?: boolean;
 }) => (
-  <IconButton onPress={onPress} size={32} tint={emphasized ? "emphasized" : "subtle"}>
+  <IconButton
+    onPress={disabled ? undefined : onPress}
+    size={32}
+    tint={emphasized ? "emphasized" : "subtle"}
+    style={disabled ? { opacity: 0.4 } : undefined}
+  >
     <Text style={styles.incSymbol}>{symbol}</Text>
   </IconButton>
 );
@@ -38,30 +57,56 @@ const DROPS_PER_ROW = 5;
 const WaterCard = ({
   consumedMl,
   goalMl = 2000,
-  totalGlasses = 8,
   incrementMl = 250,
   onIncrement,
   onDecrement,
+  disabled,
 }: WaterCardProps) => {
   const { t } = useTranslation();
-  const glasses = consumedMl / incrementMl;
-  const fullDrops = Math.floor(glasses);
-  const partial = glasses - fullDrops;
-  const progressPercent = Math.min((glasses / totalGlasses) * 100, 100);
+  // Glass count tracks the user's personalised goal — e.g. 2750 ml at
+  // 250 ml/glass → 11 glasses.
+  const totalGlasses = Math.max(1, Math.ceil(goalMl / incrementMl));
+  // Drops are driven by the unanimated value — each drop tweens its own
+  // fill so we don't want to double-animate via the consumed ml as well.
+  const glassesExact = consumedMl / incrementMl;
+  const fullDrops = Math.floor(glassesExact);
+  const partial = glassesExact - fullDrops;
+  const progressPercent = Math.min((glassesExact / totalGlasses) * 100, 100);
   const goalLiters = goalMl / 1000;
+
+  // Hero "X ml" counts up in 10 ml steps so the digit changes feel smooth
+  // without re-rendering every animation frame.
+  const displayConsumedMl = useAnimatedCounter(consumedMl, { step: 10 });
+  // Glasses-count display follows the animated ml so the two numbers stay
+  // visually in sync (e.g. ml hits 250 just as the count flips to 1).
+  const glassesDisplay = Math.floor(displayConsumedMl / incrementMl);
+
+  // Smoothly grow the gold gradient when consumedMl changes. 900 ms matches
+  // the drop fill + macros / kcal animations so everything moves together.
+  const animatedProgress = useSharedValue(progressPercent);
+  useEffect(() => {
+    animatedProgress.value = withTiming(progressPercent, {
+      duration: 900,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [animatedProgress, progressPercent]);
+
+  const animatedFillStyle = useAnimatedStyle(() => ({
+    width: `${animatedProgress.value}%`,
+  }));
 
   return (
     <View style={styles.card}>
       {/* Top section */}
       <View style={styles.topRow}>
         <View style={styles.heroCol}>
-          <Text style={styles.heroValue}>{t("nutrition.waterValue", { value: consumedMl })}</Text>
+          <Text style={styles.heroValue}>{t("nutrition.waterValue", { value: displayConsumedMl })}</Text>
           <Text style={styles.heroSubtitle}>{t("nutrition.waterConsumption")}</Text>
         </View>
         <View style={styles.incChip}>
-          <IncButton symbol="−" onPress={onDecrement} />
+          <IncButton symbol="−" onPress={onDecrement} disabled={disabled} />
           <Text style={styles.incText}>{t("nutrition.waterIncrement", { value: incrementMl })}</Text>
-          <IncButton symbol="+" emphasized onPress={onIncrement} />
+          <IncButton symbol="+" emphasized onPress={onIncrement} disabled={disabled} />
         </View>
       </View>
 
@@ -81,14 +126,14 @@ const WaterCard = ({
       {/* Bottom progress row */}
       <View style={styles.footerRow}>
         <Text style={styles.glassesText}>
-          {t("nutrition.glassesProgress", { current: glasses, total: totalGlasses })}
+          {t("nutrition.glassesProgress", { current: glassesDisplay, total: totalGlasses })}
         </Text>
         <View style={styles.progressTrack}>
-          <LinearGradient
+          <AnimatedLinearGradient
             colors={["#FCF3C0", "#F7E06F", "#C9A84C"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={[styles.progressFill, { width: `${progressPercent}%` }]}
+            style={[styles.progressFill, animatedFillStyle]}
           />
         </View>
         <Text style={styles.goalText}>

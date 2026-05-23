@@ -1,7 +1,15 @@
 import { ComponentType } from "react";
 import { SvgProps } from "react-native-svg";
 
-export type MealCategory = "breakfast" | "lunch" | "eveningSnack" | "dinner";
+export type MealCategory =
+  | "breakfast"
+  | "lunch"
+  | "snack"
+  | "eveningSnack"
+  | "dinner"
+  | "preWorkout"
+  | "postWorkout"
+  | "cheatMeal";
 
 /**
  * Where the row comes from — drives the eyebrow tag.

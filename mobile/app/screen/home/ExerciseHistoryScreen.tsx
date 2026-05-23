@@ -1,126 +1,95 @@
 import ScreenFades from "@/app/components/common/ScreenFades";
+import ExerciseHistoryScreenSkeleton from "@/app/components/skeleton/ExerciseHistoryScreenSkeleton";
 import SessionHistoryCard from "@/app/components/workout/SessionHistoryCard";
 import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/WeightProgressChart";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import { useExerciseHistory } from "@/app/hooks/useExerciseHistory";
+import type { ExerciseHistoryView, ExerciseHistoryWeekSection } from "@/app/types/workout";
+import { type HomeStackParamList } from "@/app/navigation/types";
+import { RouteProp, useRoute } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
-interface SessionEntry {
-  id: string;
-  dateLabel: string;
-  weightKg: number;
-  reps: number;
-  delta?: { kg: number; positive: boolean };
-  badge?: boolean;
-}
-
-interface WeekSection {
-  id: string;
-  weekLabel: string;
-  monthLabel: string;
-  entries: SessionEntry[];
-}
-
 const POSITIVE = "#3DCA7A";
 
-const STATS = {
-  current: 82.4,
-  heaviest: 140,
-  lightest: 80,
-  successMessage: "Great Job! Consistency is the key. You're mastering it.",
+const StatsCard = ({
+  stats,
+  chart,
+  xTickLabels,
+  successMessage,
+  labels,
+}: {
+  stats: ExerciseHistoryView["stats"];
+  chart: ChartPoint[];
+  xTickLabels: string[];
+  successMessage: string;
+  labels: { current: string; heaviest: string; lightest: string };
+}) => {
+  // Chart Y-axis: always show at least a 20kg window with 5kg ticks, like
+  // the Figma. Expands further if the data range is wider.
+  const { yMin, yMax, yStep } = useMemo(() => {
+    if (chart.length === 0) return { yMin: 0, yMax: 20, yStep: 5 };
+    const values = chart.map((p) => p.value);
+    const dataMin = Math.min(...values);
+    const dataMax = Math.max(...values);
+    // Snap outward to 5kg gridlines, with at least 5kg of headroom either side.
+    let lo = Math.floor((dataMin - 2.5) / 5) * 5;
+    let hi = Math.ceil((dataMax + 2.5) / 5) * 5;
+    if (hi - lo < 20) {
+      const expand = (20 - (hi - lo)) / 2;
+      lo = Math.max(0, lo - Math.ceil(expand / 5) * 5);
+      hi = lo + 20;
+    }
+    return { yMin: Math.max(0, lo), yMax: hi, yStep: 5 };
+  }, [chart]);
+
+  return (
+    <View style={styles.statsCard}>
+      <View style={styles.statsTopRow}>
+        <View style={styles.statsCurrent}>
+          <Text style={styles.statsLabel}>{labels.current}</Text>
+          <Text style={styles.statsValue}>
+            {stats.currentKg != null ? `${stats.currentKg} kg` : "—"}
+          </Text>
+        </View>
+        <View style={styles.statsSecondary}>
+          <View style={styles.statsSecondaryRow}>
+            <Text style={styles.statsLabel}>{labels.heaviest}</Text>
+            <Text style={styles.statsSecondaryValue}>
+              {stats.heaviestKg != null ? `${stats.heaviestKg} kg` : "—"}
+            </Text>
+          </View>
+          <View style={styles.statsSecondaryRow}>
+            <Text style={styles.statsLabel}>{labels.lightest}</Text>
+            <Text style={styles.statsSecondaryValue}>
+              {stats.lightestKg != null ? `${stats.lightestKg} kg` : "—"}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {chart.length > 0 ? (
+        <WeightProgressChart
+          data={chart}
+          xTickLabels={xTickLabels}
+          yMin={yMin}
+          yMax={yMax}
+          yStep={yStep}
+        />
+      ) : null}
+
+      <View style={styles.successBanner}>
+        <Text style={styles.successText}>{successMessage}</Text>
+      </View>
+    </View>
+  );
 };
 
-// 12-week progression — chart pages through these 4 weeks at a time
-// (W1-W4, W5-W8, W9-W12) so the user can swipe through the full program.
-const CHART_DATA: ChartPoint[] = [
-  { label: "W1", value: 85.5 },
-  { label: "W2", value: 85.5 },
-  { label: "W3", value: 86 },
-  { label: "W4", value: 88 },
-  { label: "W5", value: 90 },
-  { label: "W6", value: 92 },
-  { label: "W7", value: 94 },
-  { label: "W8", value: 95.5 },
-  { label: "W9", value: 96.5 },
-  { label: "W10", value: 97.5 },
-  { label: "W11", value: 98.5 },
-  { label: "W12", value: 99 },
-];
-
-const WEEK_SECTIONS: WeekSection[] = [
-  {
-    id: "w4",
-    weekLabel: "Week 4",
-    monthLabel: "March 24",
-    entries: [
-      { id: "w4-1", dateLabel: "Week 4 • Apr 20", weightKg: 140, reps: 4, delta: { kg: 20, positive: true } },
-      { id: "w4-2", dateLabel: "Week 4 • Apr 04", weightKg: 120, reps: 4, delta: { kg: 25, positive: false } },
-      { id: "w4-3", dateLabel: "Week 4 • Apr 20", weightKg: 145, reps: 4, badge: true },
-    ],
-  },
-  {
-    id: "w3",
-    weekLabel: "Week 3",
-    monthLabel: "March 16",
-    entries: [
-      { id: "w3-1", dateLabel: "Week 4 • Apr 20", weightKg: 115, reps: 4, delta: { kg: 15, positive: true } },
-      { id: "w3-2", dateLabel: "Week 4 • Apr 04", weightKg: 100, reps: 4, delta: { kg: 10, positive: true } },
-      { id: "w3-3", dateLabel: "Week 4 • Apr 20", weightKg: 90, reps: 4, delta: { kg: 10, positive: false } },
-    ],
-  },
-  {
-    id: "w2",
-    weekLabel: "Week 2",
-    monthLabel: "March 10",
-    entries: [
-      { id: "w2-1", dateLabel: "Week 4 • Apr 20", weightKg: 100, reps: 4 },
-      { id: "w2-2", dateLabel: "Week 4 • Apr 04", weightKg: 100, reps: 4, delta: { kg: 10, positive: true } },
-      { id: "w2-3", dateLabel: "Week 4 • Apr 20", weightKg: 90, reps: 4, delta: { kg: 10, positive: true } },
-    ],
-  },
-  {
-    id: "w1",
-    weekLabel: "Week 1",
-    monthLabel: "March 04",
-    entries: [
-      { id: "w1-1", dateLabel: "Week 4 • Apr 20", weightKg: 80, reps: 4, delta: { kg: 5, positive: false } },
-      { id: "w1-2", dateLabel: "Week 4 • Apr 04", weightKg: 85, reps: 4, delta: { kg: 5, positive: true } },
-      { id: "w1-3", dateLabel: "Week 4 • Apr 20", weightKg: 80, reps: 4 },
-    ],
-  },
-];
-
-const StatsCard = () => (
-  <View style={styles.statsCard}>
-    <View style={styles.statsTopRow}>
-      <View style={styles.statsCurrent}>
-        <Text style={styles.statsLabel}>Current</Text>
-        <Text style={styles.statsValue}>{`${STATS.current} kg`}</Text>
-      </View>
-      <View style={styles.statsSecondary}>
-        <View style={styles.statsSecondaryRow}>
-          <Text style={styles.statsLabel}>Heaviest</Text>
-          <Text style={styles.statsSecondaryValue}>{`${STATS.heaviest} kg`}</Text>
-        </View>
-        <View style={styles.statsSecondaryRow}>
-          <Text style={styles.statsLabel}>Lightest</Text>
-          <Text style={styles.statsSecondaryValue}>{`${STATS.lightest} kg`}</Text>
-        </View>
-      </View>
-    </View>
-
-    <WeightProgressChart data={CHART_DATA} yMin={80} yMax={100} yStep={5} />
-
-    <View style={styles.successBanner}>
-      <Text style={styles.successText}>{STATS.successMessage}</Text>
-    </View>
-  </View>
-);
-
-// Vertical dashed timeline matching Figma: white @ 24% opacity, 2px stroke, 8/8 dasharray.
 const DashedTimeline = () => (
   <Svg width={2} height="100%" style={styles.weekTimeline}>
     <Path
@@ -133,14 +102,19 @@ const DashedTimeline = () => (
   </Svg>
 );
 
-const WeekBlock = ({ section, isLast }: { section: WeekSection; isLast: boolean }) => (
+const WeekBlock = ({
+  section,
+  isLast,
+}: {
+  section: ExerciseHistoryWeekSection;
+  isLast: boolean;
+}) => (
   <View style={styles.weekBlock}>
     <View style={styles.weekHeader}>
       <Text style={styles.weekTitle}>{section.weekLabel}</Text>
       <Text style={styles.weekMonth}>{section.monthLabel}</Text>
     </View>
     <View style={styles.weekEntries}>
-      {/* Skip the connector on the oldest week — nothing comes after it. */}
       {!isLast ? <DashedTimeline /> : null}
       <View style={styles.weekEntryList}>
         {section.entries.map((e) => (
@@ -150,7 +124,7 @@ const WeekBlock = ({ section, isLast }: { section: WeekSection; isLast: boolean 
             weightKg={e.weightKg}
             reps={e.reps}
             delta={e.delta}
-            badge={e.badge}
+            badge={e.isPR}
           />
         ))}
       </View>
@@ -161,7 +135,27 @@ const WeekBlock = ({ section, isLast }: { section: WeekSection; isLast: boolean 
 const ExerciseHistoryScreen = () => {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const totalEntries = WEEK_SECTIONS.reduce((sum, s) => sum + s.entries.length, 0);
+  const { t } = useTranslation();
+  const route = useRoute<RouteProp<HomeStackParamList, "ExerciseHistory">>();
+  const exerciseId = route.params?.exerciseId;
+  const exerciseName = route.params?.title ?? "";
+  const eyebrow = route.params?.subtitle ?? "";
+
+  const { data, loading , error } = useExerciseHistory({
+    exerciseId,
+    exerciseName,
+  });
+
+  const chartData: ChartPoint[] = useMemo(
+    () =>
+      data?.chart.points.map((c) => ({
+        label: c.label,
+        value: c.weightKg,
+        isReal: c.isReal,
+      })) ?? [],
+    [data],
+  );
+  const xTickLabels = data?.chart.xTickLabels ?? [];
 
   return (
     <View style={styles.root}>
@@ -172,25 +166,54 @@ const ExerciseHistoryScreen = () => {
           { paddingTop: headerHeight + 16, paddingBottom: insets.bottom + 100 },
         ]}
       >
-        <StatsCard />
-
-        <View style={styles.historyHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.historyEyebrow}>Deadlift</Text>
-            <Text style={styles.historyTitle}>Session History</Text>
-          </View>
-          <Text style={styles.historyCount}>{`${totalEntries} Sessions`}</Text>
-        </View>
-
-        <View style={styles.weekList}>
-          {WEEK_SECTIONS.map((section, idx) => (
-            <WeekBlock
-              key={section.id}
-              section={section}
-              isLast={idx === WEEK_SECTIONS.length - 1}
+        {data && data.totalSessions > 0 ? (
+          <>
+            <StatsCard
+              stats={data.stats}
+              chart={chartData}
+              xTickLabels={xTickLabels}
+              successMessage={t("history.successBanner")}
+              labels={{
+                current: t("history.stats.current"),
+                heaviest: t("history.stats.heaviest"),
+                lightest: t("history.stats.lightest"),
+              }}
             />
-          ))}
-        </View>
+
+            <View style={styles.historyHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.historyEyebrow}>{exerciseName || eyebrow}</Text>
+                <Text style={styles.historyTitle}>{t("history.sessionHistory")}</Text>
+              </View>
+              <Text style={styles.historyCount}>
+                {t("history.sessionsCount", { count: data.totalSessions })}
+              </Text>
+            </View>
+
+            <View style={styles.weekList}>
+              {data.sections.map((section, idx) => (
+                <WeekBlock
+                  key={section.id}
+                  section={section}
+                  isLast={idx === data.sections.length - 1}
+                />
+              ))}
+            </View>
+          </>
+        ) : loading ? (
+          <ExerciseHistoryScreenSkeleton />
+        ) : (
+          <View style={styles.statusBox}>
+            {error ? (
+              <Text style={styles.statusText}>{t("history.error")}</Text>
+            ) : (
+              <>
+                <Text style={styles.statusTitle}>{t("history.empty.title")}</Text>
+                <Text style={styles.statusText}>{t("history.empty.subtitle")}</Text>
+              </>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       <ScreenFades hideTop bottomExtra={80} />
@@ -210,7 +233,6 @@ const styles = StyleSheet.create({
     gap: 24,
   },
 
-  // Stats card
   statsCard: {
     backgroundColor: "#111111",
     borderWidth: 1,
@@ -264,7 +286,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
-  // Success banner
   successBanner: {
     backgroundColor: "rgba(61,202,122,0.08)",
     borderWidth: 1,
@@ -281,7 +302,6 @@ const styles = StyleSheet.create({
     color: POSITIVE,
   },
 
-  // History header
   historyHeader: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -312,7 +332,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // Week sections
   weekList: {
     gap: 24,
   },
@@ -351,4 +370,25 @@ const styles = StyleSheet.create({
     gap: 16,
   },
 
+  statusBox: {
+    minHeight: 200,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 24,
+  },
+  statusTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 18,
+    lineHeight: 22,
+    color: "#F0F0F0",
+    textAlign: "center",
+  },
+  statusText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(240,240,240,0.72)",
+    textAlign: "center",
+  },
 });

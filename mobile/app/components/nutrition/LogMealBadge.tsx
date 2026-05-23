@@ -5,15 +5,23 @@ import { useTranslation } from "react-i18next";
 
 interface LogMealBadgeProps {
   onPress: () => void;
+  /** Renders the badge in a faded, non-interactive state. Used when the
+   *  Nutrition tab is viewing a non-today date (preview-only). */
+  disabled?: boolean;
 }
 
-const LogMealBadge = ({ onPress }: LogMealBadgeProps) => {
+const LogMealBadge = ({ onPress, disabled }: LogMealBadgeProps) => {
   const { t } = useTranslation();
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.badge, pressed && styles.pressed]}
+      disabled={disabled}
+      style={({ pressed }) => [
+        styles.badge,
+        pressed && !disabled && styles.pressed,
+        disabled && styles.disabled,
+      ]}
     >
       <LinearGradient
         pointerEvents="none"
@@ -38,6 +46,9 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  disabled: {
+    opacity: 0.4,
   },
   text: {
     fontFamily: FONTS.medium,

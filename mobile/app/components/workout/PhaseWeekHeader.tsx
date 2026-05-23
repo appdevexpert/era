@@ -14,10 +14,27 @@ interface PhaseWeekHeaderProps {
   onPrevWeek?: () => void;
   onNextWeek?: () => void;
   onDayPress?: (day: DayItem) => void;
+  canGoPrev?: boolean;
+  canGoNext?: boolean;
+  /** Forwarded to WeekDaySelector — opt-in clicks on dashed/future day pills. */
+  enableInactivePress?: boolean;
 }
 
-const ChevButton = ({ direction, onPress }: { direction: "left" | "right"; onPress?: () => void }) => (
-  <IconButton onPress={onPress} size={32} tint="subtle">
+const ChevButton = ({
+  direction,
+  onPress,
+  disabled,
+}: {
+  direction: "left" | "right";
+  onPress?: () => void;
+  disabled?: boolean;
+}) => (
+  <IconButton
+    onPress={disabled ? undefined : onPress}
+    size={32}
+    tint="subtle"
+    style={disabled ? { opacity: 0.35 } : undefined}
+  >
     {direction === "left" ? (
       <ChevronBack width={20} height={20} color={COLORS.primary.dark} />
     ) : (
@@ -34,6 +51,9 @@ const PhaseWeekHeader = ({
   onPrevWeek,
   onNextWeek,
   onDayPress,
+  canGoPrev = true,
+  canGoNext = true,
+  enableInactivePress,
 }: PhaseWeekHeaderProps) => {
   const { t } = useTranslation();
 
@@ -42,17 +62,21 @@ const PhaseWeekHeader = ({
       <View style={styles.topRow}>
         <Text style={styles.title}>{title}</Text>
         <View style={styles.weekNav}>
-          <ChevButton direction="left" onPress={onPrevWeek} />
+          <ChevButton direction="left" onPress={onPrevWeek} disabled={!canGoPrev} />
           <View style={styles.weekCounter}>
             <Text style={styles.weekCounterValue}>
               {t("nutrition.weekProgress", { current: currentWeek, total: totalWeeks })}
             </Text>
             <Text style={styles.weekCounterLabel}>{t("nutrition.weekLabel")}</Text>
           </View>
-          <ChevButton direction="right" onPress={onNextWeek} />
+          <ChevButton direction="right" onPress={onNextWeek} disabled={!canGoNext} />
         </View>
       </View>
-      <WeekDaySelector days={days} onDayPress={onDayPress} />
+      <WeekDaySelector
+        days={days}
+        onDayPress={onDayPress}
+        enableInactivePress={enableInactivePress}
+      />
     </View>
   );
 };

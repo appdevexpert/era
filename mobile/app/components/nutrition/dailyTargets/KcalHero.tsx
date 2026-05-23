@@ -1,4 +1,5 @@
 import { FONTS } from "@/app/constants/fonts";
+import { useAnimatedCounter } from "@/app/hooks/useAnimatedCounter";
 import { FireGold } from "@/assets/icons";
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -12,10 +13,11 @@ interface KcalHeroProps {
 /** Centered text + flame icon shown inside the semicircle gauge. */
 const KcalHero = ({ eaten, total }: KcalHeroProps) => {
   const { t } = useTranslation();
+  const displayEaten = useAnimatedCounter(eaten);
   return (
     <View style={styles.wrap}>
       <FireGold width={36} height={36} />
-      <Text style={styles.value}>{eaten}</Text>
+      <Text style={styles.value}>{displayEaten}</Text>
       <Text style={styles.total}>{`${total} ${t("nutrition.caloriesUnit")}`}</Text>
     </View>
   );

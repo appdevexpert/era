@@ -5,14 +5,16 @@ import { StyleSheet, View } from "react-native";
 interface MealsTimelineProps {
   meals: MealRow[];
   onToggleMeal?: (meal: MealRow) => void;
+  /** When true, each meal's +/− button renders as faded and non-interactive. */
+  disabled?: boolean;
 }
 
-const MealsTimeline = ({ meals, onToggleMeal }: MealsTimelineProps) => (
+const MealsTimeline = ({ meals, onToggleMeal, disabled }: MealsTimelineProps) => (
   <View style={styles.list}>
     {meals.map((meal, idx) => (
       <View key={meal.id} style={styles.rowWrap}>
         {idx < meals.length - 1 ? <View style={styles.connector} /> : null}
-        <MealCard meal={meal} onToggle={onToggleMeal} />
+        <MealCard meal={meal} onToggle={onToggleMeal} disabled={disabled} />
       </View>
     ))}
   </View>

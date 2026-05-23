@@ -1,3 +1,12 @@
+import { useEffect } from "react";
+import Animated, {
+  Easing,
+  interpolate,
+  type SharedValue,
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
 import {
   SEMICIRCLE_GAUGE_SIZE,
@@ -23,15 +32,44 @@ const CAPSULE_PATHS = [
   "M197.484 81.0492C200.711 80.2993 203.954 82.3061 204.515 85.572C205.173 89.4044 205.613 93.2709 205.834 97.153C206.022 100.461 203.314 103.146 200 103.141L186.25 103.121C182.936 103.116 180.278 100.422 180.026 97.1181C179.88 95.2079 179.663 93.3038 179.376 91.4098C178.878 88.1336 180.863 84.9107 184.09 84.1608L197.484 81.0492Z",
 ];
 
+const DIM_OPACITY = 0.15;
+const LIT_OPACITY = 1;
+const TWEEN_DURATION_MS = 900;
+
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+
 interface SemicircleGaugeProps {
   value: number;
   total: number;
 }
 
-/** Semicircle of 11 capsule segments. Lit ones use the gradient, dim ones fade out. */
+interface SegmentProps {
+  d: string;
+  index: number;
+  ratio: SharedValue<number>;
+}
+
+/** Each segment fades from dim → lit as the animated ratio crosses its slice of the arc. */
+const Segment = ({ d, index, ratio }: SegmentProps) => {
+  const start = index / SEGMENT_COUNT;
+  const end = (index + 1) / SEGMENT_COUNT;
+  const animatedProps = useAnimatedProps(() => ({
+    fillOpacity: interpolate(ratio.value, [start, end], [DIM_OPACITY, LIT_OPACITY], "clamp"),
+  }));
+  return <AnimatedPath d={d} fill="url(#capsuleLit)" animatedProps={animatedProps} />;
+};
+
+/** Semicircle of 11 capsule segments. Animates smoothly as value/total changes. */
 const SemicircleGauge = ({ value, total }: SemicircleGaugeProps) => {
-  const ratio = total > 0 ? Math.min(value / total, 1) : 0;
-  const litCount = Math.max(1, Math.round(ratio * SEGMENT_COUNT));
+  const target = total > 0 ? Math.min(value / total, 1) : 0;
+  const ratio = useSharedValue(target);
+
+  useEffect(() => {
+    ratio.value = withTiming(target, {
+      duration: TWEEN_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [ratio, target]);
 
   return (
     <Svg
@@ -54,7 +92,7 @@ const SemicircleGauge = ({ value, total }: SemicircleGaugeProps) => {
         </SvgLinearGradient>
       </Defs>
       {CAPSULE_PATHS.map((d, i) => (
-        <Path key={i} d={d} fill="url(#capsuleLit)" fillOpacity={i < litCount ? 1 : 0.15} />
+        <Segment key={i} d={d} index={i} ratio={ratio} />
       ))}
     </Svg>
   );

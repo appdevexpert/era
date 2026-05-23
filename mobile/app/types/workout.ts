@@ -266,3 +266,106 @@ export interface CompletedSessionDetail {
   totalExercises: number;
   durationMinutes: number;
 }
+
+/* ─── Weights tab + Exercise history view models ─── */
+
+/** One row on WeightsScreen — today's planned exercise + last logged numbers. */
+export interface ExerciseSummaryView {
+  id: string;
+  programDayExerciseId: string;
+  exerciseLibraryId: string;
+  name: string;
+  category: string;
+  meta: string;
+  sets: number;
+  reps: number;
+  weightKg: number;
+  delta?: { kg: number; positive: boolean };
+  muscles: MuscleGroup[];
+}
+
+/** Stats card on ExerciseHistoryScreen. */
+export interface ExerciseHistoryStats {
+  currentKg: number | null;
+  currentReps: number | null;
+  heaviestKg: number | null;
+  lightestKg: number | null;
+}
+
+/** One bar on the 12-week chart — heaviest set logged in that week. */
+export interface ExerciseHistoryChartPoint {
+  weekNumber: number;
+  label: string;
+  weightKg: number;
+  /** True when this point is the latest real data (carry-forward weeks set this false). */
+  isReal: boolean;
+}
+
+export interface ExerciseHistoryChart {
+  /** Points to plot the line over. Only includes weeks with real data
+   *  (plus a single phantom point when there's just one real week so a
+   *  short stub renders). */
+  points: ExerciseHistoryChartPoint[];
+  /** Full x-axis tick labels, e.g. ["W1","W2","W3","W4","W5"]. Always
+   *  ≥ MIN_CHART_WEEKS so the chart shell matches the Figma. */
+  xTickLabels: string[];
+}
+
+/** One row in the week-grouped session history list. */
+export interface ExerciseHistoryEntry {
+  id: string;
+  dateLabel: string;
+  weekNumber: number;
+  weightKg: number;
+  reps: number;
+  delta?: { kg: number; positive: boolean };
+  isPR: boolean;
+}
+
+export interface ExerciseHistoryWeekSection {
+  id: string;
+  weekNumber: number;
+  weekLabel: string;
+  monthLabel: string;
+  entries: ExerciseHistoryEntry[];
+}
+
+export interface ExerciseHistoryView {
+  exerciseName: string;
+  stats: ExerciseHistoryStats;
+  chart: ExerciseHistoryChart;
+  sections: ExerciseHistoryWeekSection[];
+  totalSessions: number;
+}
+
+/* ─── Raw rows returned by sessionService history queries ─── */
+
+export interface SessionSetHistoryRow {
+  id: string;
+  logged_weight_value: number | null;
+  logged_reps: number | null;
+  is_personal_record: boolean;
+  is_best_set: boolean;
+  completed_at: string | null;
+  week_number: number;
+  day_number: number;
+  session_id: string;
+}
+
+export interface ExerciseHistoryRaw {
+  stats: {
+    currentKg: number | null;
+    currentReps: number | null;
+    heaviestKg: number | null;
+    lightestKg: number | null;
+  };
+  sets: SessionSetHistoryRow[];
+}
+
+export interface ExerciseSummaryRaw {
+  /** Last (most recent) heaviest working set of the exercise. */
+  lastKg: number | null;
+  lastReps: number | null;
+  /** Second-most-recent heaviest working set, used for delta. */
+  previousKg: number | null;
+}

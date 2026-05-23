@@ -8,7 +8,10 @@ import {
 } from "@/app/navigation";
 import { login, clearSession } from "@/app/stores/slice/authSlice";
 import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
-import { submitGoalData } from "@/app/stores/slice/onboardingSlice";
+import {
+  loadGoalDataFromSupabase,
+  submitGoalData,
+} from "@/app/stores/slice/onboardingSlice";
 import { clearWorkoutCache } from "@/app/stores/slice/workoutSlice";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import { useAppDispatch } from "@/app/stores/store";
@@ -85,6 +88,7 @@ const Navigation = () => {
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
   const isOnboarded = useSelector((state: RootState) => state.auth.isOnboarded);
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
+  const userId = useSelector((state: RootState) => state.auth.user?.id);
   const isPlanGenerated = useSelector((state: RootState) => state.auth.isPlanGenerated);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
   const [isRecovery, setIsRecovery] = useState(false);
@@ -121,6 +125,10 @@ const Navigation = () => {
         if (event === "SIGNED_IN" && session?.user) {
           if (!isRecovery) {
             dispatch(login(mapSupabaseUser(session.user)));
+            // The thunk itself guards against pushing empty data, so this
+            // is safe for both fresh-onboarding users (push) and returning
+            // users with reset Redux (no-op; loadGoalDataFromSupabase
+            // below handles the pull).
             dispatch(submitGoalData());
           }
         } else if (event === "SIGNED_OUT") {
@@ -146,6 +154,12 @@ const Navigation = () => {
   useEffect(() => {
     if (queueLength > 0) flushQueue();
   }, [queueLength, flushQueue]);
+
+  // Pull the user's body data from Supabase whenever we know who they are.
+  // Cheap network call; harmless if Redux already has fresh values.
+  useEffect(() => {
+    if (userId) dispatch(loadGoalDataFromSupabase());
+  }, [dispatch, userId]);
 
   const clearRecovery = useCallback(() => {
     setIsRecovery(false);

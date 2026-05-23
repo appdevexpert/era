@@ -314,6 +314,7 @@ const WorkoutPlanScreen = () => {
       </ScrollView>
 
       <ScreenFades />
+      
       <AdjustmentInfoBottomSheet ref={adjustmentSheetRef} />
     </View>
   );

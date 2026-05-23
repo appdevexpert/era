@@ -7,8 +7,11 @@ import type {
   CompletedExerciseView,
   CompletedSessionDetail,
   CompletedSetView,
+  ExerciseHistoryRaw,
+  ExerciseSummaryRaw,
   SessionExercise,
   SessionExerciseSet,
+  SessionSetHistoryRow,
 } from "@/app/types/workout";
 import { supabase } from "@/app/utils/auth";
 
@@ -559,5 +562,174 @@ export async function getCompletedSessionDetail(
     exercises: completedExercises,
     totalExercises: session.total_exercises ?? exerciseRows.length,
     durationMinutes: Math.round((session.duration_seconds ?? 0) / 60),
+  };
+}
+
+/* ─── Read: WeightsScreen — last + previous heaviest set per exercise ─── */
+
+/**
+ * Returns { lastKg, lastReps, previousKg } per exercise_id for a batch of exercises.
+ * Strategy: pull all completed weighted sets for these exercises in one query,
+ * group by exercise, sort by completed_at desc, then pick:
+ *   - lastKg  = heaviest set of the most recent session
+ *   - previousKg = heaviest set of the session before that
+ * UI computes delta = lastKg - previousKg.
+ */
+export async function fetchCurrentDayExerciseSummaries(params: {
+  userId: string;
+  exerciseIds: string[];
+}): Promise<Map<string, ExerciseSummaryRaw>> {
+  const result = new Map<string, ExerciseSummaryRaw>();
+  if (params.exerciseIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from("session_sets")
+    .select(
+      `id, logged_weight_value, logged_reps, completed_at,
+       session_exercises!inner ( exercise_id, session_id,
+         workout_sessions!inner ( user_id, completed_at ) )`,
+    )
+    .eq("session_exercises.workout_sessions.user_id", params.userId)
+    .in("session_exercises.exercise_id", params.exerciseIds)
+    .not("logged_weight_value", "is", null)
+    .eq("status", "completed");
+
+  throwIfError(error, "Failed to fetch exercise summaries");
+
+  // Group by exercise_id, then by session_id.
+  type Row = {
+    id: string;
+    logged_weight_value: number | string | null;
+    logged_reps: number | null;
+    completed_at: string | null;
+    session_exercises: {
+      exercise_id: string;
+      session_id: string;
+      workout_sessions: { user_id: string; completed_at: string | null };
+    };
+  };
+
+  const byExercise = new Map<string, Map<string, { sessionDate: string; heaviest: number; reps: number | null }>>();
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const exerciseId = row.session_exercises.exercise_id;
+    const sessionId = row.session_exercises.session_id;
+    const sessionDate = row.session_exercises.workout_sessions.completed_at ?? row.completed_at ?? "";
+    const weight = row.logged_weight_value == null ? null : Number(row.logged_weight_value);
+    if (weight == null) continue;
+
+    let sessions = byExercise.get(exerciseId);
+    if (!sessions) {
+      sessions = new Map();
+      byExercise.set(exerciseId, sessions);
+    }
+    const prev = sessions.get(sessionId);
+    if (!prev || weight > prev.heaviest) {
+      sessions.set(sessionId, { sessionDate, heaviest: weight, reps: row.logged_reps });
+    }
+  }
+
+  for (const [exerciseId, sessions] of byExercise.entries()) {
+    const ordered = [...sessions.values()].sort((a, b) =>
+      a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0,
+    );
+    result.set(exerciseId, {
+      lastKg: ordered[0]?.heaviest ?? null,
+      lastReps: ordered[0]?.reps ?? null,
+      previousKg: ordered[1]?.heaviest ?? null,
+    });
+  }
+
+  return result;
+}
+
+/* ─── Read: ExerciseHistoryScreen — full history for one exercise ─── */
+
+/**
+ * Returns every logged weighted set for (user, exercise), plus stats
+ * (current/heaviest/lightest). Week/day numbers are joined from program_weeks.
+ */
+export async function fetchExerciseHistoryDetail(params: {
+  userId: string;
+  exerciseId: string;
+}): Promise<ExerciseHistoryRaw> {
+  const { data, error } = await supabase
+    .from("session_sets")
+    .select(
+      `id, logged_weight_value, logged_reps, is_personal_record, is_best_set, completed_at,
+       session_exercises!inner ( exercise_id, session_id,
+         workout_sessions!inner ( id, user_id, completed_at, program_day_id,
+           program_days!inner ( day_number,
+             program_weeks!inner ( week_number ) ) ) )`,
+    )
+    .eq("session_exercises.workout_sessions.user_id", params.userId)
+    .eq("session_exercises.exercise_id", params.exerciseId)
+    .not("logged_weight_value", "is", null)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false });
+
+  throwIfError(error, "Failed to fetch exercise history");
+
+  type Row = {
+    id: string;
+    logged_weight_value: number | string | null;
+    logged_reps: number | null;
+    is_personal_record: boolean;
+    is_best_set: boolean;
+    completed_at: string | null;
+    session_exercises: {
+      exercise_id: string;
+      session_id: string;
+      workout_sessions: {
+        id: string;
+        user_id: string;
+        completed_at: string | null;
+        program_day_id: string;
+        program_days: {
+          day_number: number;
+          program_weeks: { week_number: number };
+        };
+      };
+    };
+  };
+
+  const sets: SessionSetHistoryRow[] = ((data ?? []) as unknown as Row[]).map((row) => ({
+    id: row.id,
+    logged_weight_value: row.logged_weight_value == null ? null : Number(row.logged_weight_value),
+    logged_reps: row.logged_reps,
+    is_personal_record: !!row.is_personal_record,
+    is_best_set: !!row.is_best_set,
+    completed_at: row.session_exercises.workout_sessions.completed_at ?? row.completed_at,
+    week_number: row.session_exercises.workout_sessions.program_days.program_weeks.week_number,
+    day_number: row.session_exercises.workout_sessions.program_days.day_number,
+    session_id: row.session_exercises.workout_sessions.id,
+  }));
+
+  // Stats: current = heaviest set of most recent session, heaviest = max ever, lightest = min ever
+  const weights = sets
+    .map((s) => s.logged_weight_value)
+    .filter((w): w is number => w != null);
+  const heaviestKg = weights.length ? Math.max(...weights) : null;
+  const lightestKg = weights.length ? Math.min(...weights) : null;
+
+  // Most recent session = first set's session (already ordered desc)
+  let currentKg: number | null = null;
+  let currentReps: number | null = null;
+  if (sets.length > 0) {
+    const recentSessionId = sets[0].session_id;
+    const recentSets = sets.filter((s) => s.session_id === recentSessionId);
+    const top = recentSets.reduce(
+      (best, s) =>
+        s.logged_weight_value != null && s.logged_weight_value > (best?.logged_weight_value ?? -Infinity)
+          ? s
+          : best,
+      recentSets[0],
+    );
+    currentKg = top.logged_weight_value;
+    currentReps = top.logged_reps;
+  }
+
+  return {
+    stats: { currentKg, currentReps, heaviestKg, lightestKg },
+    sets,
   };
 }
