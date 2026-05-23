@@ -3,6 +3,7 @@ import { supabase } from "@/app/utils/auth";
 export type GoalData = {
   user_id: string;
   gender: string | null;
+  birth_year: number | null;
   level: string | null;
   goal: string | null;
   focus: string | null;

@@ -43,6 +43,19 @@ export const PLANNED_SET_KINDS = [
   "cardio",
 ] as const;
 
+export const MEAL_CATEGORIES = [
+  "breakfast",
+  "lunch",
+  "snack",
+  "evening_snack",
+  "dinner",
+  "pre_workout",
+  "post_workout",
+  "cheat_meal",
+] as const;
+
+export const MEAL_PHASE_KEYS = ["hypertrophy", "strength", "peak"] as const;
+
 export const MUSCLE_GROUPS = [
   "chest",
   "shoulders",

@@ -8,6 +8,12 @@ import type {
   DayExerciseRow,
   DaySectionRow,
   ExerciseRow,
+  MealLibraryRow,
+  MealProgramDetail,
+  MealProgramPhaseDayItemRow,
+  MealProgramPhaseDayRow,
+  MealProgramPhaseRow,
+  MealProgramRow,
   PlannedSetRow,
   ProfileRow,
   ProgramDayRow,
@@ -473,6 +479,229 @@ export async function getProgramDetail(
       dayExercisesResult.error?.message ??
       setsResult.error?.message ??
       exercisesResult.error?.message ??
+      null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Nutrition — meal library
+// ---------------------------------------------------------------------------
+
+export type MealLibraryStatusFilter = "all" | "active" | "inactive";
+
+export async function getMealLibrary(
+  page = 1,
+  pageSize = DEFAULT_PAGE_SIZE,
+  search = "",
+  statusFilter: MealLibraryStatusFilter = "all",
+): Promise<PaginatedDataState<MealLibraryRow[]>> {
+  const empty = {
+    data: [] as MealLibraryRow[],
+    configError: null as string | null,
+    page,
+    pageSize,
+    totalCount: 0,
+    totalPages: 0,
+  };
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { ...empty, configError };
+
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("meal_library")
+    .select("*", { count: "exact" })
+    .order("category", { ascending: true })
+    .order("updated_at", { ascending: false })
+    .range(from, to);
+
+  if (search) {
+    query = query.ilike("slug", `%${search}%`);
+  }
+  if (statusFilter === "active") {
+    query = query.eq("is_active", true);
+  } else if (statusFilter === "inactive") {
+    query = query.eq("is_active", false);
+  }
+
+  const { data, error, count } = await query;
+  const totalCount = count ?? 0;
+
+  return {
+    data: error ? [] : (data as MealLibraryRow[]),
+    configError: error?.message ?? null,
+    page,
+    pageSize,
+    totalCount,
+    totalPages: Math.ceil(totalCount / pageSize),
+  };
+}
+
+export async function getMealLibraryItem(
+  id?: string,
+): Promise<AdminDataState<MealLibraryRow | null>> {
+  if (!id) return { data: null, configError: null };
+
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: null, configError };
+
+  const { data, error } = await supabase
+    .from("meal_library")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  return {
+    data: error ? null : (data as MealLibraryRow | null),
+    configError: error?.message ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Nutrition — meal programs (list + detail with phases/days/items)
+// ---------------------------------------------------------------------------
+
+export async function getMealPrograms(): Promise<AdminDataState<MealProgramRow[]>> {
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: [], configError };
+
+  const [programsResult, phasesResult, itemsResult] = await Promise.all([
+    supabase
+      .from("meal_programs")
+      .select("*")
+      .order("updated_at", { ascending: false }),
+    supabase.from("meal_program_phases").select("id, meal_program_id"),
+    supabase
+      .from("meal_program_phase_day_items")
+      .select(
+        "id, meal_program_phase_days!inner(meal_program_phases!inner(meal_program_id))",
+      ),
+  ]);
+
+  const phases = phasesResult.data ?? [];
+
+  type ItemRow = {
+    id: string;
+    meal_program_phase_days?: {
+      meal_program_phases?: { meal_program_id?: string } | null;
+    } | null;
+  };
+  const itemsByProgram = new Map<string, number>();
+  (itemsResult.data ?? []).forEach((row) => {
+    const item = row as ItemRow;
+    const programId = item.meal_program_phase_days?.meal_program_phases?.meal_program_id;
+    if (programId) {
+      itemsByProgram.set(programId, (itemsByProgram.get(programId) ?? 0) + 1);
+    }
+  });
+
+  const programs = ((programsResult.data ?? []) as MealProgramRow[]).map(
+    (program) => ({
+      ...program,
+      phaseCount: phases.filter((p) => p.meal_program_id === program.id).length,
+      itemCount: itemsByProgram.get(program.id) ?? 0,
+    }),
+  );
+
+  return {
+    data: programs,
+    configError:
+      programsResult.error?.message ??
+      phasesResult.error?.message ??
+      itemsResult.error?.message ??
+      null,
+  };
+}
+
+export async function getMealProgram(
+  id?: string,
+): Promise<AdminDataState<MealProgramRow | null>> {
+  if (!id) return { data: null, configError: null };
+
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: null, configError };
+
+  const { data, error } = await supabase
+    .from("meal_programs")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  return {
+    data: error ? null : (data as MealProgramRow | null),
+    configError: error?.message ?? null,
+  };
+}
+
+export async function getMealProgramDetail(
+  programId: string,
+): Promise<AdminDataState<MealProgramDetail>> {
+  const empty: MealProgramDetail = {
+    program: null,
+    phases: [],
+    phaseDays: [],
+    phaseDayItems: [],
+    library: [],
+  };
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: empty, configError };
+
+  const [programResult, phasesResult, libraryResult] = await Promise.all([
+    supabase
+      .from("meal_programs")
+      .select("*")
+      .eq("id", programId)
+      .maybeSingle(),
+    supabase
+      .from("meal_program_phases")
+      .select("*")
+      .eq("meal_program_id", programId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("meal_library")
+      .select("*")
+      .eq("is_active", true)
+      .order("category", { ascending: true })
+      .order("updated_at", { ascending: false }),
+  ]);
+
+  const phases = (phasesResult.data ?? []) as MealProgramPhaseRow[];
+  const phaseIds = phases.map((p) => p.id);
+
+  const phaseDaysResult = phaseIds.length
+    ? await supabase
+        .from("meal_program_phase_days")
+        .select("*")
+        .in("meal_program_phase_id", phaseIds)
+        .order("day_of_week", { ascending: true })
+    : { data: [] as MealProgramPhaseDayRow[], error: null };
+
+  const phaseDays = (phaseDaysResult.data ?? []) as MealProgramPhaseDayRow[];
+  const phaseDayIds = phaseDays.map((d) => d.id);
+
+  const itemsResult = phaseDayIds.length
+    ? await supabase
+        .from("meal_program_phase_day_items")
+        .select(
+          "*, meal_library:meal_library_id(name_translations, category, kcal)",
+        )
+        .in("meal_program_phase_day_id", phaseDayIds)
+        .order("sort_order", { ascending: true })
+    : { data: [] as MealProgramPhaseDayItemRow[], error: null };
+
+  return {
+    data: {
+      program: (programResult.data ?? null) as MealProgramRow | null,
+      phases,
+      phaseDays,
+      phaseDayItems: (itemsResult.data ?? []) as MealProgramPhaseDayItemRow[],
+      library: (libraryResult.data ?? []) as MealLibraryRow[],
+    },
+    configError:
+      programResult.error?.message ??
+      phasesResult.error?.message ??
+      libraryResult.error?.message ??
       null,
   };
 }

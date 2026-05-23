@@ -5,6 +5,7 @@ import { updateGoalData } from '@/app/stores/slice/onboardingSlice'
 import { useAppDispatch } from '@/app/stores/store'
 import OnboardingLayout from '@/app/components/common/OnboardingLayout'
 import GenderStep from './steps/GenderStep'
+import AgeStep from './steps/AgeStep'
 import LevelStep from './steps/LevelStep'
 import GoalStep from './steps/GoalStep'
 import FocusStep from './steps/FocusStep'
@@ -14,12 +15,13 @@ import WeightStep, { type WeightUnit } from './steps/WeightStep'
 import HeightStep, { type HeightUnit } from './steps/HeightStep'
 import RevenueCatPaywallStep from './steps/RevenueCatPaywallStep'
 
-const TOTAL_STEPS = 8
+const TOTAL_STEPS = 9
 
-const STEPS = ['gender', 'level', 'goal', 'focus', 'friction', 'weight', 'height', 'paywall'] as const
+const STEPS = ['gender', 'age', 'level', 'goal', 'focus', 'friction', 'weight', 'height', 'paywall'] as const
 
 interface Selections {
   gender: string | null
+  birthYear: number
   level: string | null
   goal: string | null
   focus: string | null
@@ -38,6 +40,7 @@ const Onboarding = () => {
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [selections, setSelections] = useState<Selections>({
     gender: null,
+    birthYear: new Date().getFullYear() - 25,
     level: null,
     goal: null,
     focus: null,
@@ -52,19 +55,31 @@ const Onboarding = () => {
   const currentStepKey = STEPS[stepIndex]
   const isAdvancedFocusStep = currentStepKey === 'focus' && selections.level === 'advanced'
   const layoutStepKey = isAdvancedFocusStep ? 'advancedFocus' : currentStepKey
-  const currentValue = currentStepKey === 'paywall'
-    ? true
-    : isAdvancedFocusStep
-      ? selections.advancedFocus
-      : selections[currentStepKey]
-  const buttonDisabled = currentStepKey === 'weight' || currentStepKey === 'height' || currentStepKey === 'paywall'
-    ? false
-    : Array.isArray(currentValue)
-      ? currentValue.length === 0
-      : !currentValue
+  const currentValue =
+    currentStepKey === 'paywall'
+      ? true
+      : currentStepKey === 'age'
+        ? selections.birthYear
+        : isAdvancedFocusStep
+          ? selections.advancedFocus
+          : selections[currentStepKey]
+  const buttonDisabled =
+    currentStepKey === 'age' ||
+    currentStepKey === 'weight' ||
+    currentStepKey === 'height' ||
+    currentStepKey === 'paywall'
+      ? false
+      : Array.isArray(currentValue)
+        ? currentValue.length === 0
+        : !currentValue
 
   const handleSelect = (value: string) => {
-    if (currentStepKey === 'weight' || currentStepKey === 'height' || currentStepKey === 'paywall') return
+    if (
+      currentStepKey === 'age' ||
+      currentStepKey === 'weight' ||
+      currentStepKey === 'height' ||
+      currentStepKey === 'paywall'
+    ) return
 
     const nextSelections: Selections = {
       ...selections,
@@ -96,6 +111,11 @@ const Onboarding = () => {
     }))
     dispatch(updateGoalData({ focus: advancedFocus, advancedFocus }))
   }
+
+  const handleBirthYearChange = useCallback((birthYear: number) => {
+    setSelections((prev) => ({ ...prev, birthYear }))
+    dispatch(updateGoalData({ birthYear }))
+  }, [dispatch])
 
   const handleWeightChange = useCallback((weight: number, weightUnit: WeightUnit) => {
     setSelections((prev) => ({
@@ -151,6 +171,9 @@ const Onboarding = () => {
     >
       {currentStepKey === 'gender' && (
         <GenderStep value={selections.gender} onSelect={handleSelect} />
+      )}
+      {currentStepKey === 'age' && (
+        <AgeStep value={selections.birthYear} onChange={handleBirthYearChange} />
       )}
       {currentStepKey === 'level' && (
         <LevelStep value={selections.level} onSelect={handleSelect} />

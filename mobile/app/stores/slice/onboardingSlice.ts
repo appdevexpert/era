@@ -28,6 +28,7 @@ export const submitGoalData = createAsyncThunk(
     const goalData: GoalData = {
       user_id: userId,
       gender: g.gender ?? null,
+      birth_year: typeof g.birthYear === "number" ? g.birthYear : null,
       level: g.level ?? null,
       goal: g.goal ?? null,
       focus: g.focus ?? null,

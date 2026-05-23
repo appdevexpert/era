@@ -1,4 +1,15 @@
+import { ComponentType } from "react";
+import { SvgProps } from "react-native-svg";
+
 export type MealCategory = "breakfast" | "lunch" | "eveningSnack" | "dinner";
+
+/**
+ * Where the row comes from — drives the eyebrow tag.
+ *   - "plan"   → "{Category} • As per plan"
+ *   - "custom" → "{Category} • Custom added"
+ * Only meaningful when `added` is true.
+ */
+export type MealSource = "plan" | "custom";
 
 export interface MealRow {
   id: string;
@@ -8,4 +19,15 @@ export interface MealRow {
   protein: number;
   carbs: number;
   fats: number;
+  /** True when the user has logged this meal for today. */
+  added?: boolean;
+  /** Origin of the row when added; ignored otherwise. */
+  source?: MealSource;
+  /** SVG component rendered inside the icon box (passed by the parent). */
+  Icon: ComponentType<SvgProps>;
+  /**
+   * Overrides the default icon tint. When omitted, the card uses gold for
+   * "added" rows and a dim gray for "not added" rows.
+   */
+  iconColor?: string;
 }

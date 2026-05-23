@@ -3,17 +3,24 @@ import { ComponentType } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { type SvgProps } from "react-native-svg";
 
-const ICON_COLOR = "#868592";
+const DEFAULT_ICON_COLOR = "#868592";
 
 interface MealMetaChipProps {
   Icon: ComponentType<SvgProps>;
   value: number | string;
   suffix?: string;
+  /** SVG `currentColor` tint. Defaults to neutral gray. */
+  color?: string;
 }
 
-const MealMetaChip = ({ Icon, value, suffix = "g" }: MealMetaChipProps) => (
+const MealMetaChip = ({
+  Icon,
+  value,
+  suffix = "g",
+  color = DEFAULT_ICON_COLOR,
+}: MealMetaChipProps) => (
   <View style={styles.chip}>
-    <Icon width={16} height={16} color={ICON_COLOR} />
+    <Icon width={16} height={16} color={color} />
     <Text style={styles.text}>
       {typeof value === "number" ? `${value}${suffix}` : value}
     </Text>

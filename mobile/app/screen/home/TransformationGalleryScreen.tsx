@@ -153,7 +153,18 @@ const TransformationGalleryScreen = () => {
 
       <ScreenFades hideTop />
 
-      <AddPhotoBottomSheet ref={addPhotoSheetRef} />
+      <AddPhotoBottomSheet
+        ref={addPhotoSheetRef}
+        onPhotoSelected={(photo) =>
+          photoPreviewSheetRef.current?.show({
+            source: { uri: photo.uri },
+            dateLabel: new Date().toLocaleDateString("en-US", {
+              month: "short",
+              day: "2-digit",
+            }),
+          })
+        }
+      />
       <PhotoPreviewBottomSheet ref={photoPreviewSheetRef} />
     </View>
   );

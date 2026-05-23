@@ -74,6 +74,7 @@ export { default as NutrientWheat } from "./nutrient-wheat.svg";
 export { default as NutrientCheese } from "./nutrient-cheese.svg";
 export { default as MealBreakfast } from "./meal-breakfast.svg";
 export { default as TablerPlus } from "./tabler-plus.svg";
+export { default as TablerMinus } from "./tabler-minus.svg";
 export { default as MealChipFire } from "./meal-chip-fire.svg";
 export { default as MealChipBeans } from "./meal-chip-beans.svg";
 export { default as MealChipWheat } from "./meal-chip-wheat.svg";

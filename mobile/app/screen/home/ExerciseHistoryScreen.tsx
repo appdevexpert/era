@@ -33,13 +33,21 @@ const STATS = {
   successMessage: "Great Job! Consistency is the key. You're mastering it.",
 };
 
-// Chart series matching the Figma curve (flat through W3, climb to W5).
+// 12-week progression — chart pages through these 4 weeks at a time
+// (W1-W4, W5-W8, W9-W12) so the user can swipe through the full program.
 const CHART_DATA: ChartPoint[] = [
   { label: "W1", value: 85.5 },
   { label: "W2", value: 85.5 },
   { label: "W3", value: 86 },
   { label: "W4", value: 88 },
-  { label: "W5", value: 99 },
+  { label: "W5", value: 90 },
+  { label: "W6", value: 92 },
+  { label: "W7", value: 94 },
+  { label: "W8", value: 95.5 },
+  { label: "W9", value: 96.5 },
+  { label: "W10", value: 97.5 },
+  { label: "W11", value: 98.5 },
+  { label: "W12", value: 99 },
 ];
 
 const WEEK_SECTIONS: WeekSection[] = [

@@ -28,6 +28,7 @@ import { useSelector } from "react-redux";
 import Svg, { Line } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { InfoCircleGold, MedalBadge } from "@/assets/icons";
+import ScreenFades from "@/app/components/common/ScreenFades";
 
 type DayPill = WorkoutPlanWeekView["days"][number];
 
@@ -309,8 +310,10 @@ const WorkoutPlanScreen = () => {
             </Text>
           </View>
         )}
+       
       </ScrollView>
 
+      <ScreenFades />
       <AdjustmentInfoBottomSheet ref={adjustmentSheetRef} />
     </View>
   );

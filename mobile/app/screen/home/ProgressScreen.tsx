@@ -1,6 +1,9 @@
 import AddPhotoBottomSheet, {
   type AddPhotoBottomSheetRef,
 } from "@/app/components/common/AddPhotoBottomSheet";
+import PhotoPreviewBottomSheet, {
+  type PhotoPreviewBottomSheetRef,
+} from "@/app/components/common/PhotoPreviewBottomSheet";
 import ScreenFades from "@/app/components/common/ScreenFades";
 import ScreenHeader from "@/app/components/common/ScreenHeader";
 import HistoryCard, { type HistoryDay } from "@/app/components/progress/HistoryCard";
@@ -45,12 +48,16 @@ const WEEK_DAYS: HistoryDay[] = [
 ];
 
 const WEIGHT_CHART_DATA: ChartPoint[] = [
-  { label: "01", value: 81 },
-  { label: "03", value: 81.2 },
-  { label: "05", value: 81.5 },
-  { label: "07", value: 82 },
+  { label: "01", value: 81.2 },
+  { label: "02", value: 81.2 },
+  { label: "03", value: 81.3 },
+  { label: "04", value: 81.3 },
+  { label: "05", value: 81.3 },
+  { label: "06", value: 81.4 },
+  { label: "07", value: 81.6 },
+  { label: "08", value: 82 },
   { label: "09", value: 82.5 },
-  { label: "10", value: 84 },
+  { label: "10", value: 83.8 },
 ];
 
 const PHOTOS: ProgressPhoto[] = [
@@ -66,6 +73,7 @@ const ProgressScreen = () => {
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<HomeStackParamList>>();
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
+  const photoPreviewSheetRef = useRef<PhotoPreviewBottomSheetRef>(null);
   const logWeightSheetRef = useRef<LogWeightBottomSheetRef>(null);
   const logHeightSheetRef = useRef<LogHeightBottomSheetRef>(null);
 
@@ -166,7 +174,19 @@ const ProgressScreen = () => {
 
       <ScreenFades />
 
-      <AddPhotoBottomSheet ref={addPhotoSheetRef} />
+      <AddPhotoBottomSheet
+        ref={addPhotoSheetRef}
+        onPhotoSelected={(photo) =>
+          photoPreviewSheetRef.current?.show({
+            source: { uri: photo.uri },
+            dateLabel: new Date().toLocaleDateString("en-US", {
+              month: "short",
+              day: "2-digit",
+            }),
+          })
+        }
+      />
+      <PhotoPreviewBottomSheet ref={photoPreviewSheetRef} />
       <LogWeightBottomSheet ref={logWeightSheetRef} initialKg={82} />
       <LogHeightBottomSheet ref={logHeightSheetRef} initialCm={180} />
     </View>
@@ -177,6 +197,6 @@ export default ProgressScreen;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0A0A0A" },
-  scrollContent: { paddingHorizontal: 20, gap: 32 },
+  scrollContent: { paddingHorizontal: 16, gap: 32 },
   section: { gap: 16 },
 });

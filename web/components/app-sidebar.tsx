@@ -7,11 +7,13 @@ import { usePathname } from "next/navigation";
 
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
+  Apple01Icon,
   BookOpen01Icon,
   DashboardSquare01Icon,
   Dumbbell01Icon,
   Logout03Icon,
   MoreVerticalIcon,
+  RestaurantTableIcon,
   UserGroupIcon,
   WorkoutRunIcon,
 } from "@hugeicons/core-free-icons";
@@ -50,6 +52,8 @@ const MANAGE_NAV: NavItem[] = [
   { href: "/", label: "Dashboard", icon: DashboardSquare01Icon },
   { href: "/exercises", label: "Exercises", icon: Dumbbell01Icon },
   { href: "/programs", label: "Programs", icon: WorkoutRunIcon },
+  { href: "/nutrition/library", label: "Meal Library", icon: Apple01Icon },
+  { href: "/nutrition/programs", label: "Meal Programs", icon: RestaurantTableIcon },
   { href: "/users", label: "Users", icon: UserGroupIcon },
   { href: "/guide", label: "Guide", icon: BookOpen01Icon },
 ];

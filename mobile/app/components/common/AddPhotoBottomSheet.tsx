@@ -7,6 +7,7 @@ import {
   BottomSheetModal,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
+import * as ImagePicker from "expo-image-picker";
 import {
   forwardRef,
   useCallback,
@@ -14,7 +15,7 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 export interface AddPhotoBottomSheetRef {
@@ -22,11 +23,19 @@ export interface AddPhotoBottomSheetRef {
   close: () => void;
 }
 
+export interface PickedPhoto {
+  uri: string;
+  width: number;
+  height: number;
+  mimeType?: string;
+  fileName?: string | null;
+}
+
 interface AddPhotoBottomSheetProps {
   /** Date displayed under the title, e.g. "25 April, 2026" */
   dateLabel?: string;
-  onTakePhoto?: () => void;
-  onPickFromGallery?: () => void;
+  /** Fires after the user successfully captures or picks an image. */
+  onPhotoSelected?: (photo: PickedPhoto) => void;
 }
 
 const formatToday = () => {
@@ -37,13 +46,18 @@ const formatToday = () => {
   return `${day} ${month}, ${year}`;
 };
 
+const toPickedPhoto = (asset: ImagePicker.ImagePickerAsset): PickedPhoto => ({
+  uri: asset.uri,
+  width: asset.width,
+  height: asset.height,
+  mimeType: asset.mimeType,
+  fileName: asset.fileName,
+});
+
 const AddPhotoBottomSheet = forwardRef<
   AddPhotoBottomSheetRef,
   AddPhotoBottomSheetProps
->(function AddPhotoBottomSheet(
-  { dateLabel, onTakePhoto, onPickFromGallery },
-  ref,
-) {
+>(function AddPhotoBottomSheet({ dateLabel, onPhotoSelected }, ref) {
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
   const resolvedDate = useMemo(() => dateLabel ?? formatToday(), [dateLabel]);
@@ -66,6 +80,55 @@ const AddPhotoBottomSheet = forwardRef<
     [],
   );
 
+  const handleTakePhoto = async () => {
+    // Dismiss the sheet first so iOS doesn't refuse a second modal presentation.
+    sheetRef.current?.dismiss();
+
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        t("progress.addPhoto.permission.cameraTitle"),
+        t("progress.addPhoto.permission.cameraMessage"),
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      onPhotoSelected?.(toPickedPhoto(result.assets[0]));
+    }
+  };
+
+  const handlePickFromGallery = async () => {
+    sheetRef.current?.dismiss();
+
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        t("progress.addPhoto.permission.galleryTitle"),
+        t("progress.addPhoto.permission.galleryMessage"),
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      onPhotoSelected?.(toPickedPhoto(result.assets[0]));
+    }
+  };
+
   return (
     <BottomSheetModal
       ref={sheetRef}
@@ -82,13 +145,7 @@ const AddPhotoBottomSheet = forwardRef<
         </View>
 
         <View style={styles.cardsRow}>
-          <Pressable
-            onPress={() => {
-              onTakePhoto?.();
-              sheetRef.current?.dismiss();
-            }}
-            style={styles.choiceCard}
-          >
+          <Pressable onPress={handleTakePhoto} style={styles.choiceCard}>
             <View style={styles.iconCircle}>
               <AddPhotoCamera width={36} height={36} />
             </View>
@@ -97,13 +154,7 @@ const AddPhotoBottomSheet = forwardRef<
             </Text>
           </Pressable>
 
-          <Pressable
-            onPress={() => {
-              onPickFromGallery?.();
-              sheetRef.current?.dismiss();
-            }}
-            style={styles.choiceCard}
-          >
+          <Pressable onPress={handlePickFromGallery} style={styles.choiceCard}>
             <View style={styles.iconCircle}>
               <AddPhotoGallery width={36} height={36} />
             </View>

@@ -1,17 +1,16 @@
 import { FONTS } from "@/app/constants/fonts";
-import { View } from "react-native";
-import Svg, {
-  Circle,
-  Defs,
-  G,
-  LinearGradient as SvgLinearGradient,
-  Path,
-  Stop,
-  Text as SvgText,
-} from "react-native-svg";
+import { useRef, useState } from "react";
+import {
+  LayoutChangeEvent,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { LineChart } from "react-native-gifted-charts";
 
 export interface ChartPoint {
-  /** Short label shown on the X axis (e.g. "W1"). */
+  /** Short label shown on the X axis (e.g. "W1" or "01"). */
   label: string;
   /** Numeric Y value (e.g. weight in kg). */
   value: number;
@@ -25,19 +24,11 @@ interface WeightProgressChartProps {
   yMax?: number;
   /** Distance between Y-axis ticks (default 5). */
   yStep?: number;
-  /** Top-left unit label (default "KGS"). */
+  /** Top-left unit label (e.g. "KGS"). Pass undefined or "" to hide. */
   unit?: string;
+  /** Number of points visible per page (default 4). */
+  pageSize?: number;
 }
-
-// Figma reference frame — all positions inside the SVG match the Figma node 4769:63865.
-const FIGMA_W = 353;
-const FIGMA_H = 200;
-const CHART_LEFT = 30;
-const CHART_TOP = 33;
-const CHART_W = 316;
-const CHART_H = 137;
-const X_AXIS_Y = 196;
-const UNIT_Y = 11;
 
 const GOLD = "#C9A84C";
 const AXIS_COLOR = "rgba(240,240,240,0.5)";
@@ -45,131 +36,258 @@ const UNIT_COLOR = "rgba(240,240,240,0.8)";
 const GRID_COLOR = "rgba(240,240,240,0.12)";
 const MARKER_HALO = "rgba(201,168,76,0.25)";
 
+const FIGMA_W = 353;
+const FIGMA_H = 200;
+const Y_AXIS_COL_WIDTH = 30;
+const UNIT_ROW_HEIGHT = 22;
+const X_AXIS_ROW_HEIGHT = 24;
+const MARKER_SIZE = 20;
+const LABEL_SLOT_WIDTH = 48;
+// Keep W1 close to the y-axis on coarse-paged charts (e.g. 4 weeks per page).
+// On dense charts where spacing/2 is already small (e.g. 10 days per page),
+// this cap doesn't trigger and the symmetric look is preserved.
+const MAX_INITIAL_SPACING = 24;
+
+const EndPointMarker = () => (
+  <View style={markerStyles.halo}>
+    <View style={markerStyles.ring}>
+      <View style={markerStyles.inner} />
+    </View>
+  </View>
+);
+
 /**
- * Pixel-perfect reproduction of the Figma `abc 4` chart (node 4769:63853).
- * Renders y-axis labels, dashed grid, gold gradient area + line, and a
- * highlighted end-point marker. Scales proportionally to its container width.
+ * Progress chart with paged horizontal scrolling.
+ * - Fixed Y-axis labels on the left (don't scroll)
+ * - Paged ScrollView showing `pageSize` data points per page (default 4)
+ * - X-axis labels are absolute-positioned at each data point so they
+ *   are always centered, never clipped, and never lost behind
+ *   gifted-charts' internal label area.
+ * - Halo end-marker on the LAST data point only.
+ * - The unit header is hidden when `unit` is empty/undefined.
  */
 const WeightProgressChart = ({
   data,
   yMin = 80,
   yMax = 100,
   yStep = 5,
-  unit = "KGS",
+  unit,
+  pageSize = 4,
 }: WeightProgressChartProps) => {
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  // gifted-charts mutates data items internally (adds isActiveClone etc.),
+  // so we hold them in a ref to prevent React/Hermes from freezing them.
+  const dataRef = useRef<Record<string, unknown>[]>([]);
+
+  const onLayoutChartRow = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setSize({ w: width, h: height });
+  };
+
   if (data.length < 2) return null;
 
-  const range = yMax - yMin;
-  const ticks: number[] = [];
-  for (let v = yMax; v >= yMin; v -= yStep) ticks.push(v);
+  const showUnit = !!unit;
+  const noOfSections = Math.max(1, Math.round((yMax - yMin) / yStep));
 
-  const xPos = (i: number) => (i / (data.length - 1)) * CHART_W;
-  const yPos = (v: number) => ((yMax - v) / range) * CHART_H;
+  // Page geometry — pageSize points per page with uniform `spacing` between
+  // them, plus an `initialSpacing` on the left and `endSpacing` on the right.
+  // The constraint `initialSpacing + endSpacing == spacing` keeps every page
+  // visually identical and makes snap-paging work cleanly across boundaries.
+  // We cap initialSpacing so W1 stays close to the y-axis even on coarse pages.
+  const pageWidth = Math.max(0, size.w - Y_AXIS_COL_WIDTH);
+  const spacing = pageWidth / pageSize;
+  const initialSpacing = Math.min(spacing / 2, MAX_INITIAL_SPACING);
+  const endSpacing = Math.max(0, spacing - initialSpacing);
+  const totalChartWidth =
+    initialSpacing + (data.length - 1) * spacing + endSpacing;
 
-  const points = data.map((d, i) => ({
-    x: xPos(i),
-    y: yPos(Math.max(yMin, Math.min(yMax, d.value))),
+  // Plot area excludes the bottom strip reserved for our custom x-axis labels.
+  const plotHeight = Math.max(0, size.h - X_AXIS_ROW_HEIGHT);
+
+  // gifted-charts plots from 0 upward, so we shift values down by yMin.
+  // Built-in labels are blank — we render our own row absolutely below.
+  dataRef.current = data.map((d, i) => ({
+    value: Math.max(0, d.value - yMin),
+    label: "",
+    hideDataPoint: i !== data.length - 1,
+    dataPointWidth: MARKER_SIZE,
+    dataPointHeight: MARKER_SIZE,
+    customDataPoint: i === data.length - 1 ? EndPointMarker : undefined,
   }));
 
-  // Smooth path with symmetric cubic control points between each pair.
-  let linePath = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const cpx = (prev.x + curr.x) / 2;
-    linePath += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
-  }
-  const last = points[points.length - 1];
-  const areaPath = `${linePath} L ${last.x} ${CHART_H} L ${points[0].x} ${CHART_H} Z`;
+  // Y-axis labels, top -> bottom (e.g. 84, 83, 82, 81, 80).
+  const yTicks: number[] = [];
+  for (let v = yMax; v >= yMin; v -= yStep) yTicks.push(v);
 
   return (
-    <View style={{ width: "100%", aspectRatio: FIGMA_W / FIGMA_H }}>
-      <Svg width="100%" height="100%" viewBox={`0 0 ${FIGMA_W} ${FIGMA_H}`}>
-        <Defs>
-          <SvgLinearGradient id="weightChartFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={GOLD} stopOpacity="0.3" />
-            <Stop offset="1" stopColor={GOLD} stopOpacity="0" />
-          </SvgLinearGradient>
-        </Defs>
-
-        {/* Unit (kgs) — top-left, semibold */}
-        <SvgText
-          x={0}
-          y={UNIT_Y}
-          fill={UNIT_COLOR}
-          fontSize={12}
-          fontFamily={FONTS.semiBold}
-          fontWeight="600"
-          letterSpacing={0.48}
-        >
-          {unit}
-        </SvgText>
-
-        {/* Y-axis tick labels */}
-        {ticks.map((v) => (
-          <SvgText
-            key={`y-${v}`}
-            x={0}
-            y={CHART_TOP + yPos(v) + 4}
-            fill={AXIS_COLOR}
-            fontSize={12}
-            fontFamily={FONTS.regular}
-            letterSpacing={0.48}
-          >
-            {String(v)}
-          </SvgText>
-        ))}
-
-        {/* Chart inner content, translated into the plot area */}
-        <G x={CHART_LEFT} y={CHART_TOP}>
-          {/* Dashed grid lines */}
-          {ticks.map((v) => (
-            <Path
-              key={`grid-${v}`}
-              d={`M 0 ${yPos(v)} L ${CHART_W} ${yPos(v)}`}
-              stroke={GRID_COLOR}
-              strokeWidth={1}
-              strokeDasharray="4 4"
-            />
+    <View style={styles.wrap}>
+      {showUnit ? <Text style={styles.unit}>{unit}</Text> : null}
+      <View style={styles.chartRow} onLayout={onLayoutChartRow}>
+        {/* Fixed Y-axis column — doesn't scroll. */}
+        <View style={[styles.yAxisCol, { height: plotHeight }]}>
+          {yTicks.map((v) => (
+            <Text key={v} style={styles.yAxisText}>
+              {v}
+            </Text>
           ))}
+        </View>
 
-          {/* Area gradient fill under the line */}
-          <Path d={areaPath} fill="url(#weightChartFill)" />
+        {/* Paged horizontal scroll containing the full chart. */}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          style={styles.scroll}
+        >
+          {pageWidth > 0 && plotHeight > 0 ? (
+            // Explicit height + overflow:hidden so children never get clipped
+            // or pushed past the visible vertical bounds.
+            <View
+              style={{
+                width: totalChartWidth,
+                height: size.h,
+                overflow: "hidden",
+              }}
+            >
+              <LineChart
+                data={dataRef.current}
+                areaChart
+                curved
+                color={GOLD}
+                thickness={2.5}
+                startFillColor={GOLD}
+                startOpacity={0.3}
+                endFillColor={GOLD}
+                endOpacity={0}
+                maxValue={yMax - yMin}
+                noOfSections={noOfSections}
+                stepValue={yStep}
+                hideYAxisText
+                yAxisLabelWidth={0}
+                yAxisColor="transparent"
+                xAxisColor="transparent"
+                rulesType="dashed"
+                rulesColor={GRID_COLOR}
+                dashWidth={4}
+                dashGap={4}
+                initialSpacing={initialSpacing}
+                endSpacing={endSpacing}
+                spacing={spacing}
+                height={plotHeight}
+                width={totalChartWidth}
+                disableScroll
+              />
 
-          {/* Trend line */}
-          <Path
-            d={linePath}
-            stroke={GOLD}
-            strokeWidth={2.5}
-            fill="none"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-
-          {/* End-point marker — soft halo + gold ring + bright inner */}
-          <Circle cx={last.x} cy={last.y} r={10} fill={MARKER_HALO} />
-          <Circle cx={last.x} cy={last.y} r={5.5} fill={GOLD} />
-          <Circle cx={last.x} cy={last.y} r={2.5} fill="#FFF8E0" />
-        </G>
-
-        {/* X-axis labels — centered under each data point */}
-        {points.map((p, i) => (
-          <SvgText
-            key={`x-${data[i].label}-${i}`}
-            x={CHART_LEFT + p.x}
-            y={X_AXIS_Y}
-            fill={AXIS_COLOR}
-            fontSize={12}
-            fontFamily={FONTS.regular}
-            letterSpacing={0.48}
-            textAnchor="middle"
-          >
-            {data[i].label}
-          </SvgText>
-        ))}
-      </Svg>
+              {/* Custom x-axis labels — absolute-positioned at the bottom
+                  of the wrapper so they never get clipped by gifted-charts'
+                  internal padding. */}
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.xLabelsRow,
+                  { width: totalChartWidth },
+                ]}
+              >
+                {data.map((d, i) => {
+                  const pointX = initialSpacing + i * spacing;
+                  return (
+                    <Text
+                      key={`${d.label}-${i}`}
+                      style={[
+                        styles.xAxisText,
+                        styles.xLabel,
+                        { left: pointX - LABEL_SLOT_WIDTH / 2 },
+                      ]}
+                    >
+                      {d.label}
+                    </Text>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+        </ScrollView>
+      </View>
     </View>
   );
 };
 
 export default WeightProgressChart;
+
+const styles = StyleSheet.create({
+  wrap: {
+    width: "100%",
+    aspectRatio: FIGMA_W / FIGMA_H,
+  },
+  unit: {
+    color: UNIT_COLOR,
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    fontWeight: "600",
+    letterSpacing: 0.48,
+    height: UNIT_ROW_HEIGHT,
+  },
+  chartRow: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  yAxisCol: {
+    width: Y_AXIS_COL_WIDTH,
+    justifyContent: "space-between",
+    paddingVertical: 2,
+  },
+  yAxisText: {
+    color: AXIS_COLOR,
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    letterSpacing: 0.48,
+  },
+  xAxisText: {
+    color: AXIS_COLOR,
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    letterSpacing: 0.48,
+  },
+  scroll: {
+    flex: 1,
+  },
+  xLabelsRow: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    height: X_AXIS_ROW_HEIGHT,
+  },
+  xLabel: {
+    position: "absolute",
+    top: 6,
+    width: LABEL_SLOT_WIDTH,
+    textAlign: "center",
+  },
+});
+
+const markerStyles = StyleSheet.create({
+  halo: {
+    width: MARKER_SIZE,
+    height: MARKER_SIZE,
+    borderRadius: MARKER_SIZE / 2,
+    backgroundColor: MARKER_HALO,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ring: {
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: GOLD,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inner: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#FFF8E0",
+  },
+});

@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A0A0A",
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     gap: 24,
   },
   cardList: {

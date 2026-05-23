@@ -4,15 +4,15 @@ import { StyleSheet, View } from "react-native";
 
 interface MealsTimelineProps {
   meals: MealRow[];
-  onAddMeal?: (meal: MealRow) => void;
+  onToggleMeal?: (meal: MealRow) => void;
 }
 
-const MealsTimeline = ({ meals, onAddMeal }: MealsTimelineProps) => (
+const MealsTimeline = ({ meals, onToggleMeal }: MealsTimelineProps) => (
   <View style={styles.list}>
     {meals.map((meal, idx) => (
       <View key={meal.id} style={styles.rowWrap}>
         {idx < meals.length - 1 ? <View style={styles.connector} /> : null}
-        <MealCard meal={meal} onAdd={onAddMeal} />
+        <MealCard meal={meal} onToggle={onToggleMeal} />
       </View>
     ))}
   </View>

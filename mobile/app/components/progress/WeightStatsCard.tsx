@@ -56,7 +56,7 @@ const WeightStatsCard = ({
         yMin={chartYMin}
         yMax={chartYMax}
         yStep={1}
-        unit="KGS"
+        pageSize={10}
       />
 
       <SuccessBanner text={bannerText} />

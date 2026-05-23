@@ -57,6 +57,13 @@ const en = {
         male: "Man",
         female: "Woman",
       },
+      age: {
+        title: "Age",
+        eyebrow: "YOUR PROFILE",
+        heading: "What year were you born?",
+        description: "To personalise your nutrition and calorie targets.",
+        label: "Your birth year",
+      },
       level: {
         title: "Level",
         eyebrow: "SELECT LEVEL",
@@ -320,6 +327,9 @@ const en = {
     mealsTitle: "Meals Logs & Suggestions",
     logMeal: "Log Meal",
     suggestedTag: "{{meal}} • Suggested",
+    asPerPlanTag: "{{meal}} • As per plan",
+    customAddedTag: "{{meal}} • Custom added",
+    notAdded: "Not added",
     breakfast: "Breakfast",
     lunch: "Lunch",
     eveningSnack: "Evening Snack",
@@ -400,6 +410,14 @@ const en = {
       title: "Add Photo",
       clickPhoto: "Click Photo",
       uploadGallery: "Upload from Gallery",
+      permission: {
+        cameraTitle: "Camera access needed",
+        cameraMessage:
+          "Enable camera access in Settings to capture progress photos.",
+        galleryTitle: "Photo library access needed",
+        galleryMessage:
+          "Enable photo library access in Settings to upload progress photos.",
+      },
     },
     photoPreview: {
       uploaded: "Uploaded ",

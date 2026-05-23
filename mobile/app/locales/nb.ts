@@ -57,6 +57,13 @@ const nb = {
         male: "Mann",
         female: "Kvinne",
       },
+      age: {
+        title: "Alder",
+        eyebrow: "DIN PROFIL",
+        heading: "Hvilket år ble du født?",
+        description: "For å tilpasse ernæring og kaloriemål.",
+        label: "Ditt fødselsår",
+      },
       level: {
         title: "Nivå",
         eyebrow: "VELG NIVÅ",
@@ -320,6 +327,9 @@ const nb = {
     mealsTitle: "Måltidslogger og forslag",
     logMeal: "Logg måltid",
     suggestedTag: "{{meal}} • Foreslått",
+    asPerPlanTag: "{{meal}} • Som planlagt",
+    customAddedTag: "{{meal}} • Egendefinert",
+    notAdded: "Ikke lagt til",
     breakfast: "Frokost",
     lunch: "Lunsj",
     eveningSnack: "Kveldssnack",
@@ -400,6 +410,14 @@ const nb = {
       title: "Legg til bilde",
       clickPhoto: "Ta bilde",
       uploadGallery: "Last opp fra galleri",
+      permission: {
+        cameraTitle: "Kameratilgang kreves",
+        cameraMessage:
+          "Aktiver kameratilgang i Innstillinger for å ta fremgangsbilder.",
+        galleryTitle: "Tilgang til bildebibliotek kreves",
+        galleryMessage:
+          "Aktiver tilgang til bildebibliotek i Innstillinger for å laste opp fremgangsbilder.",
+      },
     },
     photoPreview: {
       uploaded: "Lastet opp ",

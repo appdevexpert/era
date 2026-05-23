@@ -10,16 +10,48 @@ import DailyTargetsCard from "@/app/components/nutrition/DailyTargetsCard";
 import PhaseWeekHeader from "@/app/components/workout/PhaseWeekHeader";
 import { type DayItem } from "@/app/components/workout/WeekDaySelector";
 import { FONTS } from "@/app/constants/fonts";
-import { useMemo, useRef } from "react";
+import { MealBreakfast } from "@/assets/icons";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const MOCK_MEALS: MealRow[] = [
-  { id: "1", category: "breakfast", name: "Veggie Wraps", kcal: 620, protein: 12, carbs: 55, fats: 5 },
-  { id: "2", category: "lunch", name: "Chicken Salad", kcal: 450, protein: 30, carbs: 15, fats: 25 },
-  { id: "3", category: "eveningSnack", name: "Quinoa Bowl", kcal: 700, protein: 20, carbs: 90, fats: 10 },
-  { id: "4", category: "dinner", name: "Beef Tacos", kcal: 800, protein: 40, carbs: 60, fats: 35 },
+  {
+    id: "1",
+    category: "breakfast",
+    name: "Veggie Wraps",
+    kcal: 620, protein: 12, carbs: 55, fats: 5,
+    source: "plan",
+    Icon: MealBreakfast,
+  },
+  {
+    id: "2",
+    category: "lunch",
+    name: "Chicken & Rice",
+    kcal: 620, protein: 12, carbs: 55, fats: 5,
+    added: true,
+    source: "custom",
+    Icon: MealBreakfast,
+  },
+  {
+    id: "3",
+    category: "eveningSnack",
+    name: "Oatmeal & Eggs",
+    kcal: 620, protein: 12, carbs: 55, fats: 5,
+    added: true,
+    source: "plan",
+    Icon: MealBreakfast,
+  },
+  {
+    id: "4",
+    category: "dinner",
+    name: "Chicken & Rice",
+    kcal: 620, protein: 12, carbs: 55, fats: 5,
+    added: true,
+    source: "custom",
+    Icon: MealBreakfast,
+  },
 ];
 
 const TARGETS = {
@@ -44,6 +76,15 @@ const NutritionScreen = () => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const logMealSheetRef = useRef<AddLogMealBottomSheetRef>(null);
+  const [meals, setMeals] = useState<MealRow[]>(MOCK_MEALS);
+
+  // Local-first toggle: flip the row's `added` flag immediately. When the
+  // backend is wired in, this will also dispatch insert/delete to meal_logs.
+  const handleToggleMeal = useCallback((meal: MealRow) => {
+    setMeals((prev) =>
+      prev.map((m) => (m.id === meal.id ? { ...m, added: !m.added } : m)),
+    );
+  }, []);
 
   const days: DayItem[] = useMemo(
     () =>
@@ -90,7 +131,7 @@ const NutritionScreen = () => {
           <LogMealBadge onPress={() => logMealSheetRef.current?.show()} />
         </View>
 
-        <MealsTimeline meals={MOCK_MEALS} />
+        <MealsTimeline meals={meals} onToggleMeal={handleToggleMeal} />
       </ScrollView>
 
       <ScreenFades />
@@ -108,7 +149,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#0A0A0A",
   },
   scrollContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     gap: 24,
   },
   sectionTitle: {

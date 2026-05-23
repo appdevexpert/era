@@ -45,7 +45,14 @@
       ],
       "expo-localization",
       "expo-apple-authentication",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow ERA to use your camera to capture progress photos.",
+          "photosPermission": "Allow ERA to access your photo library to upload progress photos."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
