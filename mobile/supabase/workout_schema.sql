@@ -92,6 +92,11 @@ do $$ begin
   create type public.point_event_type as enum ('workout_completed', 'exercise_completed', 'personal_record', 'streak_added', 'progress_photo_added', 'manual_adjustment');
 exception when duplicate_object then null; end $$;
 
+-- Late additions to the enum (idempotent so re-runs are safe).
+alter type public.point_event_type add value if not exists 'set_logged';
+alter type public.point_event_type add value if not exists 'cardio_completed';
+alter type public.point_event_type add value if not exists 'body_weight_logged';
+
 do $$ begin
   create type public.streak_day_status as enum ('completed', 'rest_day', 'missed');
 exception when duplicate_object then null; end $$;
@@ -517,17 +522,23 @@ create table if not exists public.user_streak_days (
   unique (user_id, streak_date)
 );
 
--- "Capture Progress" on session complete.
+-- "Capture Progress" on session complete + standalone progress photos from
+-- the Progress screen. `session_id` is nullable because uploads from the
+-- Progress screen aren't tied to an active session.
 create table if not exists public.session_media (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  session_id uuid not null references public.workout_sessions(id) on delete cascade,
+  session_id uuid references public.workout_sessions(id) on delete cascade,
   media_type text not null default 'progress_photo',
   storage_path text not null,
   public_url text,
   points_awarded integer not null default 0 check (points_awarded >= 0),
   created_at timestamptz not null default now()
 );
+
+-- Idempotent: existing deployments may have created session_id NOT NULL.
+alter table public.session_media
+  alter column session_id drop not null;
 
 comment on column public.exercise_library.name_translations is
   'Localized exercise names, e.g. {"en":"Bench Press","nb":"Benkpress"}.';
@@ -927,3 +938,240 @@ with check (
       and (s.user_id = auth.uid() or public.is_admin())
   )
 );
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Body weight log — one entry per user per day, stored in kg.
+-- Heaviest/lightest are computed from raw rows; the weekly chart averages
+-- per program_week and anchors W1 to goals.weight when no W1 entry exists.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.body_weight_log (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  weight_kg numeric(5,2) not null check (weight_kg > 0 and weight_kg < 500),
+  logged_for_date date not null default current_date,
+  logged_at timestamptz not null default now(),
+  source text not null default 'manual',
+  note text,
+  created_at timestamptz not null default now(),
+  unique (user_id, logged_for_date)
+);
+
+create index if not exists idx_body_weight_log_user_date
+  on public.body_weight_log(user_id, logged_for_date desc);
+
+alter table public.body_weight_log enable row level security;
+
+create policy "users read own body weight log"
+  on public.body_weight_log for select
+  using (auth.uid() = user_id);
+
+create policy "users insert own body weight log"
+  on public.body_weight_log for insert
+  with check (auth.uid() = user_id);
+
+create policy "users update own body weight log"
+  on public.body_weight_log for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Leaderboard RPCs.
+-- profiles + user_reward_state both have self-only RLS, so a direct join from
+-- the client returns just the caller's row. These security-definer functions
+-- expose only the columns a leaderboard needs (display name, avatar, points,
+-- streak) and never leak the rest of profiles.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create or replace function public.get_leaderboard_page(
+  p_limit int default 10,
+  p_offset int default 0
+)
+returns table (
+  rank int,
+  user_id uuid,
+  display_name text,
+  avatar_url text,
+  total_points int,
+  current_streak_days int
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with ranked as (
+    select
+      r.user_id,
+      p.full_name as display_name,
+      p.avatar_url,
+      r.total_points,
+      r.current_streak_days,
+      rank() over (order by r.total_points desc, r.user_id)::int as rank
+    from public.user_reward_state r
+    join public.profiles p on p.id = r.user_id
+    where p.role = 'user'
+  )
+  select rank, user_id, display_name, avatar_url, total_points, current_streak_days
+  from ranked
+  order by rank, user_id
+  limit greatest(p_limit, 0)
+  offset greatest(p_offset, 0);
+$$;
+
+grant execute on function public.get_leaderboard_page(int, int) to authenticated;
+
+create or replace function public.get_my_leaderboard_rank()
+returns table (
+  rank int,
+  total_points int,
+  total_users int
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with ranked as (
+    select
+      r.user_id,
+      r.total_points,
+      rank() over (order by r.total_points desc, r.user_id)::int as rank
+    from public.user_reward_state r
+    join public.profiles p on p.id = r.user_id
+    where p.role = 'user'
+  )
+  select
+    coalesce((select rank from ranked where user_id = auth.uid()), 0) as rank,
+    coalesce((select total_points from ranked where user_id = auth.uid()), 0) as total_points,
+    (select count(*)::int from ranked) as total_users;
+$$;
+
+grant execute on function public.get_my_leaderboard_rank() to authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Progress photos. Private bucket + RLS + atomic record-and-award RPC.
+-- Enforces "one paid photo per day" at the DB so two simultaneous uploads
+-- can't both win the 25-point bonus.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+insert into storage.buckets (id, name, public)
+values ('progress-photos', 'progress-photos', false)
+on conflict (id) do nothing;
+
+drop policy if exists "progress_photos_owner_select" on storage.objects;
+create policy "progress_photos_owner_select"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'progress-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "progress_photos_owner_insert" on storage.objects;
+create policy "progress_photos_owner_insert"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'progress-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "progress_photos_owner_update" on storage.objects;
+create policy "progress_photos_owner_update"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'progress-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+drop policy if exists "progress_photos_owner_delete" on storage.objects;
+create policy "progress_photos_owner_delete"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'progress-photos'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+create or replace function public.record_progress_photo(
+  p_storage_path text,
+  p_session_id uuid default null
+)
+returns table (
+  media_id uuid,
+  points_awarded int,
+  total_points int
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_already_awarded boolean;
+  v_points int := 0;
+  v_media_id uuid;
+  v_total_points int;
+begin
+  if v_user_id is null then
+    raise exception 'not authenticated';
+  end if;
+
+  -- Aliases (`sm.`, `urs.`) avoid ambiguity with the RPC's return-column
+  -- names (`points_awarded`, `total_points`).
+  select exists(
+    select 1
+    from public.session_media sm
+    where sm.user_id = v_user_id
+      and sm.media_type = 'progress_photo'
+      and sm.points_awarded > 0
+      and sm.created_at::date = current_date
+  ) into v_already_awarded;
+
+  if not v_already_awarded then
+    v_points := 25;
+  end if;
+
+  insert into public.session_media (user_id, session_id, media_type, storage_path, points_awarded)
+  values (v_user_id, p_session_id, 'progress_photo', p_storage_path, v_points)
+  returning id into v_media_id;
+
+  if v_points > 0 then
+    insert into public.era_point_events (user_id, session_id, event_type, points, title, occurred_at)
+    values (v_user_id, p_session_id, 'progress_photo_added', v_points, 'Progress photo', now());
+
+    update public.user_reward_state urs
+       set total_points = urs.total_points + v_points,
+           updated_at = now()
+     where urs.user_id = v_user_id
+    returning urs.total_points into v_total_points;
+  else
+    select urs.total_points into v_total_points
+    from public.user_reward_state urs
+    where urs.user_id = v_user_id;
+  end if;
+
+  return query select v_media_id, v_points, coalesce(v_total_points, 0);
+end;
+$$;
+
+grant execute on function public.record_progress_photo(text, uuid) to authenticated;
+
+create or replace function public.get_my_progress_photos(p_limit int default 50)
+returns table (
+  id uuid,
+  session_id uuid,
+  storage_path text,
+  points_awarded int,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select id, session_id, storage_path, points_awarded, created_at
+  from public.session_media
+  where user_id = auth.uid()
+    and media_type = 'progress_photo'
+  order by created_at desc
+  limit greatest(p_limit, 0);
+$$;
+
+grant execute on function public.get_my_progress_photos(int) to authenticated;

@@ -13,6 +13,7 @@ import type {
   SessionSetHistoryRow,
 } from "@/app/types/workout";
 import { getLocalizedText } from "@/app/utils/localization";
+import { formatDuration, formatSetSummary } from "@/app/utils/workoutFormatters";
 import { mapMusclesToIcons } from "@/app/utils/workoutMappers";
 
 // =====================================================================
@@ -34,13 +35,15 @@ const computeDelta = (
 };
 
 /**
- * Build the WeightsScreen card list from today's planned exercises + a
- * batched map of last-logged stats. Planned exercises drive the order and
- * naming; stats are looked up by exercise_library id.
+ * Build the WeightsScreen card list from the planned exercises of the given
+ * day detail + a batched map of last-logged stats. Planned exercises drive
+ * order and naming; stats are looked up by exercise_library id.
  *
- * Only `main_exercises` sections appear on WeightsScreen — treadmill walks,
- * core finishers, warmups and cooldowns are excluded because they don't
- * carry a weight progression worth tracking on this tab.
+ * Every section kind is included (main_exercises, core_finisher,
+ * treadmill_walk, warmup, cooldown, custom). For exercises that don't carry
+ * a weight progression we render the planned duration ("20 min", "1 min 30
+ * sec") instead of a kg value. The delta indicator only shows for weighted
+ * exercises since it's computed from logged weight history.
  */
 export function mapExerciseSummaries(
   detail: ProgramDayDetailData,
@@ -48,11 +51,7 @@ export function mapExerciseSummaries(
   language: string,
 ): ExerciseSummaryView[] {
   const libraryById = new Map(detail.libraryExercises.map((l) => [l.id, l]));
-  const mainSectionIds = new Set(
-    detail.sections
-      .filter((section) => section.section_kind === "main_exercises")
-      .map((section) => section.id),
-  );
+  const sectionOrderById = new Map(detail.sections.map((s) => [s.id, s.sort_order]));
   const setsByExercise = new Map<string, typeof detail.sets>();
   for (const set of detail.sets) {
     const arr = setsByExercise.get(set.program_day_exercise_id) ?? [];
@@ -60,13 +59,20 @@ export function mapExerciseSummaries(
     setsByExercise.set(set.program_day_exercise_id, arr);
   }
 
-  const ordered = [...detail.exercises]
-    .filter((ex) => mainSectionIds.has(ex.section_id))
-    .sort((a, b) => a.sort_order - b.sort_order);
+  // Sort by section first (warmup → main → core → treadmill → cooldown),
+  // then by exercise sort_order within each section.
+  const ordered = [...detail.exercises].sort((a, b) => {
+    const sa = sectionOrderById.get(a.section_id) ?? 0;
+    const sb = sectionOrderById.get(b.section_id) ?? 0;
+    if (sa !== sb) return sa - sb;
+    return a.sort_order - b.sort_order;
+  });
 
   return ordered.map<ExerciseSummaryView>((exercise) => {
     const lib = libraryById.get(exercise.exercise_id);
-    const exerciseSets = setsByExercise.get(exercise.id) ?? [];
+    const exerciseSets = (setsByExercise.get(exercise.id) ?? []).slice().sort(
+      (a, b) => a.set_number - b.set_number,
+    );
     const workingSets = exerciseSets.filter((s) => s.set_kind === "working" || s.set_kind === "top_set");
     const setCount = workingSets.length || exerciseSets.length;
     const firstSet = workingSets[0] ?? exerciseSets[0];
@@ -99,6 +105,22 @@ export function mapExerciseSummaries(
           : 0;
     const weightKg = summary?.lastKg ?? fallbackWeight;
 
+    // Duration-based (treadmill, plank, warmup hold, etc.) when the planned
+    // first set has a duration AND there's no weight to display.
+    const firstSetDuration = firstSet?.target_duration_seconds ?? null;
+    const hasWeight = weightKg > 0;
+    const isDurationOnly = !hasWeight && firstSetDuration != null && firstSetDuration > 0;
+
+    // Prefer last *logged* duration over planned, so the card mirrors the
+    // weight card behavior (which shows last logged kg, not planned kg).
+    const durationToShow = summary?.lastDurationSec ?? firstSetDuration ?? null;
+
+    const displayValue = isDurationOnly
+      ? formatDuration(durationToShow, language)
+      : hasWeight
+        ? undefined // card falls back to "${weightKg} kg"
+        : "—";
+
     const muscles: MuscleGroup[] = mapMusclesToIcons(lib?.primary_muscles ?? []);
 
     return {
@@ -107,11 +129,15 @@ export function mapExerciseSummaries(
       exerciseLibraryId: exercise.exercise_id,
       name,
       category,
-      meta: `${setCount} Sets • ${reps} Reps`,
+      meta: formatSetSummary(exerciseSets, language) || `${setCount} Sets • ${reps} Reps`,
       sets: setCount,
       reps,
       weightKg: round(weightKg),
-      delta: computeDelta(summary?.lastKg ?? null, summary?.previousKg ?? null),
+      displayValue,
+      // Delta only makes sense for weighted exercises.
+      delta: hasWeight
+        ? computeDelta(summary?.lastKg ?? null, summary?.previousKg ?? null)
+        : undefined,
       muscles,
     };
   });
@@ -136,21 +162,27 @@ const formatMonthDay = (iso: string | null): string => {
 /** Minimum number of x-axis ticks shown so the chart shell matches the Figma. */
 const MIN_CHART_WEEKS = 5;
 
-const buildChart = (sets: SessionSetHistoryRow[], t: Translator): ExerciseHistoryChart => {
-  const heaviestByWeek = new Map<number, number>();
+const buildChart = (
+  sets: SessionSetHistoryRow[],
+  metricKind: "weight" | "duration",
+  t: Translator,
+): ExerciseHistoryChart => {
+  // "Best" per week is heaviest weight or longest hold depending on metric.
+  const bestByWeek = new Map<number, number>();
   for (const s of sets) {
-    if (s.logged_weight_value == null) continue;
-    const prev = heaviestByWeek.get(s.week_number);
-    if (prev == null || s.logged_weight_value > prev) {
-      heaviestByWeek.set(s.week_number, s.logged_weight_value);
+    const v = metricKind === "weight" ? s.logged_weight_value : s.logged_duration_seconds;
+    if (v == null) continue;
+    const prev = bestByWeek.get(s.week_number);
+    if (prev == null || v > prev) {
+      bestByWeek.set(s.week_number, v);
     }
   }
 
-  if (heaviestByWeek.size === 0) {
+  if (bestByWeek.size === 0) {
     return { points: [], xTickLabels: [] };
   }
 
-  const realWeeks = [...heaviestByWeek.keys()].sort((a, b) => a - b);
+  const realWeeks = [...bestByWeek.keys()].sort((a, b) => a - b);
   const maxRealWeek = realWeeks[realWeeks.length - 1];
   const lastTick = Math.max(maxRealWeek, MIN_CHART_WEEKS);
 
@@ -159,11 +191,11 @@ const buildChart = (sets: SessionSetHistoryRow[], t: Translator): ExerciseHistor
     t("history.chartWeekTick", { number: i + 1 }),
   );
 
-  // Line points: only the real-data weeks.
+  // Line points: only the real-data weeks. `value` is kg or seconds.
   let points: ExerciseHistoryChartPoint[] = realWeeks.map((w) => ({
     weekNumber: w,
     label: t("history.chartWeekTick", { number: w }),
-    weightKg: round(heaviestByWeek.get(w) as number),
+    value: round(bestByWeek.get(w) as number),
     isReal: w === maxRealWeek,
   }));
 
@@ -177,7 +209,7 @@ const buildChart = (sets: SessionSetHistoryRow[], t: Translator): ExerciseHistor
       {
         weekNumber: only.weekNumber + 1,
         label: t("history.chartWeekTick", { number: only.weekNumber + 1 }),
-        weightKg: only.weightKg,
+        value: only.value,
         isReal: false,
       },
     ];
@@ -188,6 +220,7 @@ const buildChart = (sets: SessionSetHistoryRow[], t: Translator): ExerciseHistor
 
 const buildSections = (
   sets: SessionSetHistoryRow[],
+  metricKind: "weight" | "duration",
   t: Translator,
 ): ExerciseHistoryWeekSection[] => {
   // Sort newest first; we'll group by week and within each section by date desc.
@@ -221,13 +254,19 @@ const buildSections = (
       const entries: ExerciseHistoryEntry[] = chronological.map((s, idx) => {
         const prev = idx > 0 ? chronological[idx - 1] : undefined;
         let delta: ExerciseHistoryEntry["delta"];
-        if (
-          prev?.logged_weight_value != null &&
-          s.logged_weight_value != null
-        ) {
-          const diff = round(s.logged_weight_value - prev.logged_weight_value);
-          if (diff !== 0) {
-            delta = { kg: Math.abs(diff), positive: diff > 0 };
+        if (metricKind === "weight") {
+          if (prev?.logged_weight_value != null && s.logged_weight_value != null) {
+            const diff = round(s.logged_weight_value - prev.logged_weight_value);
+            if (diff !== 0) delta = { kg: Math.abs(diff), positive: diff > 0 };
+          }
+        } else {
+          if (
+            prev?.logged_duration_seconds != null &&
+            s.logged_duration_seconds != null
+          ) {
+            const diff = s.logged_duration_seconds - prev.logged_duration_seconds;
+            // Per type comment: `delta.kg` is reused for seconds in duration mode.
+            if (diff !== 0) delta = { kg: Math.abs(diff), positive: diff > 0 };
           }
         }
 
@@ -240,6 +279,7 @@ const buildSections = (
           weekNumber,
           weightKg: round(s.logged_weight_value ?? 0),
           reps: s.logged_reps ?? 0,
+          durationSec: s.logged_duration_seconds ?? undefined,
           delta,
           isPR: s.is_personal_record,
         };
@@ -270,12 +310,16 @@ export function mapExerciseHistoryView(
     currentReps: raw.stats.currentReps,
     heaviestKg: raw.stats.heaviestKg != null ? round(raw.stats.heaviestKg) : null,
     lightestKg: raw.stats.lightestKg != null ? round(raw.stats.lightestKg) : null,
+    currentSec: raw.stats.currentSec,
+    longestSec: raw.stats.longestSec,
+    shortestSec: raw.stats.shortestSec,
   };
   return {
     exerciseName,
+    metricKind: raw.metricKind,
     stats,
-    chart: buildChart(raw.sets, t),
-    sections: buildSections(raw.sets, t),
+    chart: buildChart(raw.sets, raw.metricKind, t),
+    sections: buildSections(raw.sets, raw.metricKind, t),
     totalSessions: new Set(raw.sets.map((s) => s.session_id)).size,
   };
 }

@@ -5,8 +5,11 @@ import { persistReducer, persistStore } from "redux-persist";
 import authReducer from "./slice/authSlice";
 import nutritionReducer from "./slice/nutritionSlice";
 import onboardingReducer from "./slice/onboardingSlice";
+import photoReducer from "./slice/photoSlice";
+import rewardReducer from "./slice/rewardSlice";
 import sessionReducer from "./slice/sessionSlice";
 import syncReducer from "./slice/syncSlice";
+import weightReducer from "./slice/weightSlice";
 import workoutReducer from "./slice/workoutSlice";
 
 const authPersistConfig = { key: "auth", storage: AsyncStorage };
@@ -35,6 +38,9 @@ export const store = configureStore({
     nutrition: persistedNutritionReducer,
     session: sessionReducer,
     sync: syncReducer,
+    reward: rewardReducer,
+    weight: weightReducer,
+    photo: photoReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

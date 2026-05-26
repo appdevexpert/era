@@ -4,14 +4,20 @@ import { FONTS } from "@/app/constants/fonts";
 import PointsOptimizeBottomSheet, {
   type PointsOptimizeBottomSheetRef,
 } from "@/app/components/workout/PointsOptimizeBottomSheet";
+import { selectRecentPointEvents } from "@/app/stores/selectors/rewardSelectors";
+import { selectUser } from "@/app/stores/selectors/authSelectors";
+import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
+import { useAppDispatch } from "@/app/stores/store";
+import type { PointEventRow, PointEventType } from "@/app/services/sessionService";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSelector } from "react-redux";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import Svg, {
   Defs,
@@ -55,20 +61,64 @@ const HistoryRow = ({ item }: { item: HistoryItem }) => {
   );
 };
 
-const STATIC_HISTORY: HistoryItem[] = [
-  { type: "streak", title: "workout.ui.streakAdded", date: "workout.ui.today", points: 25 },
-  { type: "photo", title: "workout.ui.photoAdded", date: "workout.ui.yesterday", points: 25 },
-  { type: "workout", title: "workout.ui.workoutCompleted", date: "workout.ui.yesterday", points: 25 },
-  { type: "workout", title: "workout.ui.workoutCompleted", date: "28 April", points: 25 },
-  { type: "workout", title: "workout.ui.workoutCompleted", date: "28 April", points: 25 },
-  { type: "workout", title: "workout.ui.workoutCompleted", date: "28 April", points: 25 },
-];
+// Each point_event_type maps to one of the three icon variants we have today.
+const EVENT_TYPE_ICON: Record<PointEventType, HistoryItem["type"]> = {
+  workout_completed: "workout",
+  exercise_completed: "workout",
+  personal_record: "workout",
+  cardio_completed: "workout",
+  set_logged: "workout",
+  streak_added: "streak",
+  progress_photo_added: "photo",
+  manual_adjustment: "workout",
+  body_weight_logged: "workout",
+};
+
+// Today's ISO date (UTC) — used to format event dates as "Today" / "Yesterday" / "DD Month".
+const toIsoDate = (d: Date) => d.toISOString().slice(0, 10);
+
+const formatEventDate = (
+  iso: string,
+  t: (key: string) => string,
+): string => {
+  const todayIso = toIsoDate(new Date());
+  const yesterdayIso = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return toIsoDate(d);
+  })();
+  const eventIso = iso.slice(0, 10);
+  if (eventIso === todayIso) return t("workout.ui.today");
+  if (eventIso === yesterdayIso) return t("workout.ui.yesterday");
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "long" });
+};
 
 const PointsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
   const optimizeSheetRef = useRef<PointsOptimizeBottomSheetRef>(null);
+  const recentEvents = useSelector(selectRecentPointEvents);
+  const user = useSelector(selectUser);
+  const dispatch = useAppDispatch();
+
+  // Refetch on mount so the screen always shows the freshest history,
+  // even if Redux was stale (e.g. when arriving here right after a session).
+  useEffect(() => {
+    if (user?.id) dispatch(loadRewardBootstrap(user.id));
+  }, [dispatch, user?.id]);
+
+  const historyItems: HistoryItem[] = useMemo(
+    () =>
+      recentEvents.map((evt: PointEventRow) => ({
+        type: EVENT_TYPE_ICON[evt.event_type] ?? "workout",
+        title: evt.title,
+        date: formatEventDate(evt.occurred_at, t),
+        points: evt.points,
+      })),
+    [recentEvents, t],
+  );
 
   return (
     <View style={styles.root}>
@@ -96,20 +146,11 @@ const PointsScreen = () => {
         {/* History */}
         <Text style={styles.sectionLabel}>{t("workout.ui.history")}</Text>
         <View style={styles.historyList}>
-          {STATIC_HISTORY.map((item, i) => {
-            const translatedTitle = item.title.startsWith("workout.")
-              ? t(item.title)
-              : item.title;
-            const translatedDate = item.date.startsWith("workout.")
-              ? t(item.date)
-              : item.date;
-            return (
-              <HistoryRow
-                key={i}
-                item={{ ...item, title: translatedTitle, date: translatedDate }}
-              />
-            );
-          })}
+          {historyItems.length === 0 ? (
+            <Text style={styles.historyEmpty}>{t("workout.ui.noPointsYet")}</Text>
+          ) : (
+            historyItems.map((item, i) => <HistoryRow key={i} item={item} />)
+          )}
         </View>
       </ScrollView>
 
@@ -242,6 +283,14 @@ const styles = StyleSheet.create({
   },
   historyList: {
     gap: 12,
+  },
+  historyEmpty: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(240,240,240,0.6)",
+    textAlign: "center",
+    paddingVertical: 24,
   },
   historyRow: {
     backgroundColor: COLORS.neutral.black3,

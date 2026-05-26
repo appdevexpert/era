@@ -1,5 +1,7 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import { setProgramStartDate, signOutThunk } from "./authSlice";
+import { loadRewardBootstrap } from "./rewardSlice";
+import { loadWeightBootstrap } from "./weightSlice";
 import {
   getCompletedSessionDayIds,
   getProgramDayDetail,
@@ -83,6 +85,13 @@ export const loadWorkoutBootstrap = createAsyncThunk<
     const completedDayIds = userId
       ? await getCompletedSessionDayIds(userId)
       : [];
+
+    // Hydrate reward + weight slices in the background (fire-and-forget —
+    // failure here shouldn't block the workout screen from rendering).
+    if (userId) {
+      dispatch(loadRewardBootstrap(userId)).catch(() => {});
+      dispatch(loadWeightBootstrap(userId)).catch(() => {});
+    }
 
     // Determine the correct day to load detail for
     let targetDayId = args?.programDayId ?? overview.currentDay.id;

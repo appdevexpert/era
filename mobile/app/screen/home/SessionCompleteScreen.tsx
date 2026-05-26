@@ -1,17 +1,23 @@
-import { CameraIcon } from "@/assets/icons";
+import AddPhotoBottomSheet, {
+  type AddPhotoBottomSheetRef,
+} from "@/app/components/common/AddPhotoBottomSheet";
+import GlassFill from "@/app/components/common/GlassFill";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
-import { PrTrophy } from "@/assets/images";
-import { useAppDispatch } from "@/app/stores/store";
 import { clearSession } from "@/app/stores/slice/sessionSlice";
-import GlassFill from "@/app/components/common/GlassFill";
-import { LinearGradient } from "expo-linear-gradient";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { uploadProgressPhotoThunk } from "@/app/stores/slice/photoSlice";
+import { useAppDispatch } from "@/app/stores/store";
+import { CameraIcon } from "@/assets/icons";
+import { PrTrophy } from "@/assets/images";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRef } from "react";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import Toast from "react-native-toast-message";
+import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const StatCard = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.statCard}>
@@ -29,6 +35,7 @@ const SessionCompleteScreen = () => {
   const { t } = useTranslation();
 
   const {
+    sessionId,
     programTitle,
     weekNumber,
     dayNumber,
@@ -38,6 +45,34 @@ const SessionCompleteScreen = () => {
     newPRs,
     bonusPoints,
   } = route.params;
+
+  const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
+
+  const handlePhotoSelected = async (photo: { uri: string }) => {
+    const action = await dispatch(
+      uploadProgressPhotoThunk({
+        localUri: photo.uri,
+        sessionId: sessionId ?? null,
+      }),
+    );
+    if (uploadProgressPhotoThunk.fulfilled.match(action)) {
+      const { pointsAwarded } = action.payload;
+      Toast.show({
+        type: "success",
+        text2:
+          pointsAwarded > 0
+            ? t("progress.addPhoto.uploadedWithPoints", { points: pointsAwarded })
+            : t("progress.addPhoto.uploadedNoPoints"),
+        visibilityTime: 2500,
+      });
+    } else {
+      Toast.show({
+        type: "error",
+        text2: t("progress.addPhoto.uploadFailed"),
+        visibilityTime: 3000,
+      });
+    }
+  };
 
   const subtitle =
     `${programTitle} \u2022 ${t("workout.ui.weekLabel", { number: weekNumber })} \u2022 ${t("workout.ui.dayLabel", { number: dayNumber })}`.toUpperCase();
@@ -83,7 +118,10 @@ const SessionCompleteScreen = () => {
       {/* Bottom buttons */}
       <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 16 }]}>
         {/* Capture Progress */}
-        <Pressable style={styles.captureBtn}>
+        <Pressable
+          style={styles.captureBtn}
+          onPress={() => addPhotoSheetRef.current?.show()}
+        >
           <GlassFill />
           <CameraIcon width={24} height={24} />
           <Text style={styles.captureBtnText}>
@@ -113,6 +151,11 @@ const SessionCompleteScreen = () => {
           <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
         </Pressable>
       </View>
+
+      <AddPhotoBottomSheet
+        ref={addPhotoSheetRef}
+        onPhotoSelected={handlePhotoSelected}
+      />
     </View>
   );
 };

@@ -127,6 +127,7 @@ export type HomeStackParamList = {
   Points: undefined;
   Leaderboard: undefined;
   SessionComplete: {
+    sessionId?: string | null;
     programTitle: string;
     weekNumber: number;
     dayNumber: number;

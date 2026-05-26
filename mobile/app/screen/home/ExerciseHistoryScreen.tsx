@@ -5,8 +5,13 @@ import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/W
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { useExerciseHistory } from "@/app/hooks/useExerciseHistory";
-import type { ExerciseHistoryView, ExerciseHistoryWeekSection } from "@/app/types/workout";
+import type {
+  ExerciseHistoryView,
+  ExerciseHistoryWeekSection,
+  ExerciseMetricKind,
+} from "@/app/types/workout";
 import { type HomeStackParamList } from "@/app/navigation/types";
+import { formatDuration } from "@/app/utils/workoutFormatters";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useMemo } from "react";
@@ -17,36 +22,65 @@ import Svg, { Path } from "react-native-svg";
 
 const POSITIVE = "#3DCA7A";
 
+// Picks a "nice" step that keeps the y-axis between ~4 and ~7 ticks regardless
+// of whether the values are kg (small range) or seconds (could be 0–1200).
+const pickStep = (range: number, defaultStep: number): number => {
+  if (range <= 0) return defaultStep;
+  const candidates = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200];
+  for (const c of candidates) {
+    if (range / c <= 6) return c;
+  }
+  return 1200;
+};
+
 const StatsCard = ({
   stats,
+  metricKind,
   chart,
   xTickLabels,
   successMessage,
   labels,
+  chartUnit,
+  language,
 }: {
   stats: ExerciseHistoryView["stats"];
+  metricKind: ExerciseMetricKind;
   chart: ChartPoint[];
   xTickLabels: string[];
   successMessage: string;
   labels: { current: string; heaviest: string; lightest: string };
+  chartUnit: string;
+  language: string;
 }) => {
-  // Chart Y-axis: always show at least a 20kg window with 5kg ticks, like
-  // the Figma. Expands further if the data range is wider.
+  // Chart Y-axis snaps to a tidy gridline so kg and seconds both look balanced.
   const { yMin, yMax, yStep } = useMemo(() => {
-    if (chart.length === 0) return { yMin: 0, yMax: 20, yStep: 5 };
+    if (chart.length === 0) {
+      return metricKind === "duration"
+        ? { yMin: 0, yMax: 60, yStep: 15 }
+        : { yMin: 0, yMax: 20, yStep: 5 };
+    }
     const values = chart.map((p) => p.value);
     const dataMin = Math.min(...values);
     const dataMax = Math.max(...values);
-    // Snap outward to 5kg gridlines, with at least 5kg of headroom either side.
-    let lo = Math.floor((dataMin - 2.5) / 5) * 5;
-    let hi = Math.ceil((dataMax + 2.5) / 5) * 5;
-    if (hi - lo < 20) {
-      const expand = (20 - (hi - lo)) / 2;
-      lo = Math.max(0, lo - Math.ceil(expand / 5) * 5);
-      hi = lo + 20;
+    const defaultStep = metricKind === "duration" ? 15 : 5;
+    const step = pickStep(dataMax - dataMin || defaultStep * 4, defaultStep);
+    let lo = Math.floor((dataMin - step / 2) / step) * step;
+    let hi = Math.ceil((dataMax + step / 2) / step) * step;
+    const minSpan = step * 4;
+    if (hi - lo < minSpan) {
+      const expand = (minSpan - (hi - lo)) / 2;
+      lo = Math.max(0, lo - Math.ceil(expand / step) * step);
+      hi = lo + minSpan;
     }
-    return { yMin: Math.max(0, lo), yMax: hi, yStep: 5 };
-  }, [chart]);
+    return { yMin: Math.max(0, lo), yMax: hi, yStep: step };
+  }, [chart, metricKind]);
+
+  const formatStat = (kg: number | null, sec: number | null): string => {
+    if (metricKind === "duration") {
+      return sec != null ? formatDuration(sec, language) : "—";
+    }
+    return kg != null ? `${kg} kg` : "—";
+  };
 
   return (
     <View style={styles.statsCard}>
@@ -54,20 +88,20 @@ const StatsCard = ({
         <View style={styles.statsCurrent}>
           <Text style={styles.statsLabel}>{labels.current}</Text>
           <Text style={styles.statsValue}>
-            {stats.currentKg != null ? `${stats.currentKg} kg` : "—"}
+            {formatStat(stats.currentKg, stats.currentSec)}
           </Text>
         </View>
         <View style={styles.statsSecondary}>
           <View style={styles.statsSecondaryRow}>
             <Text style={styles.statsLabel}>{labels.heaviest}</Text>
             <Text style={styles.statsSecondaryValue}>
-              {stats.heaviestKg != null ? `${stats.heaviestKg} kg` : "—"}
+              {formatStat(stats.heaviestKg, stats.longestSec)}
             </Text>
           </View>
           <View style={styles.statsSecondaryRow}>
             <Text style={styles.statsLabel}>{labels.lightest}</Text>
             <Text style={styles.statsSecondaryValue}>
-              {stats.lightestKg != null ? `${stats.lightestKg} kg` : "—"}
+              {formatStat(stats.lightestKg, stats.shortestSec)}
             </Text>
           </View>
         </View>
@@ -80,6 +114,7 @@ const StatsCard = ({
           yMin={yMin}
           yMax={yMax}
           yStep={yStep}
+          unit={chartUnit}
         />
       ) : null}
 
@@ -105,9 +140,13 @@ const DashedTimeline = () => (
 const WeekBlock = ({
   section,
   isLast,
+  metricKind,
+  language,
 }: {
   section: ExerciseHistoryWeekSection;
   isLast: boolean;
+  metricKind: ExerciseMetricKind;
+  language: string;
 }) => (
   <View style={styles.weekBlock}>
     <View style={styles.weekHeader}>
@@ -123,6 +162,12 @@ const WeekBlock = ({
             dateLabel={e.dateLabel}
             weightKg={e.weightKg}
             reps={e.reps}
+            metricKind={metricKind}
+            durationLabel={
+              metricKind === "duration" && e.durationSec != null
+                ? formatDuration(e.durationSec, language)
+                : undefined
+            }
             delta={e.delta}
             badge={e.isPR}
           />
@@ -135,7 +180,7 @@ const WeekBlock = ({
 const ExerciseHistoryScreen = () => {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseHistory">>();
   const exerciseId = route.params?.exerciseId;
   const exerciseName = route.params?.title ?? "";
@@ -150,12 +195,27 @@ const ExerciseHistoryScreen = () => {
     () =>
       data?.chart.points.map((c) => ({
         label: c.label,
-        value: c.weightKg,
+        value: c.value,
         isReal: c.isReal,
       })) ?? [],
     [data],
   );
   const xTickLabels = data?.chart.xTickLabels ?? [];
+  const metricKind: ExerciseMetricKind = data?.metricKind ?? "weight";
+  const chartUnit =
+    metricKind === "duration" ? t("history.chartUnitSec") : t("history.chartUnitKg");
+  const labels =
+    metricKind === "duration"
+      ? {
+          current: t("history.stats.current"),
+          heaviest: t("history.stats.longest"),
+          lightest: t("history.stats.shortest"),
+        }
+      : {
+          current: t("history.stats.current"),
+          heaviest: t("history.stats.heaviest"),
+          lightest: t("history.stats.lightest"),
+        };
 
   return (
     <View style={styles.root}>
@@ -170,14 +230,13 @@ const ExerciseHistoryScreen = () => {
           <>
             <StatsCard
               stats={data.stats}
+              metricKind={metricKind}
               chart={chartData}
               xTickLabels={xTickLabels}
               successMessage={t("history.successBanner")}
-              labels={{
-                current: t("history.stats.current"),
-                heaviest: t("history.stats.heaviest"),
-                lightest: t("history.stats.lightest"),
-              }}
+              labels={labels}
+              chartUnit={chartUnit}
+              language={i18n.language}
             />
 
             <View style={styles.historyHeader}>
@@ -196,6 +255,8 @@ const ExerciseHistoryScreen = () => {
                   key={section.id}
                   section={section}
                   isLast={idx === data.sections.length - 1}
+                  metricKind={metricKind}
+                  language={i18n.language}
                 />
               ))}
             </View>

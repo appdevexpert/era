@@ -1,6 +1,16 @@
+import ScreenFades from "@/app/components/common/ScreenFades";
+import LeaderboardScreenSkeleton, {
+  LeaderboardRowSkeleton,
+} from "@/app/components/skeleton/LeaderboardScreenSkeleton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
+import {
+  fetchLeaderboardPage,
+  fetchMyLeaderboardRank,
+  type LeaderboardEntry,
+} from "@/app/services/leaderboardService";
+import type { RootState } from "@/app/stores/store";
 import {
   MedalBronze,
   MedalGold,
@@ -8,9 +18,12 @@ import {
   ProfileBackChevron,
 } from "@/assets/icons";
 import { DemoMedia } from "@/assets/images";
+import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Image,
   Pressable,
@@ -18,59 +31,25 @@ import {
   StyleSheet,
   Text,
   View,
+  type ListRenderItem,
 } from "react-native";
-import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ScreenFades from "@/app/components/common/ScreenFades";
+import { useSelector } from "react-redux";
 
-type PodiumPlayer = {
-  name: string;
-  pts: number;
-  border: string;
-  ptsColor: string;
-};
+const PAGE_SIZE = 10;
 
-type RankedPlayer = {
-  rank: number;
-  name: string;
-  pts: number;
-  isYou?: boolean;
-};
-
-const PODIUM: { first: PodiumPlayer; second: PodiumPlayer; third: PodiumPlayer } = {
-  first: { name: "Rami", pts: 1034, border: COLORS.primary.dark, ptsColor: COLORS.primary.dark },
-  second: { name: "Mike", pts: 854, border: COLORS.neutral.white, ptsColor: "rgba(255,255,255,0.6)" },
-  third: { name: "Ross", pts: 724, border: COLORS.semantic.danger, ptsColor: "#DB6F6F" },
-};
-
-const RANKED_PLAYERS: RankedPlayer[] = [
-  { rank: 4, name: "Jess B.", pts: 470 },
-  { rank: 5, name: "Jessica L.", pts: 470 },
-  { rank: 6, name: "Michael S.", pts: 520 },
-  { rank: 7, name: "Liam H.", pts: 660 },
-  { rank: 8, name: "David W.", pts: 710 },
-  { rank: 9, name: "Sophia K.", pts: 850 },
-  { rank: 10, name: "James T.", pts: 430 },
-  { rank: 11, name: "Olivia F.", pts: 800 },
-  { rank: 12, name: "You", pts: 590, isYou: true },
-  { rank: 12, name: "Liam H.", pts: 750 },
-  { rank: 13, name: "Sophia K.", pts: 900 },
-];
-
-const PODIUM_GRADIENT = [
-  "#FCF3C0",
-  "#F7E06F",
-  "#C9A84C",
-] as const;
+type Status = "idle" | "loading" | "success" | "error";
 
 const Avatar = ({
   size,
   border,
   borderWidth = 1,
+  uri,
 }: {
   size: number;
   border: string;
   borderWidth?: number;
+  uri?: string | null;
 }) => (
   <View
     style={{
@@ -84,63 +63,110 @@ const Avatar = ({
     }}
   >
     <Image
-      source={DemoMedia}
+      source={uri ? { uri } : DemoMedia}
       style={{ width: "100%", height: "100%" }}
       resizeMode="cover"
     />
   </View>
 );
 
+const PODIUM_GRADIENT = ["#FCF3C0", "#F7E06F", "#C9A84C"] as const;
+
+const PODIUM_BORDER: Record<1 | 2 | 3, string> = {
+  1: COLORS.primary.dark,
+  2: COLORS.neutral.white,
+  3: COLORS.semantic.danger,
+};
+
+const PODIUM_PTS_COLOR: Record<1 | 2 | 3, string> = {
+  1: COLORS.primary.dark,
+  2: "rgba(255,255,255,0.6)",
+  3: "#DB6F6F",
+};
+
+const PODIUM_BLOCK: Record<
+  1 | 2 | 3,
+  { height: number; numberSize: number; numberTop: number; opacity?: number }
+> = {
+  1: { height: 200, numberSize: 100, numberTop: 75 },
+  2: { height: 149, numberSize: 80, numberTop: 60, opacity: 0.9 },
+  3: { height: 115, numberSize: 70, numberTop: 45, opacity: 0.8 },
+};
+
 const PodiumColumn = ({
-  player,
-  block,
+  entry,
   rank,
   isFirst = false,
+  fallbackName,
 }: {
-  player: PodiumPlayer;
-  block: { height: number; numberSize: number; numberTop: number; opacity?: number };
+  entry?: LeaderboardEntry;
   rank: 1 | 2 | 3;
   isFirst?: boolean;
-}) => (
-  <View style={[styles.podiumCol, isFirst && { flex: 1 }]}>
-    <View style={styles.podiumPersonWrap}>
-      <Avatar size={80} border={player.border} borderWidth={rank === 1 ? 1.333 : 1} />
-      <Text style={styles.podiumName}>{player.name}</Text>
-      <Text style={[styles.podiumPts, { color: player.ptsColor }]}>
-        {player.pts} pts
-      </Text>
-      <View style={styles.awardBadge}>
-        {rank === 1 ? (
-          <MedalGold width={29} height={40} />
-        ) : rank === 2 ? (
-          <MedalSilver width={29} height={40} />
-        ) : (
-          <MedalBronze width={29} height={40} />
-        )}
+  fallbackName: string;
+}) => {
+  const block = PODIUM_BLOCK[rank];
+  return (
+    <View style={[styles.podiumCol, isFirst && { flex: 1 }]}>
+      <View style={styles.podiumPersonWrap}>
+        <Avatar
+          size={80}
+          border={PODIUM_BORDER[rank]}
+          borderWidth={rank === 1 ? 1.333 : 1}
+          uri={entry?.avatarUrl}
+        />
+        <Text style={styles.podiumName} numberOfLines={1}>
+          {entry?.displayName ?? fallbackName}
+        </Text>
+        <Text style={[styles.podiumPts, { color: PODIUM_PTS_COLOR[rank] }]}>
+          {entry?.totalPoints ?? 0} pts
+        </Text>
+        <View style={styles.awardBadge}>
+          {rank === 1 ? (
+            <MedalGold width={29} height={40} />
+          ) : rank === 2 ? (
+            <MedalSilver width={29} height={40} />
+          ) : (
+            <MedalBronze width={29} height={40} />
+          )}
+        </View>
       </View>
-    </View>
-    <View style={[styles.podiumBlock, { opacity: block.opacity ?? 1 }, isFirst && { width: "100%" }]}>
-      <View style={styles.podiumCap} />
-      <LinearGradient
-        colors={PODIUM_GRADIENT}
-        start={{ x: 0.5, y: 1 }}
-        end={{ x: 0.5, y: 0 }}
-        style={[styles.podiumStem, { height: block.height }]}
-      />
-      <Text
+      <View
         style={[
-          styles.podiumNumber,
-          { fontSize: block.numberSize, top: block.numberTop },
+          styles.podiumBlock,
+          { opacity: block.opacity ?? 1 },
+          isFirst && { width: "100%" },
         ]}
       >
-        {rank}
-      </Text>
+        <View style={styles.podiumCap} />
+        <LinearGradient
+          colors={PODIUM_GRADIENT}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0 }}
+          style={[styles.podiumStem, { height: block.height }]}
+        />
+        <Text
+          style={[
+            styles.podiumNumber,
+            { fontSize: block.numberSize, top: block.numberTop },
+          ]}
+        >
+          {rank}
+        </Text>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
-const RankRow = ({ player }: { player: RankedPlayer }) => {
-  if (player.isYou) {
+const RankRow = ({
+  entry,
+  isYou,
+  youLabel,
+}: {
+  entry: LeaderboardEntry;
+  isYou: boolean;
+  youLabel: string;
+}) => {
+  if (isYou) {
     return (
       <View style={styles.rowYou}>
         <LinearGradient
@@ -151,14 +177,22 @@ const RankRow = ({ player }: { player: RankedPlayer }) => {
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.rankWrap}>
-          <Text style={styles.rankText}>#{player.rank}</Text>
+          <Text style={styles.rankText}>#{entry.rank}</Text>
         </View>
-        <Avatar size={52} border={COLORS.primary.light} borderWidth={0.867} />
-        <Text style={[styles.rowName, { color: COLORS.primary.base }]} numberOfLines={1}>
-          {player.name}
+        <Avatar
+          size={52}
+          border={COLORS.primary.light}
+          borderWidth={0.867}
+          uri={entry.avatarUrl}
+        />
+        <Text
+          style={[styles.rowName, { color: COLORS.primary.base }]}
+          numberOfLines={1}
+        >
+          {entry.displayName ?? youLabel}
         </Text>
         <Text style={[styles.rowPts, { color: COLORS.primary.dark }]}>
-          {player.pts} pts
+          {entry.totalPoints} pts
         </Text>
       </View>
     );
@@ -166,13 +200,13 @@ const RankRow = ({ player }: { player: RankedPlayer }) => {
   return (
     <View style={styles.row}>
       <View style={styles.rankWrap}>
-        <Text style={styles.rankText}>#{player.rank}</Text>
+        <Text style={styles.rankText}>#{entry.rank}</Text>
       </View>
-      <Avatar size={52} border="transparent" borderWidth={0} />
+      <Avatar size={52} border="transparent" borderWidth={0} uri={entry.avatarUrl} />
       <Text style={styles.rowName} numberOfLines={1}>
-        {player.name}
+        {entry.displayName ?? "—"}
       </Text>
-      <Text style={styles.rowPts}>{player.pts} pts</Text>
+      <Text style={styles.rowPts}>{entry.totalPoints} pts</Text>
     </View>
   );
 };
@@ -181,45 +215,161 @@ const LeaderboardScreen = () => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<HomeStackParamList>>();
-  const myRank = 12;
+  const currentUserId = useSelector((s: RootState) => s.auth.user?.id ?? null);
+
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [status, setStatus] = useState<Status>("idle");
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [myRank, setMyRank] = useState<number>(0);
+
+  // Guard against RN's habit of double-firing onEndReached on the same offset.
+  const isFetchingRef = useRef(false);
+
+  const loadPage = useCallback(
+    async (offset: number, mode: "initial" | "more") => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      try {
+        if (mode === "more") setLoadingMore(true);
+        else setStatus("loading");
+
+        const page = await fetchLeaderboardPage(PAGE_SIZE, offset);
+
+        setEntries((prev) => (mode === "more" ? [...prev, ...page] : page));
+        setHasMore(page.length === PAGE_SIZE);
+        setStatus("success");
+      } catch (e) {
+        console.warn("[leaderboard] page fetch failed", e);
+        if (mode === "initial") setStatus("error");
+      } finally {
+        setLoadingMore(false);
+        isFetchingRef.current = false;
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    loadPage(0, "initial");
+    fetchMyLeaderboardRank()
+      .then((r) => setMyRank(r.rank))
+      .catch(() => {});
+  }, [loadPage]);
+
+  const onEndReached = useCallback(() => {
+    if (!hasMore || isFetchingRef.current || status !== "success") return;
+    loadPage(entries.length, "more");
+  }, [entries.length, hasMore, loadPage, status]);
+
+  // Podium highlights the top 3 (Figma 4769:71418). List shows ranks 4+
+  // by default, falling back to all entries when there are fewer than 4 users
+  // so the sheet never renders empty in early-adopter state.
+  const podiumEntries = entries.slice(0, 3);
+  const listEntries = entries.length >= 4 ? entries.slice(3) : entries;
+
+  // Each row sits inside the dark sheet — we wrap it with the sheet bg so the
+  // 20px horizontal gutter on either side of the row stays #121212.
+  const renderItem: ListRenderItem<LeaderboardEntry> = useCallback(
+    ({ item }) => (
+      <View style={styles.sheetRowWrap}>
+        <RankRow
+          entry={item}
+          isYou={item.userId === currentUserId}
+          youLabel={t("progress.leaderboardYou")}
+        />
+      </View>
+    ),
+    [currentUserId, t],
+  );
+
+  // Empty / error states live inside the dark sheet so the chrome doesn't
+  // disappear when there's no data. Initial loading is handled separately
+  // via the full-screen skeleton below.
+  const ListEmpty =
+    status === "error" ? (
+      <View style={[styles.sheetFill, styles.centered]}>
+        <Text style={styles.emptyText}>{t("progress.leaderboardError")}</Text>
+      </View>
+    ) : (
+      <View style={[styles.sheetFill, styles.centered]}>
+        <Text style={styles.emptyText}>{t("progress.leaderboardEmpty")}</Text>
+      </View>
+    );
+
+  const ListFooter = (
+    <View
+      style={[
+        styles.sheetFooter,
+        { paddingBottom: insets.bottom + 40 },
+      ]}
+    >
+      {loadingMore ? (
+        <>
+          <LeaderboardRowSkeleton />
+          <View style={{ height: 16 }} />
+          <LeaderboardRowSkeleton />
+        </>
+      ) : null}
+    </View>
+  );
+
+  // BottomSheet snap points — first snap shows the podium + a peek of the
+  // sheet (handle + a couple rows), second snap covers the podium so the
+  // list owns the full screen. Reanimated drives the spring under the hood.
+  const sheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ["45%", "75%"], []);
+
+  // Initial load — show the full skeleton (podium + sheet + rows) instead of
+  // a spinner. Once we have any data (even a stale page from refresh), switch
+  // to the live sheet.
+  const showInitialSkeleton = status === "loading" && entries.length === 0;
 
   return (
     <View style={styles.root}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingTop: insets.top + 110,
-          paddingBottom: insets.bottom + 40,
-        }}
+      {/* Podium sits behind the sheet — visible at the first snap point,
+          covered when the user drags the sheet up to the second snap. */}
+      <View
+        style={[styles.podiumWrap, { paddingTop: insets.top + 110 }]}
+        pointerEvents="box-none"
       >
-        {/* Podium */}
         <View style={styles.podiumRow}>
-          <PodiumColumn
-            player={PODIUM.second}
-            rank={2}
-            block={{ height: 149, numberSize: 80, numberTop: 60, opacity: 0.9 }}
-          />
-          <PodiumColumn
-            player={PODIUM.first}
-            rank={1}
-            isFirst
-            block={{ height: 200, numberSize: 100, numberTop: 75 }}
-          />
-          <PodiumColumn
-            player={PODIUM.third}
-            rank={3}
-            block={{ height: 115, numberSize: 70, numberTop: 45, opacity: 0.8 }}
-          />
+          <PodiumColumn entry={podiumEntries[1]} rank={2} fallbackName="—" />
+          <PodiumColumn entry={podiumEntries[0]} rank={1} isFirst fallbackName="—" />
+          <PodiumColumn entry={podiumEntries[2]} rank={3} fallbackName="—" />
         </View>
+      </View>
 
-        {/* Ranked list inside dark sheet */}
-        <View style={styles.list}>
-          <View style={styles.handle} />
-          {RANKED_PLAYERS.map((p, i) => (
-            <RankRow key={`${p.rank}-${p.name}-${i}`} player={p} />
-          ))}
-        </View>
-      </ScrollView>
+      <BottomSheet
+        ref={sheetRef}
+        index={0}
+        snapPoints={snapPoints}
+        enablePanDownToClose={false}
+        backgroundStyle={styles.sheetBg}
+        handleIndicatorStyle={styles.sheetHandle}
+        handleStyle={styles.sheetHandleArea}
+      >
+        {showInitialSkeleton ? (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <LeaderboardScreenSkeleton />
+          </ScrollView>
+        ) : (
+          <BottomSheetFlatList
+            data={listEntries}
+            keyExtractor={(item) => item.userId}
+            renderItem={renderItem}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={entries.length === 0 ? ListEmpty : null}
+            ListFooterComponent={ListFooter}
+            onEndReached={onEndReached}
+            onEndReachedThreshold={0.5}
+            ItemSeparatorComponent={() => (
+              <View style={styles.sheetSeparator} />
+            )}
+            contentContainerStyle={styles.sheetContent}
+          />
+        )}
+      </BottomSheet>
 
       {/* Pinned header — same blur pattern as WorkoutPlanHeader */}
       <BlurView
@@ -231,7 +381,9 @@ const LeaderboardScreen = () => {
           <ProfileBackChevron width={24} height={24} />
         </Pressable>
         <View style={{ gap: 6 }}>
-          <Text style={styles.eyebrow}>#{myRank}</Text>
+          <Text style={styles.eyebrow}>
+            {myRank > 0 ? `#${myRank}` : t("progress.leaderboardUnranked")}
+          </Text>
           <Text style={styles.title}>{t("progress.leaderboard")}</Text>
         </View>
       </BlurView>
@@ -301,6 +453,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: COLORS.neutral.white,
     marginTop: 4,
+    maxWidth: 110,
   },
   podiumPts: {
     fontFamily: FONTS.semiBold,
@@ -339,29 +492,61 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // List
-  list: {
+  // Podium container — sits behind the sheet, padded under the pinned header.
+  podiumWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+
+  // BottomSheet chrome (Figma 4769:71513). The sheet itself owns the rounded
+  // top, drop shadow, and handle indicator — these styles feed into gorhom.
+  sheetBg: {
     backgroundColor: "#121212",
     borderTopLeftRadius: 38,
     borderTopRightRadius: 38,
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 24,
-    marginTop: -20,
-    gap: 16,
+    // Drop shadow from Figma: 0 -10 12 rgba(0,0,0,0.4)
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -10 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
+    elevation: 12,
   },
-  handle: {
-    alignSelf: "center",
+  sheetHandle: {
     width: 54,
     height: 4,
-    borderRadius: 12345,
+    borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.2)",
-    marginBottom: 12,
   },
+  sheetHandleArea: {
+    paddingTop: 8,
+    paddingBottom: 20,
+  },
+  sheetContent: {
+    paddingTop: 0,
+  },
+  sheetRowWrap: {
+    backgroundColor: "#121212",
+    paddingHorizontal: 20,
+  },
+  sheetSeparator: {
+    height: 16,
+    backgroundColor: "#121212",
+  },
+  sheetFill: {
+    backgroundColor: "#121212",
+    minHeight: 240,
+  },
+  sheetFooter: {
+    backgroundColor: "#121212",
+    paddingVertical: 20,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // List rows (sit inside sheetRowWrap)
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -408,5 +593,23 @@ const styles = StyleSheet.create({
     color: "rgba(240, 240, 240, 0.5)",
     letterSpacing: 0.64,
     textTransform: "uppercase",
+  },
+
+  // Empty / loading
+  centered: {
+    paddingHorizontal: 32,
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "rgba(240, 240, 240, 0.6)",
+    textAlign: "center",
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
 });

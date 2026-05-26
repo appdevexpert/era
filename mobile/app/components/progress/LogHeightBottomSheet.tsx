@@ -34,8 +34,12 @@ export interface LogHeightBottomSheetRef {
 }
 
 interface LogHeightBottomSheetProps {
-  /** Initial height in centimeters. */
+  /** Initial height in centimeters. Used when initialUnit/initialValue not provided. */
   initialCm?: number;
+  /** Optional starting unit. When omitted, defaults to "cm". */
+  initialUnit?: HeightUnit;
+  /** Initial value expressed in `initialUnit` (cm or total inches for ft). */
+  initialValue?: number;
   onLog?: (value: number, unit: HeightUnit) => void;
 }
 
@@ -71,14 +75,19 @@ const formatFt = (totalInches: number) => {
 const LogHeightBottomSheet = forwardRef<
   LogHeightBottomSheetRef,
   LogHeightBottomSheetProps
->(function LogHeightBottomSheet({ initialCm = 180, onLog }, ref) {
+>(function LogHeightBottomSheet(
+  { initialCm = 180, initialUnit, initialValue, onLog },
+  ref,
+) {
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
   const dateLabel = useMemo(formatToday, []);
 
-  const [unit, setUnit] = useState<HeightUnit>("cm");
+  const [unit, setUnit] = useState<HeightUnit>(initialUnit ?? "cm");
   // Value is stored in the active unit (cm or total inches).
-  const [value, setValue] = useState<number>(initialCm);
+  const [value, setValue] = useState<number>(
+    initialValue !== undefined ? Math.round(initialValue) : initialCm,
+  );
 
   const togglePos = useSharedValue<number>(0);
   useEffect(() => {

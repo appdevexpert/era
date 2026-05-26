@@ -5,7 +5,7 @@ import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 export interface SessionDelta {
-  /** Absolute kg difference vs the previous session. */
+  /** Absolute difference vs the previous session — kg or seconds depending on `metricKind`. */
   kg: number;
   positive: boolean;
 }
@@ -15,6 +15,13 @@ interface SessionHistoryCardProps {
   dateLabel: string;
   weightKg: number;
   reps: number;
+  /**
+   * "weight" (default) → renders "${weightKg} kg x ${reps} reps" and a "±X kg" delta.
+   * "duration" → renders "${durationLabel}" and a "±Xs" delta. Use with `durationLabel`.
+   */
+  metricKind?: "weight" | "duration";
+  /** Pre-formatted duration text shown in duration mode (e.g. "1 min 30 sec"). */
+  durationLabel?: string;
   /** When set, renders a `+X kg` / `-X kg` chip on the right (green/red). */
   delta?: SessionDelta;
   /**
@@ -42,11 +49,20 @@ const SessionHistoryCard = ({
   dateLabel,
   weightKg,
   reps,
+  metricKind = "weight",
+  durationLabel,
   delta,
   badge,
 }: SessionHistoryCardProps) => {
   const showBadge = badge !== undefined && badge !== false && badge !== null;
   const badgeNode = badge === true ? <DefaultBadge /> : (badge as ReactNode);
+
+  const primaryText =
+    metricKind === "duration"
+      ? (durationLabel ?? "")
+      : `${weightKg} kg  x  ${reps} reps`;
+
+  const deltaUnit = metricKind === "duration" ? "s" : "kg";
 
   return (
     <View style={styles.card}>
@@ -62,7 +78,7 @@ const SessionHistoryCard = ({
 
       <View style={styles.left}>
         <Text style={styles.eyebrow}>{dateLabel}</Text>
-        <Text style={styles.weight}>{`${weightKg} kg  x  ${reps} reps`}</Text>
+        <Text style={styles.weight}>{primaryText}</Text>
       </View>
 
       {showBadge ? (
@@ -71,7 +87,7 @@ const SessionHistoryCard = ({
         <Text
           style={[styles.delta, { color: delta.positive ? POSITIVE : NEGATIVE }]}
         >
-          {`${delta.positive ? "+" : "-"}${delta.kg} kg`}
+          {`${delta.positive ? "+" : "-"}${delta.kg} ${deltaUnit}`}
         </Text>
       ) : null}
     </View>

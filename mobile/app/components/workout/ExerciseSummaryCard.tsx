@@ -15,8 +15,14 @@ interface ExerciseSummaryCardProps {
   name: string;
   /** Sub-meta line — e.g. "3 Sets • 10 Reps". */
   meta?: string;
-  /** Big weight value — e.g. 60 kg, 145 kg. */
+  /** Big weight value — e.g. 60 kg, 145 kg. Ignored when `displayValue` is set. */
   weightKg: number;
+  /**
+   * When provided, replaces the default "${weightKg} kg" rendering. Used for
+   * non-weight exercises (treadmill walk, plank) where the primary value is
+   * a duration like "20 min" or "1 min 30 sec".
+   */
+  displayValue?: string;
   /** Optional weight-change indicator shown under the weight. */
   delta?: ExerciseSummaryDelta;
   /** Tap handler — when provided, the card becomes a Pressable with press feedback. */
@@ -36,6 +42,7 @@ const ExerciseSummaryCard = ({
   name,
   meta,
   weightKg,
+  displayValue,
   delta,
   onPress,
 }: ExerciseSummaryCardProps) => {
@@ -48,7 +55,7 @@ const ExerciseSummaryCard = ({
       </View>
       <View style={styles.right}>
         <ChevronRight width={16} height={16} color="rgba(240,240,240,0.5)" />
-        <Text style={styles.weight}>{`${weightKg} kg`}</Text>
+        <Text style={styles.weight}>{displayValue ?? `${weightKg} kg`}</Text>
         {delta ? (
           <Text
             style={[

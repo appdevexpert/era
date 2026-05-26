@@ -8,48 +8,36 @@ import PhotoPreviewBottomSheet, {
 import ScreenFades from "@/app/components/common/ScreenFades";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import {
+  loadProgressPhotos,
+  uploadProgressPhotoThunk,
+} from "@/app/stores/slice/photoSlice";
+import { useAppDispatch } from "@/app/stores/store";
+import type { RootState } from "@/app/stores/store";
 import { TablerPlus } from "@/assets/icons";
-import { DemoMedia } from "@/assets/images";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Toast from "react-native-toast-message";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
 
 interface TransformPhoto {
   id: string;
   date: string;
+  imageUri: string | null;
 }
 
-// Mock dataset — replace with real `session_media` query later.
-const PHOTOS: TransformPhoto[] = [
-  { id: "1",  date: "May 21" },
-  { id: "2",  date: "May 20" },
-  { id: "3",  date: "May 18" },
-  { id: "4",  date: "May 17" },
-  { id: "5",  date: "May 12" },
-  { id: "6",  date: "May 10" },
-  { id: "7",  date: "May 08" },
-  { id: "8",  date: "May 06" },
-  { id: "9",  date: "May 06" },
-  { id: "10", date: "May 17" },
-  { id: "11", date: "May 12" },
-  { id: "12", date: "May 10" },
-  { id: "13", date: "May 06" },
-  { id: "14", date: "May 12" },
-  { id: "15", date: "May 17" },
-  { id: "16", date: "May 10" },
-  { id: "17", date: "May 17" },
-  { id: "18", date: "May 17" },
-  { id: "19", date: "May 12" },
-  { id: "20", date: "May 10" },
-];
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 
 const GRID_GAP = 20;
 const GRID_PADDING = 24;
 const GRID_COLUMNS = 3;
 
-const AddNewTile = ({ onPress }: { onPress: () => void }) => (
+const AddNewTile = ({ onPress, label }: { onPress: () => void; label: string }) => (
   <Pressable onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}>
     <View style={styles.addNewThumb}>
       {/* Glass blur substrate */}
@@ -66,7 +54,7 @@ const AddNewTile = ({ onPress }: { onPress: () => void }) => (
         <TablerPlus width={20} height={20} color="#F0F0F0" />
       </View>
     </View>
-    <Text style={styles.addNewLabel}>Add New</Text>
+    <Text style={styles.addNewLabel}>{label}</Text>
   </Pressable>
 );
 
@@ -82,11 +70,13 @@ const PhotoTile = ({
     style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}
   >
     <View style={styles.photoThumb}>
-      <Image
-        source={DemoMedia}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
-      />
+      {photo.imageUri ? (
+        <Image
+          source={{ uri: photo.imageUri }}
+          style={StyleSheet.absoluteFillObject}
+          resizeMode="cover"
+        />
+      ) : null}
     </View>
     <Text style={styles.photoDate}>{photo.date}</Text>
   </Pressable>
@@ -95,12 +85,34 @@ const PhotoTile = ({
 const TransformationGalleryScreen = () => {
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
+  const { t } = useTranslation();
+  const dispatch = useAppDispatch();
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
   const photoPreviewSheetRef = useRef<PhotoPreviewBottomSheetRef>(null);
 
+  const photoRows = useSelector((s: RootState) => s.photo.photos);
+  const photoStatus = useSelector((s: RootState) => s.photo.status);
+  const userId = useSelector((s: RootState) => s.auth.user?.id ?? null);
+
+  useEffect(() => {
+    if (userId && photoStatus === "idle") {
+      dispatch(loadProgressPhotos());
+    }
+  }, [dispatch, userId, photoStatus]);
+
+  const photos: TransformPhoto[] = useMemo(
+    () =>
+      photoRows.map((p) => ({
+        id: p.id,
+        date: formatDate(p.createdAt),
+        imageUri: p.signedUrl,
+      })),
+    [photoRows],
+  );
+
   const openPhoto = (photo: TransformPhoto) =>
     photoPreviewSheetRef.current?.show({
-      source: DemoMedia,
+      source: photo.imageUri ? { uri: photo.imageUri } : undefined,
       dateLabel: photo.date,
     });
 
@@ -108,14 +120,14 @@ const TransformationGalleryScreen = () => {
   const rows = useMemo(() => {
     const cells: ({ kind: "add" } | { kind: "photo"; photo: TransformPhoto })[] = [
       { kind: "add" },
-      ...PHOTOS.map((photo) => ({ kind: "photo" as const, photo })),
+      ...photos.map((photo) => ({ kind: "photo" as const, photo })),
     ];
     const out: typeof cells[] = [];
     for (let i = 0; i < cells.length; i += GRID_COLUMNS) {
       out.push(cells.slice(i, i + GRID_COLUMNS));
     }
     return out;
-  }, []);
+  }, [photos]);
 
   return (
     <View style={styles.root}>
@@ -131,7 +143,11 @@ const TransformationGalleryScreen = () => {
             <View key={rowIdx} style={styles.row}>
               {row.map((cell, colIdx) =>
                 cell.kind === "add" ? (
-                  <AddNewTile key={`add-${colIdx}`} onPress={() => addPhotoSheetRef.current?.show()} />
+                  <AddNewTile
+                    key={`add-${colIdx}`}
+                    onPress={() => addPhotoSheetRef.current?.show()}
+                    label={t("progress.addNewPhoto")}
+                  />
                 ) : (
                   <PhotoTile
                     key={cell.photo.id}
@@ -155,15 +171,34 @@ const TransformationGalleryScreen = () => {
 
       <AddPhotoBottomSheet
         ref={addPhotoSheetRef}
-        onPhotoSelected={(photo) =>
-          photoPreviewSheetRef.current?.show({
-            source: { uri: photo.uri },
-            dateLabel: new Date().toLocaleDateString("en-US", {
-              month: "short",
-              day: "2-digit",
-            }),
-          })
-        }
+        onPhotoSelected={async (photo) => {
+          const action = await dispatch(
+            uploadProgressPhotoThunk({ localUri: photo.uri }),
+          );
+          if (uploadProgressPhotoThunk.fulfilled.match(action)) {
+            const { pointsAwarded, row } = action.payload;
+            Toast.show({
+              type: "success",
+              text2:
+                pointsAwarded > 0
+                  ? t("progress.addPhoto.uploadedWithPoints", { points: pointsAwarded })
+                  : t("progress.addPhoto.uploadedNoPoints"),
+              visibilityTime: 2500,
+            });
+            photoPreviewSheetRef.current?.show({
+              source: row.signedUrl
+                ? { uri: row.signedUrl }
+                : { uri: photo.uri },
+              dateLabel: formatDate(row.createdAt),
+            });
+          } else {
+            Toast.show({
+              type: "error",
+              text2: t("progress.addPhoto.uploadFailed"),
+              visibilityTime: 3000,
+            });
+          }
+        }}
       />
       <PhotoPreviewBottomSheet ref={photoPreviewSheetRef} />
     </View>

@@ -18,6 +18,8 @@ import BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/app/stores/store";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -49,7 +51,17 @@ const WorkoutLogScreen = () => {
   const prevEx = exIdx > 0 ? exercises[exIdx - 1] : undefined;
   const nextEx = exIdx < total - 1 ? exercises[exIdx + 1] : undefined;
 
-  const [weight, setWeight] = useState(currentEx?.initialWeight ?? 120);
+  // Smart weight adjustment — if a previous set's feedback produced a
+  // suggested weight for the set we're about to log, prefill from it.
+  // Falls back to the per-set planned weight, then the exercise's default.
+  const suggestedWeight = useSelector((state: RootState) => {
+    const seId = currentEx ? state.session.exerciseMap[currentEx.id] : undefined;
+    const ssId = seId ? state.session.setMap[seId]?.[startSet] : undefined;
+    return ssId ? state.session.suggestedWeightBySetId[ssId] : undefined;
+  });
+  const plannedWeightForSet =
+    currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 120;
+  const [weight, setWeight] = useState(suggestedWeight ?? plannedWeightForSet);
   const [reps, setReps] = useState(currentEx?.targetReps ?? 6);
   const [comment, setComment] = useState("");
   const [feedback, setFeedback] = useState<"light_weight" | "correct_weight" | "felt_heavy" | null>(null);

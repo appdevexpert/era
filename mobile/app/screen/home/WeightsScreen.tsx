@@ -265,6 +265,7 @@ const WeightsScreen = () => {
                     name={ex.name}
                     meta={ex.meta}
                     weightKg={ex.weightKg}
+                    displayValue={ex.displayValue}
                     delta={ex.delta}
                     onPress={() => openExerciseHistory(ex)}
                   />

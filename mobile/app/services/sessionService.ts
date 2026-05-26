@@ -406,19 +406,37 @@ export async function upsertUserExerciseStat(params: {
 
 /* ─── Personal records ─── */
 
+export type PrMetric =
+  | "max_weight"
+  | "max_reps"
+  | "best_set"
+  | "estimated_one_rep_max"
+  | "duration"
+  | "distance";
+
+const PR_POINTS = 100; // per metric broken, per spec image
+
+/**
+ * Insert one PR row + award +100 per broken metric (Option A in the spec).
+ * Pre-checks the existing best for this (user, exercise, metric) and skips
+ * if the new value doesn't beat it.
+ *
+ * @returns The new PR row id + previous best, or null if no PR was made.
+ */
 export async function checkAndCreatePR(params: {
   userId: string;
   exerciseId: string;
+  exerciseName: string;
   sessionId: string;
   sessionExerciseId: string;
   sessionSetId: string;
-  metric: "max_weight" | "max_reps" | "best_set" | "duration" | "distance";
+  metric: PrMetric;
   value: number;
   unit: string;
   weight?: number;
   reps?: number;
   duration?: number;
-}) {
+}): Promise<{ prId: string; previousBest: number } | null> {
   // Check existing best
   const { data: existing } = await supabase
     .from("personal_records")
@@ -428,9 +446,9 @@ export async function checkAndCreatePR(params: {
     .eq("metric", params.metric)
     .order("value_numeric", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  const previousBest = existing?.value_numeric ?? 0;
+  const previousBest = Number(existing?.value_numeric ?? 0);
   if (params.value <= previousBest) return null;
 
   const { data, error } = await supabase
@@ -450,35 +468,270 @@ export async function checkAndCreatePR(params: {
       duration_seconds: params.duration ?? null,
       previous_value_numeric: previousBest > 0 ? previousBest : null,
       previous_label: previousBest > 0 ? `${previousBest} ${params.unit}` : null,
-      points_awarded: 100,
+      points_awarded: PR_POINTS,
       achieved_at: new Date().toISOString(),
     })
     .select("id")
     .single();
 
   throwIfError(error, "Failed to create PR");
-  return data;
+
+  // Award the +100 ERA points for this metric (separate event ledger entry).
+  await awardPoints({
+    userId: params.userId,
+    sessionId: params.sessionId,
+    eventType: "personal_record",
+    points: PR_POINTS,
+    title: `New PR · ${params.exerciseName}`,
+  });
+
+  return { prId: data!.id as string, previousBest };
 }
 
-/* ─── Points ─── */
+/**
+ * Runs all Standard-tier PR checks for a single logged set:
+ *   - max_weight
+ *   - max_reps (at the rep count actually performed)
+ *   - estimated_one_rep_max  (weight × (1 + reps/30) — Epley)
+ *
+ * Each metric that breaks inserts its own PR row + its own +100 event.
+ */
+export async function checkAndCreateSetPRs(params: {
+  userId: string;
+  exerciseId: string;
+  exerciseName: string;
+  sessionId: string;
+  sessionExerciseId: string;
+  sessionSetId: string;
+  loggedWeight: number | null;
+  loggedReps: number | null;
+  weightUnit: string;
+}): Promise<{ prCount: number; pointsAwarded: number }> {
+  const { loggedWeight, loggedReps } = params;
+  if (loggedWeight == null || loggedReps == null || loggedWeight <= 0 || loggedReps <= 0) {
+    return { prCount: 0, pointsAwarded: 0 };
+  }
 
+  const e1rm = loggedWeight * (1 + loggedReps / 30);
+  const checks: { metric: PrMetric; value: number }[] = [
+    { metric: "max_weight", value: loggedWeight },
+    { metric: "max_reps", value: loggedReps },
+    { metric: "estimated_one_rep_max", value: Math.round(e1rm * 100) / 100 },
+  ];
+
+  let prCount = 0;
+  let pointsAwarded = 0;
+  for (const c of checks) {
+    const result = await checkAndCreatePR({
+      userId: params.userId,
+      exerciseId: params.exerciseId,
+      exerciseName: params.exerciseName,
+      sessionId: params.sessionId,
+      sessionExerciseId: params.sessionExerciseId,
+      sessionSetId: params.sessionSetId,
+      metric: c.metric,
+      value: c.value,
+      unit: params.weightUnit,
+      weight: loggedWeight,
+      reps: loggedReps,
+    });
+    if (result) {
+      prCount += 1;
+      pointsAwarded += PR_POINTS;
+    }
+  }
+  return { prCount, pointsAwarded };
+}
+
+/* ─── Points + streak ─── */
+
+export type PointEventType =
+  | "workout_completed"
+  | "exercise_completed"
+  | "personal_record"
+  | "streak_added"
+  | "progress_photo_added"
+  | "manual_adjustment"
+  | "set_logged"
+  | "cardio_completed"
+  | "body_weight_logged";
+
+/**
+ * Award points via the SQL RPC. Inserts the event row and bumps
+ * user_reward_state.total_points in a single transaction so the
+ * scoreboard never drifts from the ledger.
+ */
+export async function awardPoints(params: {
+  userId: string;
+  eventType: PointEventType;
+  points: number;
+  title: string;
+  sessionId?: string | null;
+  occurredAt?: string;
+}): Promise<{ eventId: string; totalPoints: number }> {
+  const { data, error } = await supabase.rpc("award_points", {
+    p_user_id: params.userId,
+    p_event_type: params.eventType,
+    p_points: params.points,
+    p_title: params.title,
+    p_session_id: params.sessionId ?? null,
+    p_occurred_at: params.occurredAt ?? new Date().toISOString(),
+  });
+
+  throwIfError(error, "Failed to award points");
+  const row = data as { event_id: string; total_points: number };
+  return { eventId: row.event_id, totalPoints: row.total_points };
+}
+
+/**
+ * Atomic streak + reward update. Idempotent per (user, date) so re-completing
+ * the same session won't double the streak. Awards the 200-point milestone
+ * bonus whenever the new streak crosses a multiple of 7.
+ */
+export async function recordWorkoutCompletion(params: {
+  userId: string;
+  sessionId: string;
+  streakDate?: string;       // YYYY-MM-DD; defaults to server date
+  completedAt?: string;      // ISO; defaults to now()
+}): Promise<{
+  previousStreak: number;
+  newStreak: number;
+  longestStreak: number;
+  wasExtended: boolean;
+  sevenDayBonusPoints: number;
+  bonusEventId: string | null;
+}> {
+  const { data, error } = await supabase.rpc("record_workout_completion", {
+    p_user_id: params.userId,
+    p_session_id: params.sessionId,
+    p_streak_date: params.streakDate ?? null,
+    p_completed_at: params.completedAt ?? new Date().toISOString(),
+  });
+
+  throwIfError(error, "Failed to record workout completion");
+  const row = data as {
+    previous_streak: number;
+    new_streak: number;
+    longest_streak: number;
+    was_extended: boolean;
+    seven_day_bonus_points: number;
+    bonus_event_id: string | null;
+  };
+  return {
+    previousStreak: row.previous_streak,
+    newStreak: row.new_streak,
+    longestStreak: row.longest_streak,
+    wasExtended: row.was_extended,
+    sevenDayBonusPoints: row.seven_day_bonus_points,
+    bonusEventId: row.bonus_event_id,
+  };
+}
+
+export async function recordRestDay(params: {
+  userId: string;
+  streakDate?: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc("record_rest_day", {
+    p_user_id: params.userId,
+    p_streak_date: params.streakDate ?? null,
+  });
+  throwIfError(error, "Failed to record rest day");
+}
+
+/**
+ * Back-compat shim — older callers used createPointEvent before the RPC
+ * existed. Routes through awardPoints so total_points stays in sync.
+ */
 export async function createPointEvent(params: {
   userId: string;
   sessionId?: string;
-  eventType: "workout_completed" | "exercise_completed" | "personal_record" | "streak_added";
+  eventType: PointEventType;
   title: string;
   points: number;
-}) {
-  const { error } = await supabase.from("era_point_events").insert({
-    user_id: params.userId,
-    session_id: params.sessionId ?? null,
-    event_type: params.eventType,
-    title: params.title,
+}): Promise<void> {
+  await awardPoints({
+    userId: params.userId,
+    sessionId: params.sessionId ?? null,
+    eventType: params.eventType,
     points: params.points,
-    occurred_at: new Date().toISOString(),
+    title: params.title,
   });
+}
 
-  throwIfError(error, "Failed to create point event");
+/** How many PR rows were inserted for this session. Used on SessionComplete. */
+export async function countSessionPRs(sessionId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from("personal_records")
+    .select("id", { count: "exact", head: true })
+    .eq("session_id", sessionId);
+  throwIfError(error, "Failed to count session PRs");
+  return count ?? 0;
+}
+
+/* ─── Reward + streak READ ─── */
+
+export interface RewardStateRow {
+  user_id: string;
+  total_points: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_streak_date: string | null;
+  last_workout_completed_at: string | null;
+}
+
+export async function fetchRewardState(userId: string): Promise<RewardStateRow | null> {
+  const { data, error } = await supabase
+    .from("user_reward_state")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  throwIfError(error, "Failed to fetch reward state");
+  return (data as RewardStateRow | null) ?? null;
+}
+
+export interface StreakDayRow {
+  streak_date: string;
+  status: "completed" | "rest_day" | "missed";
+  session_id: string | null;
+}
+
+export async function fetchStreakDays(params: {
+  userId: string;
+  fromDate: string;
+  toDate: string;
+}): Promise<StreakDayRow[]> {
+  const { data, error } = await supabase
+    .from("user_streak_days")
+    .select("streak_date, status, session_id")
+    .eq("user_id", params.userId)
+    .gte("streak_date", params.fromDate)
+    .lte("streak_date", params.toDate)
+    .order("streak_date", { ascending: true });
+  throwIfError(error, "Failed to fetch streak days");
+  return (data as StreakDayRow[]) ?? [];
+}
+
+export interface PointEventRow {
+  id: string;
+  event_type: PointEventType;
+  title: string;
+  points: number;
+  occurred_at: string;
+  session_id: string | null;
+}
+
+export async function fetchRecentPointEvents(params: {
+  userId: string;
+  limit?: number;
+}): Promise<PointEventRow[]> {
+  const { data, error } = await supabase
+    .from("era_point_events")
+    .select("id, event_type, title, points, occurred_at, session_id")
+    .eq("user_id", params.userId)
+    .order("occurred_at", { ascending: false })
+    .limit(params.limit ?? 50);
+  throwIfError(error, "Failed to fetch point events");
+  return (data as PointEventRow[]) ?? [];
 }
 
 /* ─── Read: completed session detail ─── */
@@ -568,12 +821,12 @@ export async function getCompletedSessionDetail(
 /* ─── Read: WeightsScreen — last + previous heaviest set per exercise ─── */
 
 /**
- * Returns { lastKg, lastReps, previousKg } per exercise_id for a batch of exercises.
- * Strategy: pull all completed weighted sets for these exercises in one query,
- * group by exercise, sort by completed_at desc, then pick:
- *   - lastKg  = heaviest set of the most recent session
- *   - previousKg = heaviest set of the session before that
- * UI computes delta = lastKg - previousKg.
+ * Returns last/previous numbers per exercise for a batch of exercise ids.
+ * Pulls every completed set (weighted OR duration-only) in one query,
+ * groups by exercise → session, then picks:
+ *   - lastKg / previousKg     = heaviest weight in most-recent / prior session
+ *   - lastDurationSec / prev  = longest duration in those same sessions
+ * UI uses whichever pair matches the exercise's logged metric.
  */
 export async function fetchCurrentDayExerciseSummaries(params: {
   userId: string;
@@ -585,22 +838,22 @@ export async function fetchCurrentDayExerciseSummaries(params: {
   const { data, error } = await supabase
     .from("session_sets")
     .select(
-      `id, logged_weight_value, logged_reps, completed_at,
+      `id, logged_weight_value, logged_reps, logged_duration_seconds, completed_at,
        session_exercises!inner ( exercise_id, session_id,
          workout_sessions!inner ( user_id, completed_at ) )`,
     )
     .eq("session_exercises.workout_sessions.user_id", params.userId)
     .in("session_exercises.exercise_id", params.exerciseIds)
-    .not("logged_weight_value", "is", null)
+    .or("logged_weight_value.not.is.null,logged_duration_seconds.not.is.null")
     .eq("status", "completed");
 
   throwIfError(error, "Failed to fetch exercise summaries");
 
-  // Group by exercise_id, then by session_id.
   type Row = {
     id: string;
     logged_weight_value: number | string | null;
     logged_reps: number | null;
+    logged_duration_seconds: number | null;
     completed_at: string | null;
     session_exercises: {
       exercise_id: string;
@@ -609,23 +862,40 @@ export async function fetchCurrentDayExerciseSummaries(params: {
     };
   };
 
-  const byExercise = new Map<string, Map<string, { sessionDate: string; heaviest: number; reps: number | null }>>();
+  type SessionAgg = {
+    sessionDate: string;
+    heaviestKg: number | null;
+    reps: number | null;
+    longestSec: number | null;
+  };
+
+  const byExercise = new Map<string, Map<string, SessionAgg>>();
   for (const row of (data ?? []) as unknown as Row[]) {
     const exerciseId = row.session_exercises.exercise_id;
     const sessionId = row.session_exercises.session_id;
     const sessionDate = row.session_exercises.workout_sessions.completed_at ?? row.completed_at ?? "";
     const weight = row.logged_weight_value == null ? null : Number(row.logged_weight_value);
-    if (weight == null) continue;
+    const seconds = row.logged_duration_seconds;
 
     let sessions = byExercise.get(exerciseId);
     if (!sessions) {
       sessions = new Map();
       byExercise.set(exerciseId, sessions);
     }
-    const prev = sessions.get(sessionId);
-    if (!prev || weight > prev.heaviest) {
-      sessions.set(sessionId, { sessionDate, heaviest: weight, reps: row.logged_reps });
+    const prev = sessions.get(sessionId) ?? {
+      sessionDate,
+      heaviestKg: null,
+      reps: null,
+      longestSec: null,
+    };
+    if (weight != null && (prev.heaviestKg == null || weight > prev.heaviestKg)) {
+      prev.heaviestKg = weight;
+      prev.reps = row.logged_reps;
     }
+    if (seconds != null && (prev.longestSec == null || seconds > prev.longestSec)) {
+      prev.longestSec = seconds;
+    }
+    sessions.set(sessionId, prev);
   }
 
   for (const [exerciseId, sessions] of byExercise.entries()) {
@@ -633,9 +903,11 @@ export async function fetchCurrentDayExerciseSummaries(params: {
       a.sessionDate < b.sessionDate ? 1 : a.sessionDate > b.sessionDate ? -1 : 0,
     );
     result.set(exerciseId, {
-      lastKg: ordered[0]?.heaviest ?? null,
+      lastKg: ordered[0]?.heaviestKg ?? null,
       lastReps: ordered[0]?.reps ?? null,
-      previousKg: ordered[1]?.heaviest ?? null,
+      previousKg: ordered[1]?.heaviestKg ?? null,
+      lastDurationSec: ordered[0]?.longestSec ?? null,
+      previousDurationSec: ordered[1]?.longestSec ?? null,
     });
   }
 
@@ -645,8 +917,12 @@ export async function fetchCurrentDayExerciseSummaries(params: {
 /* ─── Read: ExerciseHistoryScreen — full history for one exercise ─── */
 
 /**
- * Returns every logged weighted set for (user, exercise), plus stats
- * (current/heaviest/lightest). Week/day numbers are joined from program_weeks.
+ * Returns every logged set for (user, exercise) — weighted OR duration-only.
+ * Picks a `metricKind` based on which metric the sets actually carry, then
+ * computes stats accordingly:
+ *   - weight mode    → current / heaviest / lightest (kg + reps)
+ *   - duration mode  → current / longest / shortest (seconds)
+ * Week/day numbers are joined from program_weeks.
  */
 export async function fetchExerciseHistoryDetail(params: {
   userId: string;
@@ -655,7 +931,7 @@ export async function fetchExerciseHistoryDetail(params: {
   const { data, error } = await supabase
     .from("session_sets")
     .select(
-      `id, logged_weight_value, logged_reps, is_personal_record, is_best_set, completed_at,
+      `id, logged_weight_value, logged_reps, logged_duration_seconds, is_personal_record, is_best_set, completed_at,
        session_exercises!inner ( exercise_id, session_id,
          workout_sessions!inner ( id, user_id, completed_at, program_day_id,
            program_days!inner ( day_number,
@@ -663,7 +939,7 @@ export async function fetchExerciseHistoryDetail(params: {
     )
     .eq("session_exercises.workout_sessions.user_id", params.userId)
     .eq("session_exercises.exercise_id", params.exerciseId)
-    .not("logged_weight_value", "is", null)
+    .or("logged_weight_value.not.is.null,logged_duration_seconds.not.is.null")
     .eq("status", "completed")
     .order("completed_at", { ascending: false });
 
@@ -673,6 +949,7 @@ export async function fetchExerciseHistoryDetail(params: {
     id: string;
     logged_weight_value: number | string | null;
     logged_reps: number | null;
+    logged_duration_seconds: number | null;
     is_personal_record: boolean;
     is_best_set: boolean;
     completed_at: string | null;
@@ -696,6 +973,7 @@ export async function fetchExerciseHistoryDetail(params: {
     id: row.id,
     logged_weight_value: row.logged_weight_value == null ? null : Number(row.logged_weight_value),
     logged_reps: row.logged_reps,
+    logged_duration_seconds: row.logged_duration_seconds,
     is_personal_record: !!row.is_personal_record,
     is_best_set: !!row.is_best_set,
     completed_at: row.session_exercises.workout_sessions.completed_at ?? row.completed_at,
@@ -704,32 +982,67 @@ export async function fetchExerciseHistoryDetail(params: {
     session_id: row.session_exercises.workout_sessions.id,
   }));
 
-  // Stats: current = heaviest set of most recent session, heaviest = max ever, lightest = min ever
+  // Decide metric: if any set logged weight, treat as weight; else if any
+  // logged duration, treat as duration. Mixed exercises (unlikely) prefer weight.
+  const hasWeight = sets.some((s) => s.logged_weight_value != null);
+  const hasDuration = sets.some((s) => s.logged_duration_seconds != null);
+  const metricKind: "weight" | "duration" = hasWeight || !hasDuration ? "weight" : "duration";
+
+  // Weight stats
   const weights = sets
     .map((s) => s.logged_weight_value)
     .filter((w): w is number => w != null);
   const heaviestKg = weights.length ? Math.max(...weights) : null;
   const lightestKg = weights.length ? Math.min(...weights) : null;
 
-  // Most recent session = first set's session (already ordered desc)
+  // Duration stats
+  const durations = sets
+    .map((s) => s.logged_duration_seconds)
+    .filter((d): d is number => d != null);
+  const longestSec = durations.length ? Math.max(...durations) : null;
+  const shortestSec = durations.length ? Math.min(...durations) : null;
+
+  // Most recent session = first set's session (already ordered desc by completed_at)
   let currentKg: number | null = null;
   let currentReps: number | null = null;
+  let currentSec: number | null = null;
   if (sets.length > 0) {
     const recentSessionId = sets[0].session_id;
     const recentSets = sets.filter((s) => s.session_id === recentSessionId);
-    const top = recentSets.reduce(
-      (best, s) =>
-        s.logged_weight_value != null && s.logged_weight_value > (best?.logged_weight_value ?? -Infinity)
-          ? s
-          : best,
-      recentSets[0],
-    );
-    currentKg = top.logged_weight_value;
-    currentReps = top.logged_reps;
+    if (metricKind === "weight") {
+      const top = recentSets.reduce(
+        (best, s) =>
+          s.logged_weight_value != null && s.logged_weight_value > (best?.logged_weight_value ?? -Infinity)
+            ? s
+            : best,
+        recentSets[0],
+      );
+      currentKg = top.logged_weight_value;
+      currentReps = top.logged_reps;
+    } else {
+      const top = recentSets.reduce(
+        (best, s) =>
+          s.logged_duration_seconds != null &&
+          s.logged_duration_seconds > (best?.logged_duration_seconds ?? -Infinity)
+            ? s
+            : best,
+        recentSets[0],
+      );
+      currentSec = top.logged_duration_seconds;
+    }
   }
 
   return {
-    stats: { currentKg, currentReps, heaviestKg, lightestKg },
+    metricKind,
+    stats: {
+      currentKg,
+      currentReps,
+      heaviestKg,
+      lightestKg,
+      currentSec,
+      longestSec: metricKind === "duration" ? longestSec : null,
+      shortestSec: metricKind === "duration" ? shortestSec : null,
+    },
     sets,
   };
 }

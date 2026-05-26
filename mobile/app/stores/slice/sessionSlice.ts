@@ -37,6 +37,8 @@ interface SessionState {
   exerciseStats: Record<string, ExerciseStatSnapshot>;
   /** exerciseLibraryId → { setNumber: LoggedSetResult } — keyed by set index, no duplicates */
   completedSets: Record<string, Record<number, LoggedSetResult>>;
+  /** sessionSetId → suggested kg for that upcoming set (smart weight adjustment). */
+  suggestedWeightBySetId: Record<string, number>;
 }
 
 const initialState: SessionState = {
@@ -48,6 +50,7 @@ const initialState: SessionState = {
   sessionStartedAt: null,
   exerciseStats: {},
   completedSets: {},
+  suggestedWeightBySetId: {},
 };
 
 const sessionSlice = createSlice({
@@ -106,6 +109,22 @@ const sessionSlice = createSlice({
     startSessionTimer(state) {
       state.sessionStartedAt = new Date().toISOString();
     },
+    /**
+     * Stamp suggested weights for upcoming sets after a set is logged
+     * with feedback. Replaces any previous suggestion for the same ids
+     * so later sets stay in sync with the most recent feedback.
+     */
+    setSuggestedWeights(
+      state,
+      action: PayloadAction<Record<string, number>>,
+    ) {
+      Object.assign(state.suggestedWeightBySetId, action.payload);
+    },
+    clearSuggestedWeights(state, action: PayloadAction<string[]>) {
+      for (const setId of action.payload) {
+        delete state.suggestedWeightBySetId[setId];
+      }
+    },
     clearSession: () => initialState,
   },
   extraReducers: (builder) => {
@@ -121,6 +140,8 @@ export const {
   setExerciseStats,
   logCompletedSet,
   startSessionTimer,
+  setSuggestedWeights,
+  clearSuggestedWeights,
   clearSession,
 } = sessionSlice.actions;
 

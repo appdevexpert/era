@@ -14,7 +14,7 @@ import LogHeightBottomSheet, {
 import LogWeightBottomSheet, {
   type LogWeightBottomSheetRef,
 } from "@/app/components/progress/LogWeightBottomSheet";
-import PhotoStrip, { type ProgressPhoto } from "@/app/components/progress/PhotoStrip";
+import PhotoStrip from "@/app/components/progress/PhotoStrip";
 import PrCarousel from "@/app/components/progress/PrCarousel";
 import { type PrEntry } from "@/app/components/progress/PrCard";
 import ProgressStatsCard from "@/app/components/progress/ProgressStatsCard";
@@ -22,14 +22,43 @@ import SectionHeader from "@/app/components/progress/SectionHeader";
 import SuccessBanner from "@/app/components/progress/SuccessBanner";
 import WeightStatsCard from "@/app/components/progress/WeightStatsCard";
 import { type PlanPhase } from "@/app/components/workout/PlanProgressBar";
-import { type ChartPoint } from "@/app/components/workout/WeightProgressChart";
 import { type HomeStackParamList } from "@/app/navigation/types";
+import {
+  loadProgressPhotos,
+  uploadProgressPhotoThunk,
+} from "@/app/stores/slice/photoSlice";
+import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
+import {
+  loadWeightBootstrap,
+  logWeightThunk,
+  updateHeightThunk,
+} from "@/app/stores/slice/weightSlice";
+import {
+  selectCurrentStreak,
+  selectRewardStatus,
+  selectTotalPoints,
+} from "@/app/stores/selectors/rewardSelectors";
+import {
+  selectChartYRange,
+  selectCurrentWeightKg,
+  selectGoalsWeightKg,
+  selectHeaviestKg,
+  selectHeightLabel,
+  selectLightestKg,
+  selectBmi,
+  selectWeeklyChartPoints,
+  selectWeightStatus,
+} from "@/app/stores/selectors/weightSelectors";
+import { useAppDispatch } from "@/app/stores/store";
 import { ProgressFire, ProgressFlag, ProgressMedal } from "@/assets/icons";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
+import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { RootState } from "@/app/stores/store";
 
 const PR_ENTRIES: PrEntry[] = [
   { id: "1", category: "Chest • Compound", name: "Deadlift", weightKg: 140, reps: 4, dateLabel: "Apr 20", isLatest: true, deltaKg: 5 },
@@ -47,35 +76,83 @@ const WEEK_DAYS: HistoryDay[] = [
   { label: "SAT", date: "09", state: "upcoming" },
 ];
 
-const WEIGHT_CHART_DATA: ChartPoint[] = [
-  { label: "01", value: 81.2 },
-  { label: "02", value: 81.2 },
-  { label: "03", value: 81.3 },
-  { label: "04", value: 81.3 },
-  { label: "05", value: 81.3 },
-  { label: "06", value: 81.4 },
-  { label: "07", value: 81.6 },
-  { label: "08", value: 82 },
-  { label: "09", value: 82.5 },
-  { label: "10", value: 83.8 },
-];
+const LB_TO_KG = 0.45359237;
 
-const PHOTOS: ProgressPhoto[] = [
-  { id: "1", date: "May 21" },
-  { id: "2", date: "May 20" },
-  { id: "3", date: "May 18" },
-  { id: "4", date: "May 17" },
-  { id: "5", date: "May 12" },
-];
+const formatPhotoDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 
 const ProgressScreen = () => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<HomeStackParamList>>();
+  const dispatch = useAppDispatch();
+  const userId = useSelector((s: RootState) => s.auth.user?.id ?? null);
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
   const photoPreviewSheetRef = useRef<PhotoPreviewBottomSheetRef>(null);
   const logWeightSheetRef = useRef<LogWeightBottomSheetRef>(null);
   const logHeightSheetRef = useRef<LogHeightBottomSheetRef>(null);
+
+  const weightStatus = useSelector(selectWeightStatus);
+  const currentWeightKg = useSelector(selectCurrentWeightKg);
+  const goalsWeightKg = useSelector(selectGoalsWeightKg);
+  const heaviestKg = useSelector(selectHeaviestKg);
+  const lightestKg = useSelector(selectLightestKg);
+
+  const totalPoints = useSelector(selectTotalPoints);
+  const currentStreak = useSelector(selectCurrentStreak);
+  const rewardStatus = useSelector(selectRewardStatus);
+  const completedWorkouts = useSelector(
+    (s: RootState) => s.workout.completedDayIds.length,
+  );
+
+  const photos = useSelector((s: RootState) => s.photo.photos);
+  const photoStatus = useSelector((s: RootState) => s.photo.status);
+  const uploadStatus = useSelector((s: RootState) => s.photo.uploadStatus);
+
+  // Safety-net bootstrap. The chained dispatch from loadWorkoutBootstrap only
+  // fires on first-time plan generation, so already-onboarded users on the
+  // build that ships this feature would otherwise never load weight data.
+  useEffect(() => {
+    if (userId && weightStatus === "idle") {
+      dispatch(loadWeightBootstrap(userId));
+    }
+  }, [dispatch, userId, weightStatus]);
+
+  // Same safety-net for the reward slice — it's chained off
+  // loadWorkoutBootstrap, which doesn't re-run for already-onboarded users.
+  useEffect(() => {
+    if (userId && rewardStatus === "idle") {
+      dispatch(loadRewardBootstrap(userId));
+    }
+  }, [dispatch, userId, rewardStatus]);
+
+  // Photos slice is non-persisted, so fetch on mount whenever we don't have
+  // them cached yet for this session.
+  useEffect(() => {
+    if (userId && photoStatus === "idle") {
+      dispatch(loadProgressPhotos());
+    }
+  }, [dispatch, userId, photoStatus]);
+  const { points: weeklyPoints, ticks: weeklyTicks } =
+    useSelector(selectWeeklyChartPoints);
+  const yRange = useSelector(selectChartYRange);
+  const bmi = useSelector(selectBmi);
+  const heightLabel = useSelector(selectHeightLabel);
+  const goalsHeight = useSelector((s: RootState) => s.weight.goalsHeight);
+  const goalsHeightUnit = useSelector(
+    (s: RootState) => s.weight.goalsHeightUnit,
+  );
+
+  const handleLogWeight = (value: number, unit: "kg" | "lb") => {
+    if (!userId) return;
+    const weightKg = unit === "lb" ? value * LB_TO_KG : value;
+    dispatch(logWeightThunk({ userId, weightKg }));
+  };
+
+  const handleLogHeight = (value: number, unit: "cm" | "ft") => {
+    if (!userId) return;
+    dispatch(updateHeightThunk({ userId, height: value, heightUnit: unit }));
+  };
 
   const phases: PlanPhase[] = [
     { label: t("progress.phaseHypertrophy"), active: true, progress: 0.65 },
@@ -108,9 +185,9 @@ const ProgressScreen = () => {
 
         <ProgressStatsCard
           stats={[
-            { Icon: ProgressMedal, value: 22, label: t("progress.statsWorkouts") },
-            { Icon: ProgressFlag, value: 2840, label: t("progress.statsEraPoints") },
-            { Icon: ProgressFire, value: 4, label: t("progress.statsDayStreak") },
+            { Icon: ProgressMedal, value: completedWorkouts, label: t("progress.statsWorkouts") },
+            { Icon: ProgressFlag, value: totalPoints, label: t("progress.statsEraPoints") },
+            { Icon: ProgressFire, value: currentStreak, label: t("progress.statsDayStreak") },
           ]}
         />
 
@@ -145,14 +222,16 @@ const ProgressScreen = () => {
             onAction={() => logWeightSheetRef.current?.show()}
           />
           <WeightStatsCard
-            currentKg={82.4}
-            heaviestKg={84.3}
-            lightestKg={81.2}
-            chartData={WEIGHT_CHART_DATA}
-            chartYMin={80}
-            chartYMax={84}
-            bmi={18.5}
-            heightLabel="5ft 11in"
+            currentKg={currentWeightKg !== null ? Math.round(currentWeightKg * 10) / 10 : null}
+            heaviestKg={heaviestKg}
+            lightestKg={lightestKg}
+            chartData={weeklyPoints}
+            chartXTickLabels={weeklyTicks}
+            chartYMin={yRange.yMin}
+            chartYMax={yRange.yMax}
+            chartYStep={yRange.yStep}
+            bmi={bmi}
+            heightLabel={heightLabel}
             bannerText={t("progress.weightBanner")}
             onEditHeight={() => logHeightSheetRef.current?.show()}
           />
@@ -162,12 +241,22 @@ const ProgressScreen = () => {
           <SectionHeader
             title={t("progress.transformationTitle")}
             actionLabel={t("progress.viewAll")}
-            subtitle={t("progress.photosCount", { count: 21 })}
+            subtitle={t("progress.photosCount", { count: photos.length })}
             onAction={openTransformationGallery}
           />
           <PhotoStrip
-            photos={PHOTOS}
+            photos={photos.map((p) => ({
+              id: p.id,
+              date: formatPhotoDate(p.createdAt),
+              imageUri: p.signedUrl,
+            }))}
             onAddPhoto={() => addPhotoSheetRef.current?.show()}
+            onPhotoPress={(photo) =>
+              photoPreviewSheetRef.current?.show({
+                source: photo.imageUri ? { uri: photo.imageUri } : undefined,
+                dateLabel: photo.date,
+              })
+            }
           />
         </View>
       </ScrollView>
@@ -176,19 +265,51 @@ const ProgressScreen = () => {
 
       <AddPhotoBottomSheet
         ref={addPhotoSheetRef}
-        onPhotoSelected={(photo) =>
-          photoPreviewSheetRef.current?.show({
-            source: { uri: photo.uri },
-            dateLabel: new Date().toLocaleDateString("en-US", {
-              month: "short",
-              day: "2-digit",
-            }),
-          })
-        }
+        onPhotoSelected={async (photo) => {
+          if (uploadStatus === "uploading") return;
+          const action = await dispatch(
+            uploadProgressPhotoThunk({ localUri: photo.uri }),
+          );
+          if (uploadProgressPhotoThunk.fulfilled.match(action)) {
+            const { pointsAwarded, row } = action.payload;
+            Toast.show({
+              type: "success",
+              text2:
+                pointsAwarded > 0
+                  ? t("progress.addPhoto.uploadedWithPoints", { points: pointsAwarded })
+                  : t("progress.addPhoto.uploadedNoPoints"),
+              visibilityTime: 2500,
+            });
+            photoPreviewSheetRef.current?.show({
+              source: row.signedUrl
+                ? { uri: row.signedUrl }
+                : { uri: photo.uri },
+              dateLabel: formatPhotoDate(row.createdAt),
+            });
+          } else {
+            Toast.show({
+              type: "error",
+              text2: t("progress.addPhoto.uploadFailed"),
+              visibilityTime: 3000,
+            });
+          }
+        }}
       />
       <PhotoPreviewBottomSheet ref={photoPreviewSheetRef} />
-      <LogWeightBottomSheet ref={logWeightSheetRef} initialKg={82} />
-      <LogHeightBottomSheet ref={logHeightSheetRef} initialCm={180} />
+      <LogWeightBottomSheet
+        ref={logWeightSheetRef}
+        initialKg={currentWeightKg ?? goalsWeightKg ?? 70}
+        onLog={handleLogWeight}
+      />
+      <LogHeightBottomSheet
+        ref={logHeightSheetRef}
+        initialCm={
+          goalsHeightUnit === "cm" && goalsHeight ? goalsHeight : 180
+        }
+        initialUnit={goalsHeightUnit}
+        initialValue={goalsHeight ?? undefined}
+        onLog={handleLogHeight}
+      />
     </View>
   );
 };

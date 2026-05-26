@@ -280,23 +280,45 @@ export interface ExerciseSummaryView {
   sets: number;
   reps: number;
   weightKg: number;
+  /**
+   * Overrides the default "${weightKg} kg" rendering when the exercise
+   * isn't weight-based (treadmill walk, plank, etc.). When set, the card
+   * shows this string instead — e.g. "20 min", "1 min 30 sec", "—".
+   */
+  displayValue?: string;
   delta?: { kg: number; positive: boolean };
   muscles: MuscleGroup[];
 }
 
+/**
+ * Discriminator for how an exercise's logged data is interpreted on the
+ * history screen. Weight exercises plot kg; duration exercises (plank,
+ * treadmill walk, etc.) plot seconds and label stats as longest/shortest.
+ */
+export type ExerciseMetricKind = "weight" | "duration";
+
 /** Stats card on ExerciseHistoryScreen. */
 export interface ExerciseHistoryStats {
+  // Weight-mode fields (null in duration mode):
   currentKg: number | null;
   currentReps: number | null;
   heaviestKg: number | null;
   lightestKg: number | null;
+  // Duration-mode fields (null in weight mode):
+  currentSec: number | null;
+  longestSec: number | null;
+  shortestSec: number | null;
 }
 
-/** One bar on the 12-week chart — heaviest set logged in that week. */
+/**
+ * One point on the 12-week chart — heaviest weight OR longest duration
+ * logged in that week, depending on the parent view's `metricKind`.
+ */
 export interface ExerciseHistoryChartPoint {
   weekNumber: number;
   label: string;
-  weightKg: number;
+  /** kg when metricKind === "weight", seconds when "duration". */
+  value: number;
   /** True when this point is the latest real data (carry-forward weeks set this false). */
   isReal: boolean;
 }
@@ -316,8 +338,17 @@ export interface ExerciseHistoryEntry {
   id: string;
   dateLabel: string;
   weekNumber: number;
+  /** kg of the heaviest set in this session (0 in duration mode). */
   weightKg: number;
+  /** reps of the heaviest set (0 in duration mode). */
   reps: number;
+  /** Longest hold of the session in seconds (set only in duration mode). */
+  durationSec?: number;
+  /**
+   * Delta vs the previous session. `kg` represents seconds when
+   * `metricKind === "duration"` — the field is kept named `kg` to avoid
+   * touching the PR/history screens that consume the same row shape.
+   */
   delta?: { kg: number; positive: boolean };
   isPR: boolean;
 }
@@ -332,6 +363,12 @@ export interface ExerciseHistoryWeekSection {
 
 export interface ExerciseHistoryView {
   exerciseName: string;
+  /**
+   * "weight" → stats/chart/entries are kg-based.
+   * "duration" → stats labels switch to longest/shortest, chart plots seconds.
+   * Decided by the mapper from whichever metric the logged sets carry.
+   */
+  metricKind: ExerciseMetricKind;
   stats: ExerciseHistoryStats;
   chart: ExerciseHistoryChart;
   sections: ExerciseHistoryWeekSection[];
@@ -344,6 +381,7 @@ export interface SessionSetHistoryRow {
   id: string;
   logged_weight_value: number | null;
   logged_reps: number | null;
+  logged_duration_seconds: number | null;
   is_personal_record: boolean;
   is_best_set: boolean;
   completed_at: string | null;
@@ -353,11 +391,16 @@ export interface SessionSetHistoryRow {
 }
 
 export interface ExerciseHistoryRaw {
+  /** Pre-computed by sessionService so the mapper doesn't re-iterate. */
+  metricKind: ExerciseMetricKind;
   stats: {
     currentKg: number | null;
     currentReps: number | null;
     heaviestKg: number | null;
     lightestKg: number | null;
+    currentSec: number | null;
+    longestSec: number | null;
+    shortestSec: number | null;
   };
   sets: SessionSetHistoryRow[];
 }
@@ -368,4 +411,8 @@ export interface ExerciseSummaryRaw {
   lastReps: number | null;
   /** Second-most-recent heaviest working set, used for delta. */
   previousKg: number | null;
+  /** Last (most recent) longest hold/duration in seconds. */
+  lastDurationSec: number | null;
+  /** Second-most-recent longest duration, used for delta. */
+  previousDurationSec: number | null;
 }

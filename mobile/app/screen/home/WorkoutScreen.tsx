@@ -9,6 +9,11 @@ import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList, MuscleGroup } from "@/app/navigation/types";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
+  selectCurrentStreak,
+  selectTotalPoints,
+  selectWeekByDate,
+} from "@/app/stores/selectors/rewardSelectors";
+import {
   selectHasWorkoutBootstrap,
   selectWorkoutOverview,
   selectWorkoutError,
@@ -48,6 +53,49 @@ const WorkoutScreen = () => {
   const avatarInitial = displayName.charAt(0).toUpperCase();
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+
+  // Reward state — read from the dedicated slice (hydrated by workout bootstrap).
+  const totalPoints = useSelector(selectTotalPoints);
+  const currentStreak = useSelector(selectCurrentStreak);
+  const weekByDate = useSelector(selectWeekByDate);
+
+  // Build the streak bottom-sheet day pills for the last 7 days, anchored on today.
+  const streakSheetDays = useMemo(() => {
+    const WEEKDAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+    // Step back to the most recent Monday (ISO weekday 1=Mon, 7=Sun)
+    const isoDow = ((today.getDay() + 6) % 7) + 1;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (isoDow - 1));
+
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const iso = d.toISOString().slice(0, 10);
+      const status = weekByDate[iso];
+      const isToday = iso === todayIso;
+      return {
+        key: iso,
+        label: WEEKDAY[i] ?? "",
+        date: String(d.getDate()).padStart(2, "0"),
+        title: "",
+        subtitle: "",
+        muscles: [] as MuscleGroup[],
+        active: isToday,
+        completed: status === "completed",
+        missed: !isToday && status === "missed",
+      };
+    });
+  }, [weekByDate]);
+
+  // Weekly aggregates for the stat cards inside the streak sheet.
+  // (Read straight from completedDayIds count for the current week; exercises/
+  // minutes come from the workout overview — placeholder until the streak
+  // sheet has a dedicated query.)
+  const streakSheetExercises = workout?.exerciseCount ?? 0;
+  const streakSheetMinutes = overview?.currentDay.estimated_minutes ?? 0;
+  const streakSheetPoints = totalPoints;
 
   useEffect(() => {
     if (!hasWorkoutBootstrap && workoutStatus === "idle") {
@@ -129,6 +177,8 @@ const WorkoutScreen = () => {
         {/* Stats chips */}
         <View style={styles.statsSection}>
           <StatsChipsRow
+            points={totalPoints}
+            streakDays={currentStreak}
             onPointsPress={() => navigation.navigate("Points")}
             onStreakPress={handleStreakPress}
           />
@@ -170,19 +220,11 @@ const WorkoutScreen = () => {
 
       <StreakBottomSheet
         ref={streakRef}
-        streak={5}
-        days={[
-          { key: "mon", label: "Mon", date: "02", title: "", subtitle: "", muscles: [], completed: true },
-          { key: "tue", label: "Tue", date: "03", title: "", subtitle: "", muscles: [], completed: true },
-          { key: "wed", label: "Wed", date: "04", title: "", subtitle: "", muscles: [], completed: true },
-          { key: "thu", label: "Thu", date: "05", title: "", subtitle: "", muscles: [], completed: true },
-          { key: "fri", label: "Fri", date: "06", title: "", subtitle: "", muscles: [], active: true },
-          { key: "sat", label: "Sat", date: "09", title: "", subtitle: "", muscles: [] },
-          { key: "sun", label: "Sun", date: "10", title: "", subtitle: "", muscles: [] },
-        ]}
-        exercises={20}
-        minutes={75}
-        points={200}
+        streak={currentStreak}
+        days={streakSheetDays}
+        exercises={streakSheetExercises}
+        minutes={streakSheetMinutes}
+        points={streakSheetPoints}
         onViewPoints={() => {
           streakRef.current?.dismiss();
           navigation.navigate("Points");

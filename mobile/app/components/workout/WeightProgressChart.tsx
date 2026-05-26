@@ -1,4 +1,5 @@
 import { FONTS } from "@/app/constants/fonts";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRef, useState } from "react";
 import {
   LayoutChangeEvent,
@@ -54,11 +55,11 @@ const Y_AXIS_COL_WIDTH = 30;
 const UNIT_ROW_HEIGHT = 22;
 const X_AXIS_ROW_HEIGHT = 24;
 const MARKER_SIZE = 20;
-const LABEL_SLOT_WIDTH = 48;
+const LABEL_SLOT_WIDTH = 64;
 // Keep W1 close to the y-axis on coarse-paged charts (e.g. 4 weeks per page).
 // On dense charts where spacing/2 is already small (e.g. 10 days per page),
 // this cap doesn't trigger and the symmetric look is preserved.
-const MAX_INITIAL_SPACING = 24;
+const MAX_INITIAL_SPACING = 40;
 
 const EndPointMarker = () => (
   <View style={markerStyles.halo}>
@@ -208,6 +209,66 @@ const WeightProgressChart = ({
                 width={totalChartWidth}
                 disableScroll
               />
+
+              {/* Leading line + gradient that connects the y-axis to the
+                  first (and only) data point — matches the Figma design's
+                  "W1 anchor" look where there's a short tail and shaded
+                  area before the dot. gifted-charts can't draw a line from
+                  a single point, so we overlay it manually. */}
+              {data.length === 1 && plotHeight > 0
+                ? (() => {
+                    const value = data[0].value;
+                    const range = yMax - yMin;
+                    // gifted-charts pads the plot area by half a marker on
+                    // both the top and bottom so the halo never clips at
+                    // the chart edge. Mirror that math here so the overlay
+                    // line passes through the rendered halo's actual
+                    // vertical center.
+                    const halfMarker = MARKER_SIZE / 0.85;
+                    const effectivePlot = Math.max(0, plotHeight - MARKER_SIZE);
+                    const baseDotY =
+                      range > 0
+                        ? (effectivePlot * (yMax - value)) / range
+                        : effectivePlot / 2;
+                    const dotY = baseDotY + halfMarker;
+                    const tailHeight = Math.max(0, plotHeight - dotY);
+                    return (
+                      <View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          width: initialSpacing,
+                          height: plotHeight,
+                        }}
+                      >
+                        <LinearGradient
+                          colors={["rgba(201,168,76,0.3)", "rgba(201,168,76,0)"]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 0, y: 1 }}
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            top: dotY,
+                            width: initialSpacing,
+                            height: tailHeight,
+                          }}
+                        />
+                        <View
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            top: Math.max(0, dotY - 1.25),
+                            width: initialSpacing,
+                            height: 2.5,
+                            backgroundColor: GOLD,
+                          }}
+                        />
+                      </View>
+                    );
+                  })()
+                : null}
 
               {/* Custom x-axis labels — absolute-positioned at the bottom
                   of the wrapper so they never get clipped by gifted-charts'

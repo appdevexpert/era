@@ -32,12 +32,19 @@ import {
   setExerciseStats,
   logCompletedSet,
   startSessionTimer,
+  setSuggestedWeights,
 } from "@/app/stores/slice/sessionSlice";
 import { markDayCompleted } from "@/app/stores/slice/workoutSlice";
+import {
+  appendPointEvent,
+  loadRewardBootstrap,
+  setStreak,
+} from "@/app/stores/slice/rewardSlice";
 import type { ExerciseStatSnapshot } from "@/app/stores/slice/sessionSlice";
 import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMappers";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import * as sessionService from "@/app/services/sessionService";
+import { suggestFutureSetWeights } from "@/app/utils/setSuggestion";
 
 export const useWorkoutSession = () => {
   const navigation =
@@ -286,8 +293,57 @@ export const useWorkoutSession = () => {
       await syncWrite("logSet", logParams as Record<string, unknown>, () =>
         sessionService.logSet(logParams),
       );
+
+      // Smart weight adjustment — suggest weights for the upcoming sets
+      // of this same exercise based on the user's feedback.
+      const currentPlanned = ex.sets[setNumber];
+      if (currentPlanned && feedback && weight != null) {
+        const futureSets = ex.sets.slice(setNumber + 1).map((s) => ({
+          id: setMap[seId]?.[s.setNumber - 1] ?? "",
+          setKind: s.setKind,
+        }));
+        const suggestions = suggestFutureSetWeights({
+          loggedWeight: weight,
+          feedback,
+          exerciseCategory: ex.exerciseCategory,
+          currentSetKind: currentPlanned.setKind,
+          futureSets: futureSets.filter((s) => s.id),
+        });
+        if (Object.keys(suggestions).length > 0) {
+          dispatch(setSuggestedWeights(suggestions));
+        }
+      }
+
+      // +15 ERA points per logged STRENGTH set (weight or reps).
+      // Duration-only sets (incline walk, treadmill, etc.) are NOT covered
+      // by this rule — per the spec image, walking gets `+1 / 100 steps`
+      // and running gets `+4 / minute`, both deferred until those data
+      // sources exist. Until then, those exercises only earn the +50 for
+      // completing the session (and +150 if it's the Cardio 4×4 day).
+      if (userId && (weight != null || reps != null)) {
+        const awardParams = {
+          userId,
+          sessionId: sessionId ?? null,
+          eventType: "set_logged" as const,
+          points: 15,
+          title: `Set Logged · ${ex.name}`,
+        };
+        // Optimistic local update so the chip + Points history reflect the
+        // new event immediately, without waiting for the next bootstrap.
+        dispatch(appendPointEvent({
+          id: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          event_type: "set_logged",
+          title: awardParams.title,
+          points: awardParams.points,
+          occurred_at: new Date().toISOString(),
+          session_id: sessionId ?? null,
+        }));
+        await syncWrite("awardSetPoints", awardParams as Record<string, unknown>, () =>
+          sessionService.awardPoints(awardParams),
+        );
+      }
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId],
   );
 
   /** Complete an exercise */
@@ -353,14 +409,50 @@ export const useWorkoutSession = () => {
         await syncWrite("upsertUserExerciseStat", statParams as Record<string, unknown>, () =>
           sessionService.upsertUserExerciseStat(statParams),
         );
+
+        // PR detection (Standard tier: max_weight + max_reps + e1RM).
+        // One PR row + one +100 ERA point event per metric broken.
+        if (bestLogged && lastSetId) {
+          try {
+            await sessionService.checkAndCreateSetPRs({
+              userId,
+              exerciseId: ex.exerciseLibraryId,
+              exerciseName: ex.name,
+              sessionId,
+              sessionExerciseId: seId,
+              sessionSetId: lastSetId,
+              loggedWeight: bestLogged.weight,
+              loggedReps: bestLogged.reps,
+              weightUnit: ex.weightUnit,
+            });
+          } catch (err) {
+            console.warn("[useWorkoutSession] PR check failed", err);
+          }
+        }
       }
     },
     [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite],
   );
 
-  /** Finish the entire session */
-  const finishSession = useCallback(async () => {
-    if (!sessionId) return;
+  /**
+   * Finish the entire session. Writes:
+   *   - workout_sessions.status = "completed"
+   *   - user_streak_days + user_reward_state via record_workout_completion RPC
+   *   - +50 ERA "workout_completed" event
+   *   - +150 ERA "cardio_completed" event if today's day is a cardio day
+   *   - (the +200 seven-day bonus is added inside the RPC, no JS call needed)
+   *
+   * Returns a summary the caller can hand to the SessionComplete screen.
+   */
+  const finishSession = useCallback(async (): Promise<{
+    newStreak: number;
+    wasStreakExtended: boolean;
+    sevenDayBonusPoints: number;
+    workoutPoints: number;
+    cardioBonusPoints: number;
+    newPRs: number;
+  } | null> => {
+    if (!sessionId) return null;
 
     const durationSeconds = sessionStartedAt
       ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000)
@@ -371,19 +463,122 @@ export const useWorkoutSession = () => {
       sessionService.completeSession(sessionParams),
     );
 
-    if (userId) {
-      const pointParams = {
+    if (!userId) return null;
+
+    // Streak + reward update first so the +50 event sees the correct
+    // total_points and the 7-day bonus is folded in atomically.
+    // Wrapped in try/catch so a missing/broken RPC can never block
+    // navigation to the SessionComplete screen — the UI degrades to
+    // "no streak update" instead of the button doing nothing.
+    let streakResult: {
+      newStreak: number;
+      longestStreak: number;
+      wasExtended: boolean;
+      sevenDayBonusPoints: number;
+      bonusEventId: string | null;
+    } = { newStreak: 0, longestStreak: 0, wasExtended: false, sevenDayBonusPoints: 0, bonusEventId: null };
+    try {
+      streakResult = await sessionService.recordWorkoutCompletion({
         userId,
         sessionId,
-        eventType: "workout_completed" as const,
-        title: "Workout Completed",
-        points: 25,
+      });
+    } catch (err) {
+      console.warn("[useWorkoutSession] recordWorkoutCompletion failed", err);
+    }
+
+    // Optimistic streak update for the chip + StreakBottomSheet.
+    if (streakResult.newStreak > 0) {
+      dispatch(setStreak({
+        currentStreak: streakResult.newStreak,
+        longestStreak: streakResult.longestStreak,
+        lastStreakDate: new Date().toISOString().slice(0, 10),
+      }));
+    }
+    if (streakResult.sevenDayBonusPoints > 0) {
+      dispatch(appendPointEvent({
+        id: streakResult.bonusEventId ?? `tmp-bonus-${Date.now()}`,
+        event_type: "streak_added",
+        title: `${streakResult.newStreak}-Day Streak Bonus`,
+        points: streakResult.sevenDayBonusPoints,
+        occurred_at: new Date().toISOString(),
+        session_id: sessionId,
+      }));
+    }
+
+    // +50 for finishing the session.
+    const workoutAwardParams = {
+      userId,
+      sessionId,
+      eventType: "workout_completed" as const,
+      points: 50,
+      title: "Workout Completed",
+    };
+    dispatch(appendPointEvent({
+      id: `tmp-workout-${Date.now()}`,
+      event_type: "workout_completed",
+      title: workoutAwardParams.title,
+      points: workoutAwardParams.points,
+      occurred_at: new Date().toISOString(),
+      session_id: sessionId,
+    }));
+    await syncWrite("awardWorkoutPoints", workoutAwardParams as Record<string, unknown>, () =>
+      sessionService.awardPoints(workoutAwardParams),
+    );
+
+    // +150 if this day was a cardio day. workout_kind lives on program_days.
+    const dayKind = currentDayDetail?.day.workout_kind;
+    const cardioBonusPoints = dayKind === "cardio" ? 150 : 0;
+    if (cardioBonusPoints > 0) {
+      const cardioAwardParams = {
+        userId,
+        sessionId,
+        eventType: "cardio_completed" as const,
+        points: cardioBonusPoints,
+        title: "Cardio 4×4 Complete",
       };
-      await syncWrite("createPointEvent", pointParams as Record<string, unknown>, () =>
-        sessionService.createPointEvent(pointParams),
+      dispatch(appendPointEvent({
+        id: `tmp-cardio-${Date.now()}`,
+        event_type: "cardio_completed",
+        title: cardioAwardParams.title,
+        points: cardioAwardParams.points,
+        occurred_at: new Date().toISOString(),
+        session_id: sessionId,
+      }));
+      await syncWrite("awardCardioPoints", cardioAwardParams as Record<string, unknown>, () =>
+        sessionService.awardPoints(cardioAwardParams),
       );
     }
-  }, [sessionId, sessionStartedAt, exercisesCompleted, setsLogged, userId, syncWrite]);
+
+    // Safety: refetch authoritative reward state so any optimistic drift
+    // (duplicate event ids, missing fields) reconciles on the next render.
+    dispatch(loadRewardBootstrap(userId)).catch(() => {});
+
+    // Count the PR rows inserted for this session so SessionComplete can
+    // show "X new PRs". Falls back to 0 if the read fails.
+    let newPRs = 0;
+    try {
+      newPRs = await sessionService.countSessionPRs(sessionId);
+    } catch (err) {
+      console.warn("[useWorkoutSession] PR count failed", err);
+    }
+
+    return {
+      newStreak: streakResult.newStreak,
+      wasStreakExtended: streakResult.wasExtended,
+      sevenDayBonusPoints: streakResult.sevenDayBonusPoints,
+      workoutPoints: 50,
+      cardioBonusPoints,
+      newPRs,
+    };
+  }, [
+    sessionId,
+    sessionStartedAt,
+    exercisesCompleted,
+    setsLogged,
+    userId,
+    currentDayDetail,
+    syncWrite,
+  ]);
 
   /** Navigate to rest timer between sets or exercises */
   const navigateToRest = useCallback(
@@ -408,7 +603,15 @@ export const useWorkoutSession = () => {
   const navigateToSessionComplete = useCallback(async () => {
     if (!sessionWorkout) return;
 
-    await finishSession();
+    // Defensive: any backend failure inside finishSession must NOT block the
+    // navigation. We always continue to SessionComplete; failed writes will
+    // be retried via the sync queue.
+    let result: Awaited<ReturnType<typeof finishSession>> = null;
+    try {
+      result = await finishSession();
+    } catch (err) {
+      console.warn("[useWorkoutSession] finishSession threw", err);
+    }
 
     // Optimistically mark this day as completed in Redux
     if (sessionWorkout.programDayId) {
@@ -421,17 +624,30 @@ export const useWorkoutSession = () => {
     const mins = Math.floor(elapsed / 60);
     const secs = elapsed % 60;
 
+    // ERA points earned in this session:
+    //   sets × 15  +  workout (50)  +  cardio (150 if cardio day)  +  PRs × 100
+    // Bonus points are tracked separately for the headline "+200 streak bonus"
+    // line on the SessionComplete screen.
+    const setPoints = setsLogged * 15;
+    const eraPoints =
+      setPoints +
+      (result?.workoutPoints ?? 50) +
+      (result?.cardioBonusPoints ?? 0) +
+      (result?.newPRs ?? 0) * 100;
+    const bonusPoints = result?.sevenDayBonusPoints ?? 0;
+
     navigation.replace("SessionComplete", {
+      sessionId,
       programTitle: sessionWorkout.title,
       weekNumber: sessionWorkout.weekNumber,
       dayNumber: sessionWorkout.dayNumber,
       sessionDuration: `${mins}:${String(secs).padStart(2, "0")}`,
       setsLogged,
-      eraPoints: 320,
-      newPRs: 0,
-      bonusPoints: 100,
+      eraPoints,
+      newPRs: result?.newPRs ?? 0,
+      bonusPoints,
     });
-  }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch]);
+  }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch, sessionId]);
 
   /** Add a dynamic set for an exercise (creates DB row + updates Redux) */
   const addSet = useCallback(
