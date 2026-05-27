@@ -10,7 +10,8 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import type { HomeStackParamList } from "@/app/navigation/types";
-import { useAppDispatch } from "@/app/stores/store";
+import { useAppDispatch, type RootState } from "@/app/stores/store";
+import { formatWeightFromKg } from "@/app/utils/workoutFormatters";
 import type { SessionExercise, SessionWorkout } from "@/app/types/workout";
 import { selectCurrentDayDetail } from "@/app/stores/selectors/workoutSelectors";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
@@ -50,7 +51,7 @@ export const useWorkoutSession = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
-  const { syncWrite } = useSyncQueue();
+  const { syncWrite, enqueueWrite } = useSyncQueue();
   const { i18n } = useTranslation();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
   const user = useSelector(selectUser);
@@ -65,6 +66,9 @@ export const useWorkoutSession = () => {
   const sessionStartedAt = useSelector(selectSessionStartedAt);
   const exerciseStatsMap = useSelector(selectExerciseStats);
   const completedSetsMap = useSelector(selectCompletedSets);
+  const weightUnitPref = useSelector(
+    (state: RootState) => state.preferences.weightUnit,
+  );
 
   const sessionWorkout: SessionWorkout | null = useMemo(
     () => (currentDayDetail ? mapSessionWorkout(currentDayDetail, i18n.language) : null),
@@ -477,13 +481,20 @@ export const useWorkoutSession = () => {
       sevenDayBonusPoints: number;
       bonusEventId: string | null;
     } = { newStreak: 0, longestStreak: 0, wasExtended: false, sevenDayBonusPoints: 0, bonusEventId: null };
+    // Use the device's *local* calendar date, not UTC. Otherwise a session
+    // finished just past midnight local time gets bucketed under yesterday's
+    // UTC date, silently breaking the streak across the day boundary.
+    const now = new Date();
+    const streakDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     try {
       streakResult = await sessionService.recordWorkoutCompletion({
         userId,
         sessionId,
+        streakDate,
       });
     } catch (err) {
-      console.warn("[useWorkoutSession] recordWorkoutCompletion failed", err);
+      console.warn("[useWorkoutSession] recordWorkoutCompletion failed, queuing for retry", err);
+      enqueueWrite("recordWorkoutCompletion", { userId, sessionId, streakDate });
     }
 
     // Optimistic streak update for the chip + StreakBottomSheet.
@@ -491,7 +502,7 @@ export const useWorkoutSession = () => {
       dispatch(setStreak({
         currentStreak: streakResult.newStreak,
         longestStreak: streakResult.longestStreak,
-        lastStreakDate: new Date().toISOString().slice(0, 10),
+        lastStreakDate: streakDate,
       }));
     }
     if (streakResult.sevenDayBonusPoints > 0) {
@@ -578,6 +589,7 @@ export const useWorkoutSession = () => {
     userId,
     currentDayDetail,
     syncWrite,
+    enqueueWrite,
   ]);
 
   /** Navigate to rest timer between sets or exercises */
@@ -715,11 +727,14 @@ export const useWorkoutSession = () => {
       if (logged.length > 0) {
         const last = logged[logged.length - 1];
         if (last.weight != null) {
-          lastSet = { weight: `${last.weight}${last.weightUnit}`, reps: last.reps ?? 0 };
+          lastSet = {
+            weight: formatWeightFromKg(last.weight, weightUnitPref),
+            reps: last.reps ?? 0,
+          };
         }
       } else if (historical?.lastWeight != null) {
         lastSet = {
-          weight: `${historical.lastWeight}${historical.lastWeightUnit ?? "kg"}`,
+          weight: formatWeightFromKg(historical.lastWeight, weightUnitPref),
           reps: historical.lastReps ?? 0,
         };
       }
@@ -727,24 +742,22 @@ export const useWorkoutSession = () => {
       // Best Set: best across (historical best + all logged sets this session)
       let bestWeight = historical?.bestWeight ?? null;
       let bestReps = historical?.bestReps ?? 0;
-      let bestUnit = historical?.bestWeightUnit ?? ex.weightUnit;
 
       for (const s of logged) {
         if (s.weight == null) continue;
         if (bestWeight == null || s.weight > bestWeight || (s.weight === bestWeight && (s.reps ?? 0) > bestReps)) {
           bestWeight = s.weight;
           bestReps = s.reps ?? 0;
-          bestUnit = s.weightUnit;
         }
       }
 
       const bestSet = bestWeight != null
-        ? { weight: `${bestWeight}${bestUnit}`, reps: bestReps }
+        ? { weight: formatWeightFromKg(bestWeight, weightUnitPref), reps: bestReps }
         : null;
 
       return { bestSet, lastSet };
     },
-    [sessionWorkout, exerciseStatsMap, completedSetsMap],
+    [sessionWorkout, exerciseStatsMap, completedSetsMap, weightUnitPref],
   );
 
   /** Get completed sets for the exercise completed bottom sheet */
@@ -758,13 +771,13 @@ export const useWorkoutSession = () => {
       return Object.entries(loggedMap)
         .sort(([a], [b]) => Number(a) - Number(b))
         .map(([key, s]) => ({
-          weight: s.weight != null ? `${s.weight}${s.weightUnit}` : "—",
+          weight: s.weight != null ? formatWeightFromKg(s.weight, weightUnitPref) : "—",
           reps: s.reps ?? 0,
           setNumber: Number(key) + 1,
           duration: s.duration,
         }));
     },
-    [sessionWorkout, completedSetsMap],
+    [sessionWorkout, completedSetsMap, weightUnitPref],
   );
 
   /** Log a cardio exercise (session_sets + session_cardio_logs) */

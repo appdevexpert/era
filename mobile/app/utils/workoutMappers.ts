@@ -340,9 +340,11 @@ export function mapExerciseList(
           const libraryExercise = libraryById.get(exercise.exercise_id);
           const exerciseSets = setsByExerciseId[exercise.id] ?? [];
           const firstWeightedSet = exerciseSets.find((set) => set.target_weight_value);
+          const rawUnit =
+            exercise.initial_weight_unit ?? firstWeightedSet?.target_weight_unit ?? "kg";
           const weight = formatWeight(
             exercise.initial_weight_value ?? firstWeightedSet?.target_weight_value,
-            exercise.initial_weight_unit ?? firstWeightedSet?.target_weight_unit ?? "kg",
+            rawUnit === "lb" ? "lb" : "kg",
           );
           const name = getLocalizedText(
             exercise.display_name_translations,

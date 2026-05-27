@@ -1,5 +1,6 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { ChevronRight } from "@/assets/icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -46,6 +47,7 @@ const ExerciseSummaryCard = ({
   delta,
   onPress,
 }: ExerciseSummaryCardProps) => {
+  const { format, toDisplay, label } = useWeightUnit();
   const inner = (
     <>
       <View style={styles.left}>
@@ -55,7 +57,7 @@ const ExerciseSummaryCard = ({
       </View>
       <View style={styles.right}>
         <ChevronRight width={16} height={16} color="rgba(240,240,240,0.5)" />
-        <Text style={styles.weight}>{displayValue ?? `${weightKg} kg`}</Text>
+        <Text style={styles.weight}>{displayValue ?? format(weightKg)}</Text>
         {delta ? (
           <Text
             style={[
@@ -63,7 +65,7 @@ const ExerciseSummaryCard = ({
               { color: delta.positive ? DELTA_POSITIVE : DELTA_NEGATIVE },
             ]}
           >
-            {delta.positive ? `+${delta.kg} Kg` : `-${delta.kg} Kg`}
+            {`${delta.positive ? "+" : "-"}${toDisplay(delta.kg)} ${label}`}
           </Text>
         ) : null}
       </View>

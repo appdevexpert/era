@@ -107,11 +107,13 @@ export type HomeStackParamList = {
   Setting: undefined;
   Profile: undefined;
   Notification: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
   WorkoutPlan: WorkoutPlanParams | undefined;
   ExerciseList: WorkoutPlanParams | undefined;
   ExerciseHistory: ExerciseHistoryParams | undefined;
   PrHistory: WorkoutPlanParams | undefined;
-  ExercisePrHistory: WorkoutPlanParams | undefined;
+  ExercisePrHistory: ExerciseHistoryParams | undefined;
   TransformationGallery: WorkoutPlanParams | undefined;
   WorkoutCountdown: WorkoutCountdownParams;
   WorkoutLog: WorkoutLogParams;

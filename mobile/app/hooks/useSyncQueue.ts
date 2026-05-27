@@ -48,6 +48,7 @@ export const useSyncQueue = () => {
       upsertUserExerciseStat: (p) => sessionService.upsertUserExerciseStat(p),
       logCardio: (p) => sessionService.logCardio(p),
       createPointEvent: (p) => sessionService.createPointEvent(p),
+      recordWorkoutCompletion: (p) => sessionService.recordWorkoutCompletion(p),
 
       // -------- nutrition --------------------------------------------
       // These mirror the thunks' write paths but go directly through the
@@ -151,5 +152,5 @@ export const useSyncQueue = () => {
     dispatch(setFlushing(false));
   }, [queue, flushing, dispatch, serviceMap]);
 
-  return { syncWrite, flushQueue, queueLength: queue.length, flushing };
+  return { syncWrite, enqueueWrite, flushQueue, queueLength: queue.length, flushing };
 };

@@ -1,6 +1,7 @@
 import SuccessBanner from "@/app/components/progress/SuccessBanner";
 import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/WeightProgressChart";
 import { FONTS } from "@/app/constants/fonts";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { EditPen } from "@/assets/icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -35,6 +36,7 @@ const WeightStatsCard = ({
   onEditHeight,
 }: WeightStatsCardProps) => {
   const { t } = useTranslation();
+  const { format } = useWeightUnit();
   const hasExtremes = heaviestKg !== null && lightestKg !== null;
 
   return (
@@ -43,18 +45,18 @@ const WeightStatsCard = ({
         <View style={{ flex: 1, gap: 6 }}>
           <Text style={styles.tinyEyebrow}>{t("progress.weightCurrent")}</Text>
           <Text style={styles.currentValue}>
-            {currentKg !== null ? `${currentKg} kg` : "—"}
+            {currentKg !== null ? format(currentKg) : "—"}
           </Text>
         </View>
         {hasExtremes ? (
           <View style={{ flex: 1, gap: 8, alignItems: "flex-end" }}>
             <View style={styles.secondaryRow}>
               <Text style={styles.tinyEyebrow}>{t("progress.weightHeaviest")}</Text>
-              <Text style={styles.statsValueSmall}>{`${heaviestKg} kg`}</Text>
+              <Text style={styles.statsValueSmall}>{format(heaviestKg)}</Text>
             </View>
             <View style={styles.secondaryRow}>
               <Text style={styles.tinyEyebrow}>{t("progress.weightLightest")}</Text>
-              <Text style={styles.statsValueSmall}>{`${lightestKg} kg`}</Text>
+              <Text style={styles.statsValueSmall}>{format(lightestKg)}</Text>
             </View>
           </View>
         ) : null}

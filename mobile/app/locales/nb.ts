@@ -268,6 +268,116 @@ const nb = {
       intermediate: "Viderekommen",
       advanced: "Avansert",
     },
+    legal: {
+      eyebrow: "ERA Fitness",
+      lastUpdatedLabel: "Sist oppdatert",
+      contactLabel: "Ta kontakt",
+      contactValue: "support@erafitness.no",
+      terms: {
+        title: "Vilkår for bruk",
+        lastUpdated: "Mai 2026",
+        intro:
+          "Velkommen til ERA. Når du oppretter en konto eller bruker ERA-appen, godtar du disse vilkårene. Les dem nøye – de beskriver hvordan du kan bruke appen, abonnementet ditt og den personlige treningen og kostholdsveiledningen vi tilbyr.",
+        sections: [
+          {
+            heading: "Godkjenning av vilkårene",
+            body: "Ved å installere, åpne eller bruke ERA-appen bekrefter du at du er minst 16 år, og at du godtar disse vilkårene fullt ut. Hvis du ikke er enig, må du slutte å bruke appen og avinstallere den.",
+          },
+          {
+            heading: "Helse- og treningsforbehold",
+            body: "ERA tilbyr treningsprogrammer, kostholdsveiledning og progresjonssporing kun for generell treningsbruk. Vi er ikke en helseaktør. Kontakt lege før du starter et nytt program, særlig ved sykdom, graviditet eller skade. All trening skjer på eget ansvar.",
+          },
+          {
+            heading: "Din konto",
+            body: "Du er ansvarlig for at opplysningene du oppgir i onboarding er korrekte, for å holde innloggingsinformasjonen din trygg, og for all aktivitet som skjer fra kontoen din. Si fra umiddelbart hvis du mistenker uautorisert tilgang.",
+          },
+          {
+            heading: "Abonnement og betaling",
+            body: "ERA har Gratis prøveperiode, Standard, Pro og Familie. Betalte abonnementer fornyes automatisk via app-butikk-kontoen din med mindre du sier opp minst 24 timer før fornyelsen. Refusjon håndteres av app-butikken etter deres regler.",
+          },
+          {
+            heading: "Akseptabel bruk",
+            body: "Du forplikter deg til å ikke misbruke appen, ikke prøve å reversere koden, ikke dele kontoen din, ikke hente ut innhold automatisk, og ikke trakassere, utgi deg for noen andre eller skade andre brukere på den sosiale ledertavlen. Vi kan stenge kontoer som bryter disse reglene.",
+          },
+          {
+            heading: "Innhold og opphavsrett",
+            body: "Alle treningsprogrammer, øvelsesvideoer, tekster, merkevareelementer og designet i ERA eies av ERA Fitness AS og er beskyttet av norsk og internasjonal opphavsrett. Du får en personlig, ikke-overførbar lisens til å bruke innholdet så lenge abonnementet er aktivt.",
+          },
+          {
+            heading: "Brukergenerert innhold",
+            body: "Progresjonsbilder, notater, vektlogger og lignende du legger inn er fortsatt dine. Ved å laste opp gir du ERA en begrenset lisens til å lagre og vise innholdet til deg, og – om du velger det – til venner på ledertavlen din. Vi selger ikke innholdet ditt videre.",
+          },
+          {
+            heading: "Oppsigelse",
+            body: "Du kan slutte å bruke ERA og slette kontoen din når som helst fra Profil-skjermen. Vi kan suspendere eller stenge tilgang ved brudd på vilkårene, mobbing av andre brukere eller bruk som setter plattformen eller medlemmene i fare.",
+          },
+          {
+            heading: "Ansvarsbegrensning",
+            body: "Innenfor det loven tillater, er ERA Fitness AS ikke ansvarlig for indirekte tap, tapt treningsdata på grunn av enhetsfeil, eller skader som oppstår under trening. Vårt samlede ansvar er begrenset til det du har betalt oss de siste 12 månedene.",
+          },
+          {
+            heading: "Endringer i vilkårene",
+            body: "Vi kan oppdatere vilkårene når vi legger til funksjoner, endrer priser eller justerer juridiske krav. Vesentlige endringer varsles i appen. Fortsatt bruk etter en oppdatering betyr at du godtar de nye vilkårene.",
+          },
+          {
+            heading: "Lovvalg",
+            body: "Vilkårene er underlagt norsk lov. Tvister behandles av Oslo tingrett, med mindre ufravikelig forbrukerlovgivning krever et annet verneting.",
+          },
+        ],
+      },
+      privacy: {
+        title: "Personvernerklæring",
+        lastUpdated: "Mai 2026",
+        intro:
+          "Tilliten din betyr alt. Denne personvernerklæringen forklarer hva ERA samler inn, hvordan vi bruker det til å tilpasse trening og kosthold, og hvilke valg du har. Vi følger EU GDPR og norsk personvernlovgivning.",
+        sections: [
+          {
+            heading: "Informasjonen vi samler inn",
+            body: "Vi samler inn kontoopplysningene dine (navn, e-post), svarene dine fra onboarding (kjønn, treningsnivå, mål, vekt, høyde) og dataene du logger om trening, kosthold og fremgang. Vi samler også inn grunnleggende enhets- og diagnostikkinformasjon for å holde appen stabil.",
+          },
+          {
+            heading: "Hvordan vi bruker dataene",
+            body: "Dataene brukes til å lage 12-ukers programmet ditt, foreslå vekter og kostholdsmål, spore personlige rekorder, og drive ledertavlen og rekken din. Vi selger aldri data og bruker aldri progresjonsbildene dine til annonser.",
+          },
+          {
+            heading: "Rettslig grunnlag (GDPR)",
+            body: "Vi behandler data basert på samtykket ditt (onboarding-svar, bilder), for å oppfylle abonnementsavtalen (treningsplan, fakturering), og på grunnlag av berettiget interesse for å holde tjenesten trygg og forbedret.",
+          },
+          {
+            heading: "Deling med tredjeparter",
+            body: "Vi deler kun nødvendige data med leverandørene som hjelper oss å drive ERA: Supabase (database og autentisering), analyseleverandøren for kun feilsøking ved krasj, og Apple eller Google for abonnementsfakturering. Disse opptrer som databehandlere under egne avtaler.",
+          },
+          {
+            heading: "Lagring og sikkerhet",
+            body: "Dataene lagres på Supabase-servere i EU-regionen, kryptert under overføring og i hvile. Tilgangen er begrenset til autorisert ERA-personell. Vi bruker Row-Level Security slik at andre brukere ikke kan lese dine private logger.",
+          },
+          {
+            heading: "Rettighetene dine",
+            body: "Du kan når som helst få innsyn i, rette, eksportere eller slette dataene dine fra Profil-skjermen, eller ved å skrive til oss. Etter GDPR har du også rett til å protestere mot behandling og klage til Datatilsynet.",
+          },
+          {
+            heading: "Progresjonsbilder og sosialt",
+            body: "Progresjonsbilder er private som standard og synlige kun for deg. Hvis du velger å dele dem, bestemmer du selv med hvem. Venner på ledertavlen ser kun målene du aktiverer – aldri bilder eller notater.",
+          },
+          {
+            heading: "Oppbevaring av data",
+            body: "Vi beholder kontodataene så lenge kontoen er aktiv. Hvis du sletter kontoen, fjernes personopplysninger innen 30 dager, unntatt der vi er lovpålagt å beholde regnskapsinformasjon.",
+          },
+          {
+            heading: "Barn",
+            body: "ERA er ikke rettet mot barn under 16 år. Vi samler ikke bevisst inn data fra barn. Hvis du tror et barn har registrert seg, ta kontakt så fjerner vi kontoen.",
+          },
+          {
+            heading: "Informasjonskapsler og sporing",
+            body: "Mobilappen bruker ikke annonseinformasjonskapsler eller kryssappsporing. Vi bruker kun enhets-ID-er som er nødvendige for innlogging, push-varsler du har godtatt, og krasjdiagnostikk.",
+          },
+          {
+            heading: "Endringer i erklæringen",
+            body: "Hvis vi endrer hvordan vi håndterer data, varsler vi deg i appen før endringen trer i kraft. Den nyeste versjonen er alltid tilgjengelig i Profil-skjermen.",
+          },
+        ],
+      },
+    },
     subscription: {
       title: "Administrer abonnement",
       active: "Aktiv",
@@ -388,8 +498,17 @@ const nb = {
     viewAll: "Vis alle",
     latestPr: "Siste PR",
     prDate: "PR-dato",
-    prDelta: "+{{kg}} kg fra forrige rekord",
+    prDelta: "+{{value}} {{unit}} fra forrige rekord",
     prsBanner: "Du har satt {{count}} PR-er denne uken!",
+    weekLabel: "Uke {{week}} • {{date}}",
+    prsEmptyTitle: "Ingen PR-er enda",
+    prsEmptySubtitle: "Løft tyngre enn forrige gang for å sette din første rekord.",
+    categoryCompound: "Sammensatt",
+    categoryIsolation: "Isolasjon",
+    categoryCore: "Kjerne",
+    categoryCardio: "Kondisjon",
+    categoryWarmup: "Oppvarming",
+    categoryCooldown: "Nedtrapping",
     weightTitle: "Vekt",
     logWeight: "Logg vekt",
     weightCurrent: "Nåværende",
@@ -407,6 +526,9 @@ const nb = {
       eyebrow: "personlig rekord",
       exercises: "Øvelser",
       sectionTitle: "PR-historikk",
+      meta: "{{sets}} sett • {{reps}} reps",
+      emptyTitle: "Ingen PR-er enda",
+      emptySubtitle: "Løft tyngre enn forrige gang for å sette din første rekord.",
     },
     logWeightSheet: {
       title: "Logg vekt",

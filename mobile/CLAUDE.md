@@ -4,7 +4,7 @@ This file is the shared project guide for AI/dev work in this repository. Keep i
 
 ## Project Overview
 
-ERA is an Expo React Native mobile app for onboarding, plan generation, and workout viewing. The current sprint focuses on:
+ERA is an Expo React Native mobile app for onboarding, plan generation, workout viewing, and progress tracking. Shipped flows:
 
 - Login/signup
 - 7-step onboarding
@@ -12,8 +12,18 @@ ERA is an Expo React Native mobile app for onboarding, plan generation, and work
 - Workout home/view UI
 - Workout plan overview
 - Exercise list view
+- Workout logging (sets, exercises, sessions) with PR detection and ERA points
+- Progress screen (stats, history card, PRs, weight, photos)
 
-Admin panel and workout logging are planned later.
+Admin panel is planned later.
+
+## Feature Docs (Read Before Editing)
+
+Each major feature has a dedicated MD with schema, services, slices, screens, and flow. Read the relevant doc before changing that area — saves a lot of rediscovery time.
+
+- `PR_FEATURE.md` — Personal Records: locked to `max_weight` only. PR detection logic, read services, prSlice, ProgressScreen / PrHistory / ExercisePrHistory wiring.
+- `WORKOUT_SCHEMA_EXPLAINED.md` — Supabase workout schema walkthrough.
+- `WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.
 
 ## Core Rule
 
@@ -290,9 +300,19 @@ Keep components specialized by context — match the **visual**, not the **API**
 - Keep screens readable; move data shaping into services, slices, selectors, or mappers.
 - Keep Supabase fetch code out of UI components when Redux cache should be used.
 - Keep user-visible text localized.
+- **Loading states use skeletons, not spinners.** Compose from `app/components/skeleton/Skeleton.tsx` (shimmering pulse primitive). Mirror the live layout — title bar, card shapes, list rows — so the screen's structure is visible while data loads. See `ExercisePrHistoryScreenSkeleton`, `ExerciseHistoryScreenSkeleton`, `WeightsScreenSkeleton`, `LeaderboardScreenSkeleton`, `ExerciseListScreenSkeleton` for examples. `ActivityIndicator` is acceptable only inside buttons (e.g. `PrimaryButton` loading state).
 - Do not remove existing UI/work unless explicitly requested.
-- Do not implement admin panel or workout logging unless the user asks.
+- Do not implement admin panel features unless the user asks.
 - Do not commit local/private notes from `claude.local.md`.
+
+## Locked Specs
+
+Some product rules are explicit decisions that should NOT be undone by future refactors. Each lives in the user's memory store (`memory/*.md`) and may also have a feature doc.
+
+- **PR detection** — `max_weight` only. No reps/e1RM PRs. (See `PR_FEATURE.md` and `memory/project_pr_calculation_spec.md`.)
+- **ERA points + streak** — Locked point values (50/15/100/150/25/200) and streak rules (workout-only, rest preserves, missed breaks). (See `memory/project_era_points_streak_spec.md`.)
+- **Week progression** — Calendar-driven auto-shift, NOT completion-gated. (See `memory/project_week_progression_model.md`.)
+- **Local-first writes** — Redux first, Supabase sync with retry queue. Never block UI on network. Never silently drop writes. (See `memory/feedback_local_first.md` and Data Write Pattern in `claude.local.md`.)
 
 ## Validation
 

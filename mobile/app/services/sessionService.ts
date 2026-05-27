@@ -489,12 +489,10 @@ export async function checkAndCreatePR(params: {
 }
 
 /**
- * Runs all Standard-tier PR checks for a single logged set:
- *   - max_weight
- *   - max_reps (at the rep count actually performed)
- *   - estimated_one_rep_max  (weight × (1 + reps/30) — Epley)
+ * PR detection for a single logged set.
  *
- * Each metric that breaks inserts its own PR row + its own +100 event.
+ * Locked spec: only `max_weight` counts as a PR. Same weight + more reps is
+ * NOT a PR. See memory/project_pr_calculation_spec.md.
  */
 export async function checkAndCreateSetPRs(params: {
   userId: string;
@@ -512,35 +510,22 @@ export async function checkAndCreateSetPRs(params: {
     return { prCount: 0, pointsAwarded: 0 };
   }
 
-  const e1rm = loggedWeight * (1 + loggedReps / 30);
-  const checks: { metric: PrMetric; value: number }[] = [
-    { metric: "max_weight", value: loggedWeight },
-    { metric: "max_reps", value: loggedReps },
-    { metric: "estimated_one_rep_max", value: Math.round(e1rm * 100) / 100 },
-  ];
+  const result = await checkAndCreatePR({
+    userId: params.userId,
+    exerciseId: params.exerciseId,
+    exerciseName: params.exerciseName,
+    sessionId: params.sessionId,
+    sessionExerciseId: params.sessionExerciseId,
+    sessionSetId: params.sessionSetId,
+    metric: "max_weight",
+    value: loggedWeight,
+    unit: params.weightUnit,
+    weight: loggedWeight,
+    reps: loggedReps,
+  });
 
-  let prCount = 0;
-  let pointsAwarded = 0;
-  for (const c of checks) {
-    const result = await checkAndCreatePR({
-      userId: params.userId,
-      exerciseId: params.exerciseId,
-      exerciseName: params.exerciseName,
-      sessionId: params.sessionId,
-      sessionExerciseId: params.sessionExerciseId,
-      sessionSetId: params.sessionSetId,
-      metric: c.metric,
-      value: c.value,
-      unit: params.weightUnit,
-      weight: loggedWeight,
-      reps: loggedReps,
-    });
-    if (result) {
-      prCount += 1;
-      pointsAwarded += PR_POINTS;
-    }
-  }
-  return { prCount, pointsAwarded };
+  if (!result) return { prCount: 0, pointsAwarded: 0 };
+  return { prCount: 1, pointsAwarded: PR_POINTS };
 }
 
 /* ─── Points + streak ─── */
@@ -665,6 +650,146 @@ export async function countSessionPRs(sessionId: string): Promise<number> {
     .select("id", { count: "exact", head: true })
     .eq("session_id", sessionId);
   throwIfError(error, "Failed to count session PRs");
+  return count ?? 0;
+}
+
+/* ─── Personal records READ ─── */
+
+export interface LatestPRRow {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  exerciseNameTranslations: Record<string, string> | null;
+  exerciseCategory: string;
+  weightKg: number;
+  reps: number | null;
+  previousWeightKg: number | null;
+  achievedAt: string;
+}
+
+/**
+ * Fetch the latest max_weight PR per exercise for a user, newest first.
+ *
+ * Locked spec: only `max_weight` PRs are read (see project_pr_calculation_spec).
+ * Old `max_reps` / `estimated_one_rep_max` rows in the DB are ignored.
+ *
+ * Dedupes by exercise_id in JS — the first row per exercise (highest
+ * achieved_at) wins. Fetches more rows than needed so dedup can still
+ * deliver `limit` distinct exercises.
+ */
+export async function listLatestPRs(
+  userId: string,
+  limit = 10,
+): Promise<LatestPRRow[]> {
+  const { data, error } = await supabase
+    .from("personal_records")
+    .select(
+      `id, exercise_id, value_numeric, weight_value, reps,
+       previous_value_numeric, achieved_at,
+       exercise_library:exercise_id ( name, name_translations, category )`,
+    )
+    .eq("user_id", userId)
+    .eq("metric", "max_weight")
+    .order("achieved_at", { ascending: false })
+    .limit(Math.max(limit * 5, 25));
+
+  throwIfError(error, "Failed to list latest PRs");
+
+  type Row = {
+    id: string;
+    exercise_id: string;
+    value_numeric: number | string;
+    weight_value: number | string | null;
+    reps: number | null;
+    previous_value_numeric: number | string | null;
+    achieved_at: string;
+    exercise_library: {
+      name: string;
+      name_translations: Record<string, string> | null;
+      category: string;
+    } | null;
+  };
+
+  const seen = new Set<string>();
+  const out: LatestPRRow[] = [];
+  for (const r of (data as unknown as Row[]) ?? []) {
+    if (seen.has(r.exercise_id)) continue;
+    seen.add(r.exercise_id);
+    out.push({
+      id: r.id,
+      exerciseId: r.exercise_id,
+      exerciseName: r.exercise_library?.name ?? "",
+      exerciseNameTranslations: r.exercise_library?.name_translations ?? null,
+      exerciseCategory: r.exercise_library?.category ?? "compound",
+      weightKg: Number(r.weight_value ?? r.value_numeric),
+      reps: r.reps,
+      previousWeightKg:
+        r.previous_value_numeric != null ? Number(r.previous_value_numeric) : null,
+      achievedAt: r.achieved_at,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+export interface ExercisePRRow {
+  id: string;
+  weightKg: number;
+  reps: number | null;
+  previousWeightKg: number | null;
+  achievedAt: string;
+}
+
+/**
+ * Fetch all max_weight PRs for one exercise, newest first. Used by the
+ * per-exercise PR history screen (the chart + list view).
+ */
+export async function listExercisePRs(params: {
+  userId: string;
+  exerciseId: string;
+}): Promise<ExercisePRRow[]> {
+  const { data, error } = await supabase
+    .from("personal_records")
+    .select("id, weight_value, value_numeric, reps, previous_value_numeric, achieved_at")
+    .eq("user_id", params.userId)
+    .eq("exercise_id", params.exerciseId)
+    .eq("metric", "max_weight")
+    .order("achieved_at", { ascending: false });
+
+  throwIfError(error, "Failed to list exercise PRs");
+
+  type Row = {
+    id: string;
+    weight_value: number | string | null;
+    value_numeric: number | string;
+    reps: number | null;
+    previous_value_numeric: number | string | null;
+    achieved_at: string;
+  };
+
+  return ((data as Row[]) ?? []).map((r) => ({
+    id: r.id,
+    weightKg: Number(r.weight_value ?? r.value_numeric),
+    reps: r.reps,
+    previousWeightKg:
+      r.previous_value_numeric != null ? Number(r.previous_value_numeric) : null,
+    achievedAt: r.achieved_at,
+  }));
+}
+
+/**
+ * Count `max_weight` PRs achieved in the trailing 7 days. Used by the
+ * Progress screen banner ("You've nailed X PRs this week!").
+ */
+export async function countPRsThisWeek(userId: string): Promise<number> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("personal_records")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("metric", "max_weight")
+    .gte("achieved_at", sevenDaysAgo);
+  throwIfError(error, "Failed to count weekly PRs");
   return count ?? 0;
 }
 

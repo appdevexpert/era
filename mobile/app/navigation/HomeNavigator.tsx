@@ -6,8 +6,10 @@ import ExercisePrHistoryScreen from "@/app/screen/home/ExercisePrHistoryScreen";
 import PrHistoryScreen from "@/app/screen/home/PrHistoryScreen";
 import TransformationGalleryScreen from "@/app/screen/home/TransformationGalleryScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";
+import PrivacyPolicyScreen from "@/app/screen/home/PrivacyPolicyScreen";
 import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
+import TermsOfServiceScreen from "@/app/screen/home/TermsOfServiceScreen";
 import CardioTimerScreen from "@/app/screen/home/CardioTimerScreen";
 import LeaderboardScreen from "@/app/screen/home/LeaderboardScreen";
 import PointsScreen from "@/app/screen/home/PointsScreen";
@@ -30,6 +32,8 @@ const HomeNavigator = () => (
     <Stack.Screen name="Setting" component={SettingScreen} />
     <Stack.Screen name="Profile" component={ProfileScreen} />
     <Stack.Screen name="Notification" component={NotificationScreen} />
+    <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+    <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
     <Stack.Screen
       name="WorkoutPlan"
       component={WorkoutPlanScreen}

@@ -1,4 +1,5 @@
 import { FONTS } from "@/app/constants/fonts";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { AwardPrBadge } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
@@ -54,15 +55,18 @@ const SessionHistoryCard = ({
   delta,
   badge,
 }: SessionHistoryCardProps) => {
+  const { format, toDisplay, label } = useWeightUnit();
   const showBadge = badge !== undefined && badge !== false && badge !== null;
   const badgeNode = badge === true ? <DefaultBadge /> : (badge as ReactNode);
 
   const primaryText =
     metricKind === "duration"
       ? (durationLabel ?? "")
-      : `${weightKg} kg  x  ${reps} reps`;
+      : `${format(weightKg)}  x  ${reps} reps`;
 
-  const deltaUnit = metricKind === "duration" ? "s" : "kg";
+  const deltaUnit = metricKind === "duration" ? "s" : label;
+  const deltaValue =
+    metricKind === "duration" || !delta ? delta?.kg : toDisplay(delta.kg);
 
   return (
     <View style={styles.card}>
@@ -87,7 +91,7 @@ const SessionHistoryCard = ({
         <Text
           style={[styles.delta, { color: delta.positive ? POSITIVE : NEGATIVE }]}
         >
-          {`${delta.positive ? "+" : "-"}${delta.kg} ${deltaUnit}`}
+          {`${delta.positive ? "+" : "-"}${deltaValue} ${deltaUnit}`}
         </Text>
       ) : null}
     </View>

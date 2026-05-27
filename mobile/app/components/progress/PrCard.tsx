@@ -1,4 +1,5 @@
 import { FONTS } from "@/app/constants/fonts";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +22,7 @@ interface PrCardProps {
 
 const PrCard = ({ entry }: PrCardProps) => {
   const { t } = useTranslation();
+  const { format, toDisplay, label } = useWeightUnit();
 
   return (
     <View style={styles.card}>
@@ -42,12 +44,17 @@ const PrCard = ({ entry }: PrCardProps) => {
 
       <View style={styles.bottomBlock}>
         <View style={styles.weightRow}>
-          <Text style={styles.weight}>{`${entry.weightKg} kg`}</Text>
+          <Text style={styles.weight}>{format(entry.weightKg)}</Text>
           <Text style={styles.weight}>x</Text>
           <Text style={styles.weight}>{`${entry.reps} reps`}</Text>
         </View>
         {typeof entry.deltaKg === "number" ? (
-          <Text style={styles.delta}>{t("progress.prDelta", { kg: entry.deltaKg })}</Text>
+          <Text style={styles.delta}>
+            {t("progress.prDelta", {
+              value: toDisplay(entry.deltaKg),
+              unit: label,
+            })}
+          </Text>
         ) : null}
       </View>
     </View>

@@ -8,6 +8,7 @@ import SettingsCard from "@/app/components/common/SettingsCard";
 import SettingsRow from "@/app/components/common/SettingsRow";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import { signOutThunk } from "@/app/stores/slice/authSlice";
 import { RootState, useAppDispatch } from "@/app/stores/store";
@@ -24,7 +25,9 @@ import {
   SettingTrashBin,
   SettingWeigher,
 } from "@/assets/icons";
+import type { HomeStackParamList } from "@/app/navigation/types";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useRef } from "react";
 import {
   ActivityIndicator,
@@ -44,9 +47,11 @@ const ChevronDanger = () => <SettingChevronRightDanger width={24} height={24} />
 const ProfileScreen = () => {
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t, i18n } = useTranslation();
   const subscriptionSheetRef = useRef<ManageSubscriptionBottomSheetRef>(null);
+  const { unit: weightUnit, setUnit: setWeightUnitPref } = useWeightUnit();
 
   const user = useSelector(selectUser);
   const authStatus = useSelector((state: RootState) => state.auth.loadingStatus);
@@ -137,7 +142,8 @@ const ProfileScreen = () => {
               <SegmentedPill
                 leftLabel={t("profile.weightKg")}
                 rightLabel={t("profile.weightLbs")}
-                selectedIndex={0}
+                selectedIndex={weightUnit === "kg" ? 0 : 1}
+                onChange={(i) => setWeightUnitPref(i === 0 ? "kg" : "lb")}
               />
             }
           />
@@ -149,13 +155,13 @@ const ProfileScreen = () => {
             icon={<InfoCircleGold width={24} height={24} />}
             label={t("profile.termsOfService")}
             right={<Chevron />}
-            onPress={() => {}}
+            onPress={() => navigation.navigate("TermsOfService")}
           />
           <SettingsRow
             icon={<SettingShieldUser width={24} height={24} />}
             label={t("profile.privacyPolicy")}
             right={<Chevron />}
-            onPress={() => {}}
+            onPress={() => navigation.navigate("PrivacyPolicy")}
           />
         </SettingsCard>
 

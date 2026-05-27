@@ -5,6 +5,7 @@ import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/W
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { useExerciseHistory } from "@/app/hooks/useExerciseHistory";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import type {
   ExerciseHistoryView,
   ExerciseHistoryWeekSection,
@@ -42,6 +43,7 @@ const StatsCard = ({
   labels,
   chartUnit,
   language,
+  formatWeightStat,
 }: {
   stats: ExerciseHistoryView["stats"];
   metricKind: ExerciseMetricKind;
@@ -51,6 +53,7 @@ const StatsCard = ({
   labels: { current: string; heaviest: string; lightest: string };
   chartUnit: string;
   language: string;
+  formatWeightStat: (kg: number | null) => string;
 }) => {
   // Chart Y-axis snaps to a tidy gridline so kg and seconds both look balanced.
   const { yMin, yMax, yStep } = useMemo(() => {
@@ -79,7 +82,7 @@ const StatsCard = ({
     if (metricKind === "duration") {
       return sec != null ? formatDuration(sec, language) : "—";
     }
-    return kg != null ? `${kg} kg` : "—";
+    return formatWeightStat(kg);
   };
 
   return (
@@ -191,19 +194,28 @@ const ExerciseHistoryScreen = () => {
     exerciseName,
   });
 
-  const chartData: ChartPoint[] = useMemo(
-    () =>
-      data?.chart.points.map((c) => ({
-        label: c.label,
-        value: c.value,
-        isReal: c.isReal,
-      })) ?? [],
-    [data],
-  );
-  const xTickLabels = data?.chart.xTickLabels ?? [];
+  const { format: formatKg, toDisplay: kgToDisplayUnit, label: weightUnitLabel } = useWeightUnit();
+
   const metricKind: ExerciseMetricKind = data?.metricKind ?? "weight";
+
+  const chartData: ChartPoint[] = useMemo(() => {
+    const raw = data?.chart.points ?? [];
+    if (metricKind === "duration") {
+      return raw.map((c) => ({ label: c.label, value: c.value, isReal: c.isReal }));
+    }
+    return raw.map((c) => ({
+      label: c.label,
+      value: kgToDisplayUnit(c.value),
+      isReal: c.isReal,
+    }));
+  }, [data, metricKind, kgToDisplayUnit]);
+
+  const xTickLabels = data?.chart.xTickLabels ?? [];
   const chartUnit =
-    metricKind === "duration" ? t("history.chartUnitSec") : t("history.chartUnitKg");
+    metricKind === "duration"
+      ? t("history.chartUnitSec")
+      : weightUnitLabel.toUpperCase();
+  const formatWeightStat = (kg: number | null) => (kg != null ? formatKg(kg) : "—");
   const labels =
     metricKind === "duration"
       ? {
@@ -237,6 +249,7 @@ const ExerciseHistoryScreen = () => {
               labels={labels}
               chartUnit={chartUnit}
               language={i18n.language}
+              formatWeightStat={formatWeightStat}
             />
 
             <View style={styles.historyHeader}>

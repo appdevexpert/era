@@ -12,6 +12,7 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale } from "@/app/utils/responsive";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
@@ -61,7 +62,16 @@ const WorkoutLogScreen = () => {
   });
   const plannedWeightForSet =
     currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 120;
-  const [weight, setWeight] = useState(suggestedWeight ?? plannedWeightForSet);
+  // Canonical kg. The ruler displays/edits in the user's preferred unit; we
+  // convert at the edge so the session log keeps storing kg.
+  const [weightKg, setWeightKg] = useState(suggestedWeight ?? plannedWeightForSet);
+  const { label: weightUnitLabel, range: weightRange, toDisplay, fromDisplayToKg } =
+    useWeightUnit();
+  const weightDisplay = toDisplay(weightKg);
+  const handleWeightChange = useCallback(
+    (next: number) => setWeightKg(fromDisplayToKg(next)),
+    [fromDisplayToKg],
+  );
   const [reps, setReps] = useState(currentEx?.targetReps ?? 6);
   const [comment, setComment] = useState("");
   const [feedback, setFeedback] = useState<"light_weight" | "correct_weight" | "felt_heavy" | null>(null);
@@ -89,12 +99,12 @@ const WorkoutLogScreen = () => {
 
   /** Complete Set (not last) → log + rest timer */
   const handleCompleteSet = useCallback(() => {
-    logSetResult(exIdx, activeSet, weight, reps, feedback, null, comment || null);
+    logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
     navigateToRest(exIdx, activeSet + 2);
     setActiveSet((s) => s + 1);
     setFeedback(null);
     setComment("");
-  }, [weight, reps, activeSet, exIdx, feedback, comment, logSetResult, navigateToRest]);
+  }, [weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult, navigateToRest]);
 
   /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
@@ -103,9 +113,9 @@ const WorkoutLogScreen = () => {
       return;
     }
     lastSetLogged.current = true;
-    logSetResult(exIdx, activeSet, weight, reps, feedback, null, comment || null);
+    logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
     sheetRef.current?.expand();
-  }, [weight, reps, activeSet, exIdx, feedback, comment, logSetResult]);
+  }, [weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult]);
 
   /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
@@ -181,11 +191,12 @@ const WorkoutLogScreen = () => {
             <View style={styles.rulerFullWidth}>
               <WeightRuler
                 label="Weight"
-                unit="Kgs"
-                value={weight}
-                onValueChange={setWeight}
-                min={20}
-                max={200}
+                unit={weightUnitLabel}
+                value={weightDisplay}
+                onValueChange={handleWeightChange}
+                min={weightRange.min}
+                max={weightRange.max}
+                step={weightRange.step}
               />
             </View>
           ) : null}

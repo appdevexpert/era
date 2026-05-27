@@ -268,6 +268,116 @@ const en = {
       intermediate: "Intermediate",
       advanced: "Advanced",
     },
+    legal: {
+      eyebrow: "ERA Fitness",
+      lastUpdatedLabel: "Last updated",
+      contactLabel: "Get in touch",
+      contactValue: "support@erafitness.no",
+      terms: {
+        title: "Terms of Service",
+        lastUpdated: "May 2026",
+        intro:
+          "Welcome to ERA. By creating an account or using the ERA mobile app, you agree to these Terms of Service. Please read them carefully — they govern how you use the app, your subscription, and the personalized training and nutrition guidance we provide.",
+        sections: [
+          {
+            heading: "Acceptance of Terms",
+            body: "By installing, accessing, or using the ERA app, you confirm that you are at least 16 years old and that you accept these terms in full. If you do not agree, please discontinue use and uninstall the app.",
+          },
+          {
+            heading: "Health & Fitness Disclaimer",
+            body: "ERA provides training programs, nutrition guidance, and progress tracking for general fitness purposes only. We are not a medical provider. Consult a qualified physician before starting any new training or nutrition plan, especially if you have a pre-existing condition, are pregnant, or are recovering from an injury. You exercise at your own risk.",
+          },
+          {
+            heading: "Your Account",
+            body: "You are responsible for the accuracy of the information you provide during onboarding, for safeguarding your login credentials, and for all activity that occurs under your account. Notify us immediately if you suspect unauthorized access.",
+          },
+          {
+            heading: "Subscriptions & Billing",
+            body: "ERA offers Free Trial, Standard, Pro, and Familie subscription tiers. Paid subscriptions renew automatically through your app store account unless cancelled at least 24 hours before the renewal date. Refunds are handled by the app store in accordance with their policies.",
+          },
+          {
+            heading: "Acceptable Use",
+            body: "You agree not to misuse the app, attempt to reverse-engineer it, share your account, scrape content, or use ERA to harass, impersonate, or harm other users on the social leaderboard. We may suspend or terminate accounts that violate these rules.",
+          },
+          {
+            heading: "Content & Intellectual Property",
+            body: "All training programs, exercise videos, written guidance, brand assets, and UI designs in ERA are owned by ERA Fitness AS and protected by Norwegian and international copyright law. You receive a personal, non-transferable licence to use the content while your subscription is active.",
+          },
+          {
+            heading: "User-Generated Content",
+            body: "Progress photos, notes, weight logs, and similar entries you create stay yours. By uploading them, you grant ERA a limited licence to store and display this content back to you and (if you opt in) to friends on your leaderboard. We do not sell your personal content.",
+          },
+          {
+            heading: "Termination",
+            body: "You may stop using ERA and delete your account at any time from the Profile screen. We may suspend or terminate access if you violate these terms, abuse other users, or use the service in a way that puts the platform or its members at risk.",
+          },
+          {
+            heading: "Limitation of Liability",
+            body: "To the extent permitted by law, ERA Fitness AS is not liable for indirect damages, lost progress data caused by device issues, or injuries arising from your training. Our total liability is limited to the amount you have paid us in the last 12 months.",
+          },
+          {
+            heading: "Changes to These Terms",
+            body: "We may update these terms when we add features, change pricing, or adjust legal requirements. Significant changes will be announced in-app. Continued use after an update means you accept the revised terms.",
+          },
+          {
+            heading: "Governing Law",
+            body: "These terms are governed by the laws of Norway. Disputes will be handled by the courts of Oslo, unless mandatory consumer law requires a different venue.",
+          },
+        ],
+      },
+      privacy: {
+        title: "Privacy Policy",
+        lastUpdated: "May 2026",
+        intro:
+          "Your trust matters. This Privacy Policy explains what information ERA collects, how we use it to personalize your training and nutrition, and the choices you have. We follow the EU GDPR and Norwegian privacy law.",
+        sections: [
+          {
+            heading: "Information We Collect",
+            body: "We collect the account details you provide (name, email), onboarding answers (gender, training level, goals, weight, height), and the workout, nutrition, and progress data you log. We also collect basic device and diagnostic information so we can keep the app stable.",
+          },
+          {
+            heading: "How We Use Your Data",
+            body: "Your data is used to generate your 12-week program, suggest weights and nutrition targets, track personal records, and power your leaderboard and streak. We never sell your data and we never use your progress photos for advertising.",
+          },
+          {
+            heading: "Legal Basis (GDPR)",
+            body: "We process your data under your consent (onboarding inputs, photos), to perform the subscription contract (training plan, billing), and under our legitimate interest in keeping the service safe and improving it.",
+          },
+          {
+            heading: "Sharing With Third Parties",
+            body: "We share limited data only with the providers that help us run ERA: Supabase (database and authentication), our analytics provider for crash-only diagnostics, and Apple or Google for subscription billing. These providers act as processors under data agreements.",
+          },
+          {
+            heading: "Data Storage & Security",
+            body: "Your data is stored on EU-region Supabase servers with encryption in transit and at rest. Access is limited to authorized ERA staff. We use Row-Level Security so other users cannot read your private logs.",
+          },
+          {
+            heading: "Your Rights",
+            body: "You can access, correct, export, or delete your data at any time from the Profile screen, or by writing to us. Under GDPR you also have the right to object to processing and to lodge a complaint with Datatilsynet.",
+          },
+          {
+            heading: "Progress Photos & Social Features",
+            body: "Progress photos are private by default and visible only to you. If you choose to share them, you control with whom. Friends on your leaderboard see only the metrics you enable — never your photos or notes.",
+          },
+          {
+            heading: "Data Retention",
+            body: "We keep your account data while your account is active. If you delete your account, personal data is removed within 30 days, except where we are required by law to retain billing records.",
+          },
+          {
+            heading: "Children",
+            body: "ERA is not directed at children under 16. We do not knowingly collect data from children. If you believe a child has registered, contact us and we will remove the account.",
+          },
+          {
+            heading: "Cookies & Tracking",
+            body: "The mobile app does not use advertising cookies or cross-app tracking. We only use device identifiers required for sign-in, push notifications you have enabled, and crash diagnostics.",
+          },
+          {
+            heading: "Changes to This Policy",
+            body: "If we change how we handle your data, we will notify you in-app before the change takes effect. The latest version will always be available in the Profile screen.",
+          },
+        ],
+      },
+    },
     subscription: {
       title: "Manage Subscription",
       active: "Active",
@@ -388,8 +498,17 @@ const en = {
     viewAll: "View All",
     latestPr: "Latest pr",
     prDate: "PR Date",
-    prDelta: "+{{kg}} kg from previous record",
+    prDelta: "+{{value}} {{unit}} from previous record",
     prsBanner: "You've nailed {{count}} PRs this week!",
+    weekLabel: "Week {{week}} • {{date}}",
+    prsEmptyTitle: "No PRs yet",
+    prsEmptySubtitle: "Lift heavier than last time to set your first record.",
+    categoryCompound: "Compound",
+    categoryIsolation: "Isolation",
+    categoryCore: "Core",
+    categoryCardio: "Cardio",
+    categoryWarmup: "Warm-up",
+    categoryCooldown: "Cool-down",
     weightTitle: "Weight",
     logWeight: "Log Weight",
     weightCurrent: "Current",
@@ -407,6 +526,9 @@ const en = {
       eyebrow: "personal record",
       exercises: "Exercises",
       sectionTitle: "PR History",
+      meta: "{{sets}} Set • {{reps}} Reps",
+      emptyTitle: "No PRs yet",
+      emptySubtitle: "Lift heavier than last time to set your first record.",
     },
     logWeightSheet: {
       title: "Log Weight",

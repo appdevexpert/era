@@ -18,6 +18,7 @@ import PhotoStrip from "@/app/components/progress/PhotoStrip";
 import PrCarousel from "@/app/components/progress/PrCarousel";
 import { type PrEntry } from "@/app/components/progress/PrCard";
 import ProgressStatsCard from "@/app/components/progress/ProgressStatsCard";
+import { FONTS } from "@/app/constants/fonts";
 import SectionHeader from "@/app/components/progress/SectionHeader";
 import SuccessBanner from "@/app/components/progress/SuccessBanner";
 import WeightStatsCard from "@/app/components/progress/WeightStatsCard";
@@ -27,6 +28,7 @@ import {
   loadProgressPhotos,
   uploadProgressPhotoThunk,
 } from "@/app/stores/slice/photoSlice";
+import { loadPRBootstrap } from "@/app/stores/slice/prSlice";
 import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
 import {
   loadWeightBootstrap,
@@ -34,9 +36,16 @@ import {
   updateHeightThunk,
 } from "@/app/stores/slice/weightSlice";
 import {
+  selectLatestPRs,
+  selectPRStatus,
+  selectWeeklyPRCount,
+} from "@/app/stores/selectors/prSelectors";
+import {
   selectCurrentStreak,
+  selectLongestStreak,
   selectRewardStatus,
   selectTotalPoints,
+  selectWeekByDate,
 } from "@/app/stores/selectors/rewardSelectors";
 import {
   selectChartYRange,
@@ -50,40 +59,81 @@ import {
   selectWeightStatus,
 } from "@/app/stores/selectors/weightSelectors";
 import { useAppDispatch } from "@/app/stores/store";
+import { getLocalizedText } from "@/app/utils/localization";
 import { ProgressFire, ProgressFlag, ProgressMedal } from "@/assets/icons";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { useEffect, useRef } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useMemo, useRef } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { RootState } from "@/app/stores/store";
 
-const PR_ENTRIES: PrEntry[] = [
-  { id: "1", category: "Chest • Compound", name: "Deadlift", weightKg: 140, reps: 4, dateLabel: "Apr 20", isLatest: true, deltaKg: 5 },
-  { id: "2", category: "Chest • Compound", name: "Bench Press", weightKg: 140, reps: 4, dateLabel: "Apr 18", deltaKg: 5 },
-  { id: "3", category: "Chest • Compound", name: "Squats", weightKg: 140, reps: 4, dateLabel: "Apr 08", deltaKg: 5 },
-];
-
-const WEEK_DAYS: HistoryDay[] = [
-  { label: "SUN", date: "03", state: "completed" },
-  { label: "MON", date: "04", state: "active" },
-  { label: "TUE", date: "05", state: "missed" },
-  { label: "WED", date: "06", state: "upcoming" },
-  { label: "THU", date: "07", state: "upcoming" },
-  { label: "FRI", date: "08", state: "upcoming" },
-  { label: "SAT", date: "09", state: "upcoming" },
-];
+const CATEGORY_LABEL_KEYS: Record<string, string> = {
+  compound: "progress.categoryCompound",
+  isolation: "progress.categoryIsolation",
+  core: "progress.categoryCore",
+  cardio: "progress.categoryCardio",
+  warmup: "progress.categoryWarmup",
+  cooldown: "progress.categoryCooldown",
+};
 
 const LB_TO_KG = 0.45359237;
+
+const toLocalIsoDate = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+/**
+ * Builds the Sun-Sat strip for the History card. State priority:
+ *   - future date → upcoming
+ *   - reward day status "completed" → completed
+ *   - reward day status "missed" → missed
+ *   - today → active
+ *   - else (rest_day or no record) → upcoming
+ */
+const buildWeekDays = (
+  weekByDate: Record<string, "completed" | "rest_day" | "missed">,
+  language: string,
+): HistoryDay[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayIso = toLocalIsoDate(today);
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - today.getDay());
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
+    const iso = toLocalIsoDate(d);
+    const label = d
+      .toLocaleDateString(language, { weekday: "short" })
+      .replace(".", "")
+      .toUpperCase();
+    const dateNum = String(d.getDate()).padStart(2, "0");
+    const status = weekByDate[iso];
+
+    let state: HistoryDay["state"];
+    if (d.getTime() > today.getTime()) state = "upcoming";
+    else if (status === "completed") state = "completed";
+    else if (status === "missed") state = "missed";
+    else if (iso === todayIso) state = "active";
+    else state = "upcoming";
+
+    return { label, date: dateNum, state };
+  });
+};
 
 const formatPhotoDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 
 const ProgressScreen = () => {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const userId = useSelector((s: RootState) => s.auth.user?.id ?? null);
@@ -100,6 +150,8 @@ const ProgressScreen = () => {
 
   const totalPoints = useSelector(selectTotalPoints);
   const currentStreak = useSelector(selectCurrentStreak);
+  const longestStreak = useSelector(selectLongestStreak);
+  const weekByDate = useSelector(selectWeekByDate);
   const rewardStatus = useSelector(selectRewardStatus);
   const completedWorkouts = useSelector(
     (s: RootState) => s.workout.completedDayIds.length,
@@ -108,6 +160,10 @@ const ProgressScreen = () => {
   const photos = useSelector((s: RootState) => s.photo.photos);
   const photoStatus = useSelector((s: RootState) => s.photo.status);
   const uploadStatus = useSelector((s: RootState) => s.photo.uploadStatus);
+
+  const latestPRs = useSelector(selectLatestPRs);
+  const weeklyPRCount = useSelector(selectWeeklyPRCount);
+  const prStatus = useSelector(selectPRStatus);
 
   // Safety-net bootstrap. The chained dispatch from loadWorkoutBootstrap only
   // fires on first-time plan generation, so already-onboarded users on the
@@ -133,6 +189,13 @@ const ProgressScreen = () => {
       dispatch(loadProgressPhotos());
     }
   }, [dispatch, userId, photoStatus]);
+
+  // PR slice is non-persisted — fetch on mount when missing.
+  useEffect(() => {
+    if (userId && prStatus === "idle") {
+      dispatch(loadPRBootstrap(userId));
+    }
+  }, [dispatch, userId, prStatus]);
   const { points: weeklyPoints, ticks: weeklyTicks } =
     useSelector(selectWeeklyChartPoints);
   const yRange = useSelector(selectChartYRange);
@@ -141,6 +204,41 @@ const ProgressScreen = () => {
   const goalsHeight = useSelector((s: RootState) => s.weight.goalsHeight);
   const goalsHeightUnit = useSelector(
     (s: RootState) => s.weight.goalsHeightUnit,
+  );
+
+  const weekDays = useMemo(
+    () => buildWeekDays(weekByDate, i18n.language),
+    [weekByDate, i18n.language],
+  );
+
+  const prEntries: PrEntry[] = useMemo(
+    () =>
+      latestPRs.slice(0, 3).map((pr, idx) => {
+        const localizedName = pr.exerciseNameTranslations
+          ? getLocalizedText(pr.exerciseNameTranslations, i18n.language, pr.exerciseName)
+          : pr.exerciseName;
+        const categoryKey = CATEGORY_LABEL_KEYS[pr.exerciseCategory];
+        const category = categoryKey ? t(categoryKey) : pr.exerciseCategory;
+        const dateLabel = new Date(pr.achievedAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "2-digit",
+        });
+        const delta =
+          pr.previousWeightKg != null && pr.previousWeightKg > 0
+            ? Math.max(0, pr.weightKg - pr.previousWeightKg)
+            : undefined;
+        return {
+          id: pr.id,
+          category,
+          name: localizedName,
+          weightKg: pr.weightKg,
+          reps: pr.reps ?? 0,
+          dateLabel,
+          isLatest: idx === 0,
+          deltaKg: delta,
+        };
+      }),
+    [latestPRs, i18n.language, t],
   );
 
   const handleLogWeight = (value: number, unit: "kg" | "lb") => {
@@ -196,23 +294,36 @@ const ProgressScreen = () => {
         <View style={styles.section}>
           <SectionHeader title={t("progress.historyTitle")} />
           <HistoryCard
-            days={WEEK_DAYS}
+            days={weekDays}
             phases={phases}
-            streakCount={2}
-            personalBestReps={4}
+            streakCount={currentStreak}
+            personalBestReps={longestStreak}
           />
         </View>
 
         <View style={styles.section}>
           <SectionHeader
             title={t("progress.prsTitle")}
-            actionLabel={t("progress.viewAll")}
-            onAction={openPrHistory}
+            actionLabel={prEntries.length > 0 ? t("progress.viewAll") : undefined}
+            onAction={prEntries.length > 0 ? openPrHistory : undefined}
           />
-           <SuccessBanner text={t("progress.prsBanner", { count: 8 })} />
-           
-          <PrCarousel entries={PR_ENTRIES} />
-         
+          {prEntries.length > 0 ? (
+            <>
+              {weeklyPRCount > 0 ? (
+                <SuccessBanner
+                  text={t("progress.prsBanner", { count: weeklyPRCount })}
+                />
+              ) : null}
+              <PrCarousel entries={prEntries} />
+            </>
+          ) : (
+            <View style={styles.prEmpty}>
+              <Text style={styles.prEmptyTitle}>{t("progress.prsEmptyTitle")}</Text>
+              <Text style={styles.prEmptySubtitle}>
+                {t("progress.prsEmptySubtitle")}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -320,4 +431,24 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#0A0A0A" },
   scrollContent: { paddingHorizontal: 16, gap: 32 },
   section: { gap: 16 },
+  prEmpty: {
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#1E1E1E",
+    borderRadius: 16,
+    padding: 20,
+    gap: 6,
+    alignItems: "center",
+  },
+  prEmptyTitle: {
+    fontFamily: FONTS.display,
+    fontSize: 18,
+    color: "#F0F0F0",
+  },
+  prEmptySubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: "rgba(240,240,240,0.5)",
+    textAlign: "center",
+  },
 });

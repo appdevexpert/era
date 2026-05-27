@@ -10,9 +10,11 @@ import type { HomeStackParamList, MuscleGroup } from "@/app/navigation/types";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
   selectCurrentStreak,
+  selectRewardStatus,
   selectTotalPoints,
   selectWeekByDate,
 } from "@/app/stores/selectors/rewardSelectors";
+import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
 import {
   selectHasWorkoutBootstrap,
   selectWorkoutOverview,
@@ -54,10 +56,12 @@ const WorkoutScreen = () => {
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
 
-  // Reward state — read from the dedicated slice (hydrated by workout bootstrap).
+  // Reward state — read from the dedicated slice. Not persisted, so we
+  // hydrate it from this screen on cold open (see useEffect below).
   const totalPoints = useSelector(selectTotalPoints);
   const currentStreak = useSelector(selectCurrentStreak);
   const weekByDate = useSelector(selectWeekByDate);
+  const rewardStatus = useSelector(selectRewardStatus);
 
   // Build the streak bottom-sheet day pills for the last 7 days, anchored on today.
   const streakSheetDays = useMemo(() => {
@@ -101,7 +105,12 @@ const WorkoutScreen = () => {
     if (!hasWorkoutBootstrap && workoutStatus === "idle") {
       dispatch(loadWorkoutBootstrap());
     }
-  }, [dispatch, hasWorkoutBootstrap, workoutStatus]);
+    // Reward slice is not persisted — on a returning app open the workout
+    // cache is hit and the bootstrap chain skips, leaving points/streak at 0.
+    if (user?.id && rewardStatus === "idle") {
+      dispatch(loadRewardBootstrap(user.id));
+    }
+  }, [dispatch, hasWorkoutBootstrap, workoutStatus, user?.id, rewardStatus]);
 
   const openWorkoutPlan = () => {
     navigation.navigate("WorkoutPlan", {

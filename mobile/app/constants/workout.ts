@@ -17,3 +17,9 @@ export const BACKOFF_REPS_ADDITION = 2;
 
 /** Round back-off weight to nearest this (kg) */
 export const WEIGHT_ROUND_TO = 2.5;
+
+/** WeightRuler display range — kg vs lb. Kg-canonical storage; these are UX hints. */
+export const RULER_RANGE = {
+  kg: { min: 20, max: 200, step: 1 },
+  lb: { min: 44, max: 440, step: 1 },
+} as const;

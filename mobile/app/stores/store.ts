@@ -6,6 +6,8 @@ import authReducer from "./slice/authSlice";
 import nutritionReducer from "./slice/nutritionSlice";
 import onboardingReducer from "./slice/onboardingSlice";
 import photoReducer from "./slice/photoSlice";
+import prReducer from "./slice/prSlice";
+import preferencesReducer from "./slice/preferencesSlice";
 import rewardReducer from "./slice/rewardSlice";
 import sessionReducer from "./slice/sessionSlice";
 import syncReducer from "./slice/syncSlice";
@@ -14,6 +16,7 @@ import workoutReducer from "./slice/workoutSlice";
 
 const authPersistConfig = { key: "auth", storage: AsyncStorage };
 const onboardingPersistConfig = { key: "onboarding", storage: AsyncStorage };
+const preferencesPersistConfig = { key: "preferences", storage: AsyncStorage };
 const workoutPersistConfig = {
   key: "workout",
   storage: AsyncStorage,
@@ -27,6 +30,7 @@ const nutritionPersistConfig = {
 
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 const persistedOnboardingReducer = persistReducer(onboardingPersistConfig, onboardingReducer);
+const persistedPreferencesReducer = persistReducer(preferencesPersistConfig, preferencesReducer);
 const persistedWorkoutReducer = persistReducer(workoutPersistConfig, workoutReducer);
 const persistedNutritionReducer = persistReducer(nutritionPersistConfig, nutritionReducer);
 
@@ -41,6 +45,8 @@ export const store = configureStore({
     reward: rewardReducer,
     weight: weightReducer,
     photo: photoReducer,
+    pr: prReducer,
+    preferences: persistedPreferencesReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
