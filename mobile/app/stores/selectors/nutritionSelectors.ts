@@ -3,29 +3,35 @@ import type { RootState } from "@/app/stores/store";
 import {
   buildWeekDays,
   canNavigateWeek,
+  phaseForWeek,
   planItemsForDate,
-  resolvePhaseDay,
   sumMacros,
+  weekNumberForDate,
   type WeekDayStatus,
 } from "@/app/utils/nutritionMappers";
 import { calculateDailyTargets, type GoalInputs } from "@/app/utils/nutritionTargets";
 import type {
   DailyMacroTargets,
   DailyMacroTotals,
-  MealLibraryRow,
+  MealCategoryEnum,
   MealLogRow,
   MealPhaseKey,
-  MealProgramPhaseRow,
+  TranslationMap,
+  UserMealPlanItemRow,
 } from "@/app/types/nutrition";
 
 // =====================================================================
 // All selectors are memoized via createSelector. Inputs deliberately
 // kept narrow so the screen only re-renders when its slice changes.
+//
+// Plan rows carry raw translation maps, NOT localized strings — the
+// screen localizes at render time so a language switch updates instantly.
 // =====================================================================
 
 const selectNutrition = (state: RootState) => state.nutrition;
-const selectAuth = (state: RootState) => state.auth;
 const selectOnboarding = (state: RootState) => state.onboarding;
+const selectProgramStartDate = (state: RootState) =>
+  state.auth.programStartDate ?? null;
 
 export const selectNutritionStatus = (state: RootState) =>
   state.nutrition.status;
@@ -33,8 +39,8 @@ export const selectNutritionError = (state: RootState) =>
   state.nutrition.error;
 export const selectSelectedDate = (state: RootState) =>
   state.nutrition.selectedDate;
-export const selectBootstrap = (state: RootState) =>
-  state.nutrition.bootstrap;
+export const selectPlanByWeek = (state: RootState) =>
+  state.nutrition.planByWeek;
 
 /** Read the user's body data from onboarding.goalData (Redux source of truth). */
 export const selectGoalInputs = createSelector(
@@ -54,23 +60,16 @@ export const selectGoalInputs = createSelector(
   },
 );
 
-/** The phase active on the SELECTED date (used for the daily ring + tags). */
-export const selectActivePhase = createSelector(
-  [selectBootstrap, selectAuth, selectSelectedDate],
-  (bootstrap, auth, selectedDate): MealProgramPhaseRow | null => {
-    if (!bootstrap) return null;
-    const resolved = resolvePhaseDay(
-      selectedDate,
-      auth.programStartDate ?? null,
-      bootstrap.phases,
-    );
-    return resolved?.phase ?? null;
-  },
+/** Program week the selected date falls in (workout-synced). */
+export const selectSelectedWeekNumber = createSelector(
+  [selectSelectedDate, selectProgramStartDate],
+  (date, programStartDate): number => weekNumberForDate(date, programStartDate),
 );
 
+/** Training phase for the selected date's week (fixed week→phase mapping). */
 export const selectActivePhaseKey = createSelector(
-  [selectActivePhase],
-  (phase): MealPhaseKey | undefined => phase?.phase_key,
+  [selectSelectedWeekNumber],
+  (week): MealPhaseKey => phaseForWeek(week),
 );
 
 /** Daily macro targets — derived from goals + active phase. */
@@ -80,23 +79,25 @@ export const selectDailyTargets = createSelector(
     calculateDailyTargets(goals, phaseKey),
 );
 
-/** Personalised daily water goal in ml (already inside selectDailyTargets, exposed for convenience). */
 export const selectWaterTargetMl = createSelector(
   [selectDailyTargets],
   (targets) => targets.water_ml,
 );
 
-/** Water row for the currently selected date — null when nothing is logged. */
+/** True while the selected date's week plan is being generated. */
+export const selectIsGeneratingSelectedWeek = createSelector(
+  [selectNutrition, selectSelectedWeekNumber],
+  (nutrition, week): boolean => Boolean(nutrition.generatingWeeks[week]),
+);
+
 export const selectWaterRowForSelectedDate = (state: RootState) =>
   state.nutrition.waterByDate[state.nutrition.selectedDate] ?? null;
 
-/** Consumed millilitres on the selected date (0 when no row exists). */
 export const selectWaterConsumedMlForSelectedDate = createSelector(
   [selectWaterRowForSelectedDate],
   (row) => row?.amount_ml ?? 0,
 );
 
-/** True while a +/− is in flight for the selected date — UI disables the buttons. */
 export const selectIsMutatingWaterForSelectedDate = (state: RootState) =>
   Boolean(state.nutrition.mutatingWaterByDate[state.nutrition.selectedDate]);
 
@@ -115,105 +116,101 @@ export const selectDailyTotals = createSelector(
 
 /** 7 day-pill view models for the week containing selectedDate. */
 export const selectWeekDays = createSelector(
-  [selectSelectedDate, selectAuth, selectNutrition],
-  (selectedDate, auth, nutrition): WeekDayStatus[] =>
-    buildWeekDays(
-      selectedDate,
-      auth.programStartDate ?? null,
-      nutrition.logsByDate,
-    ),
+  [selectSelectedDate, selectProgramStartDate, selectNutrition],
+  (selectedDate, programStartDate, nutrition): WeekDayStatus[] =>
+    buildWeekDays(selectedDate, programStartDate, nutrition.logsByDate),
 );
 
-/** Can the user tap ‹ to step back a week? */
 export const selectCanGoPrevWeek = createSelector(
-  [selectSelectedDate, selectAuth],
-  (selectedDate, auth) =>
-    canNavigateWeek(selectedDate, "prev", auth.programStartDate ?? null),
+  [selectSelectedDate, selectProgramStartDate],
+  (selectedDate, programStartDate) =>
+    canNavigateWeek(selectedDate, "prev", programStartDate),
 );
 
-/** Can the user tap › to step forward a week? */
 export const selectCanGoNextWeek = createSelector(
-  [selectSelectedDate, selectAuth],
-  (selectedDate, auth) =>
-    canNavigateWeek(selectedDate, "next", auth.programStartDate ?? null),
+  [selectSelectedDate, selectProgramStartDate],
+  (selectedDate, programStartDate) =>
+    canNavigateWeek(selectedDate, "next", programStartDate),
 );
 
-/** Plan items prescribed for the selected date (joined with library). */
-export interface PlanRowView {
-  itemId: string;
-  library: MealLibraryRow;
-}
-
-export const selectPlanRowsForSelectedDate = createSelector(
-  [selectBootstrap, selectAuth, selectSelectedDate],
-  (bootstrap, auth, date): PlanRowView[] =>
-    planItemsForDate(date, auth.programStartDate ?? null, bootstrap),
+/** Plan items prescribed for the selected date. */
+export const selectPlanItemsForSelectedDate = createSelector(
+  [selectSelectedDate, selectProgramStartDate, selectPlanByWeek],
+  (date, programStartDate, planByWeek): UserMealPlanItemRow[] =>
+    planItemsForDate(date, programStartDate, planByWeek),
 );
 
 /**
  * Merged list of meal rows to render on the selected date:
- *   1. Plan items (in their prescribed order) — marked added when a
- *      matching log exists, otherwise "not added".
- *   2. Any custom user logs (not tied to a plan item) appended below.
+ *   1. Plan items (in order) — marked added when a matching log exists.
+ *   2. Custom user logs (not tied to a plan item) appended below.
+ *
+ * `nameTranslations` is set for un-logged plan rows so the screen can
+ * localize; logged/custom rows expose the stored `name` snapshot.
  */
 export interface MergedMealView {
   key: string;
-  category: MealLibraryRow["category"];
+  category: MealCategoryEnum;
+  /** Snapshot name for logged/custom rows; empty for un-logged plan rows. */
   name: string;
+  /** Translation map for un-logged plan rows; null otherwise. */
+  nameTranslations: TranslationMap | null;
+  /** Optional note/comment (e.g. on a custom-added meal). */
+  note?: string;
   kcal: number;
   protein_g: number;
   carbs_g: number;
   fats_g: number;
   added: boolean;
   source: "plan" | "custom";
-  /** Hook for the writes slice — IDs the +/− handler needs. */
+  /** The plan item id (= user_meal_plan_item_id) the +/− handler needs. */
   planItemId?: string;
-  libraryId?: string;
   logId?: string;
 }
 
 export const selectMergedMealRows = createSelector(
-  [selectPlanRowsForSelectedDate, selectLogsForSelectedDate],
-  (planRows, logs): MergedMealView[] => {
-    const logByPlanItemId = new Map<string, MealLogRow>();
+  [selectPlanItemsForSelectedDate, selectLogsForSelectedDate],
+  (planItems, logs): MergedMealView[] => {
+    const logByItemId = new Map<string, MealLogRow>();
     const customLogs: MealLogRow[] = [];
     for (const log of logs) {
-      if (log.meal_program_phase_day_item_id) {
-        logByPlanItemId.set(log.meal_program_phase_day_item_id, log);
+      if (log.user_meal_plan_item_id) {
+        logByItemId.set(log.user_meal_plan_item_id, log);
       } else {
         customLogs.push(log);
       }
     }
 
-    const planView: MergedMealView[] = planRows.map((row) => {
-      const matched = logByPlanItemId.get(row.itemId);
+    const planView: MergedMealView[] = planItems.map((item) => {
+      const matched = logByItemId.get(item.id);
       return matched
         ? {
             key: `log-${matched.id}`,
             category: matched.category,
             name: matched.name_snapshot,
+            nameTranslations: null,
+            note: matched.notes ?? undefined,
             kcal: matched.kcal,
             protein_g: matched.protein_g,
             carbs_g: matched.carbs_g,
             fats_g: matched.fats_g,
             added: true,
             source: "plan",
-            planItemId: row.itemId,
-            libraryId: matched.meal_library_id ?? row.library.id,
+            planItemId: item.id,
             logId: matched.id,
           }
         : {
-            key: `plan-${row.itemId}`,
-            category: row.library.category,
-            name: row.library.name_translations.en ?? row.library.slug,
-            kcal: row.library.kcal,
-            protein_g: row.library.protein_g,
-            carbs_g: row.library.carbs_g,
-            fats_g: row.library.fats_g,
+            key: `plan-${item.id}`,
+            category: item.category,
+            name: "",
+            nameTranslations: item.name_translations,
+            kcal: item.kcal,
+            protein_g: item.protein_g,
+            carbs_g: item.carbs_g,
+            fats_g: item.fats_g,
             added: false,
             source: "plan",
-            planItemId: row.itemId,
-            libraryId: row.library.id,
+            planItemId: item.id,
           };
     });
 
@@ -221,13 +218,14 @@ export const selectMergedMealRows = createSelector(
       key: `log-${log.id}`,
       category: log.category,
       name: log.name_snapshot,
+      nameTranslations: null,
+      note: log.notes ?? undefined,
       kcal: log.kcal,
       protein_g: log.protein_g,
       carbs_g: log.carbs_g,
       fats_g: log.fats_g,
       added: true,
       source: "custom",
-      libraryId: log.meal_library_id ?? undefined,
       logId: log.id,
     }));
 

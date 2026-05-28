@@ -60,8 +60,7 @@ export const useSyncQueue = () => {
         await insertMealLog({
           user_id: userId,
           log_date: params.date,
-          meal_library_id: params.insert.libraryId ?? null,
-          meal_program_phase_day_item_id: params.insert.planItemId ?? null,
+          user_meal_plan_item_id: params.insert.planItemId ?? null,
           category: params.insert.category,
           source: params.insert.source,
           name_snapshot: params.insert.name,
@@ -69,7 +68,7 @@ export const useSyncQueue = () => {
           protein_g: params.insert.protein_g,
           carbs_g: params.insert.carbs_g,
           fats_g: params.insert.fats_g,
-          notes: null,
+          notes: params.insert.notes ?? null,
         });
       },
       "nutrition.deleteMealLog": async (params: ToggleMealLogArgs) => {

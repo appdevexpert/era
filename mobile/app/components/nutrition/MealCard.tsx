@@ -7,6 +7,7 @@ import {
   MealChipCheese,
   MealChipFire,
   MealChipWheat,
+  MealNoteChat,
   TablerMinus,
   TablerPlus,
 } from "@/assets/icons";
@@ -101,6 +102,12 @@ const MealCard = ({ meal, onToggle, disabled }: MealCardProps) => {
             color={chipColor}
           />
         </View>
+        {meal.note ? (
+          <View style={styles.noteRow}>
+            <MealNoteChat width={16} height={16} />
+            <Text style={styles.noteText}>{meal.note}</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -169,5 +176,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 16,
     alignItems: "flex-start",
+  },
+  noteRow: {
+    flexDirection: "row",
+    gap: 4,
+    alignItems: "flex-start",
+    width: "100%",
+  },
+  noteText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: "rgba(240,240,240,0.6)",
   },
 });

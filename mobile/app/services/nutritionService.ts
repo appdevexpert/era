@@ -1,95 +1,95 @@
 import { supabase } from "@/app/utils/auth";
+import type { GeneratedPlanItem } from "@/app/services/aiMealPlanService";
 import type {
-  MealLibraryRow,
+  DailyMacroTargets,
   MealLogRow,
-  MealProgramBootstrapData,
-  MealProgramPhaseDayItemRow,
-  MealProgramPhaseDayRow,
-  MealProgramPhaseRow,
-  MealProgramRow,
+  MealPhaseKey,
+  UserMealPlanItemRow,
+  UserMealPlanRow,
   WaterLogRow,
+  WeeklyMealPlan,
 } from "@/app/types/nutrition";
 
 // =====================================================================
-// Supabase reads for the nutrition flow. Writes will live in the next
-// slice (Log Meal / +/− buttons). All errors propagate to the caller —
-// thunks decide how to surface them.
+// Supabase reads/writes for the nutrition flow. All errors propagate to
+// the caller — thunks decide how to surface them.
 // =====================================================================
 
-/**
- * Bootstrap: returns the active meal program plus every phase, weekday
- * slot, item, and library row needed to render the screen offline.
- *
- * The result is small (~108 rows for a 12-week program) so we fetch
- * everything in one round trip. Logs are paged in by date as the user
- * navigates the week selector.
- */
-export async function getActiveMealProgram(): Promise<MealProgramBootstrapData | null> {
-  const programResult = await supabase
-    .from("meal_programs")
-    .select("id,duration_days,is_active,title_translations")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
+// -------- per-user weekly meal plan ----------------------------------
+
+/** The user's saved plan for one program week, or null if not generated yet. */
+export async function getUserMealPlan(
+  userId: string,
+  weekNumber: number,
+): Promise<WeeklyMealPlan | null> {
+  const planResult = await supabase
+    .from("user_meal_plans")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("week_number", weekNumber)
     .maybeSingle();
 
-  if (programResult.error) throw new Error(programResult.error.message);
-  const program = programResult.data as MealProgramRow | null;
-  if (!program) return null;
-
-  const [phasesResult, libraryResult] = await Promise.all([
-    supabase
-      .from("meal_program_phases")
-      .select("*")
-      .eq("meal_program_id", program.id)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("meal_library")
-      .select(
-        "id,slug,category,kcal,protein_g,carbs_g,fats_g,name_translations,note_translations,is_active",
-      )
-      .eq("is_active", true),
-  ]);
-
-  if (phasesResult.error) throw new Error(phasesResult.error.message);
-  if (libraryResult.error) throw new Error(libraryResult.error.message);
-
-  const phases = (phasesResult.data ?? []) as MealProgramPhaseRow[];
-  const library = (libraryResult.data ?? []) as MealLibraryRow[];
-
-  if (!phases.length) {
-    return { program, phases, phaseDays: [], phaseDayItems: [], library };
-  }
-
-  const phaseDaysResult = await supabase
-    .from("meal_program_phase_days")
-    .select("*")
-    .in(
-      "meal_program_phase_id",
-      phases.map((p) => p.id),
-    )
-    .order("day_of_week", { ascending: true });
-
-  if (phaseDaysResult.error) throw new Error(phaseDaysResult.error.message);
-  const phaseDays = (phaseDaysResult.data ?? []) as MealProgramPhaseDayRow[];
-
-  if (!phaseDays.length) {
-    return { program, phases, phaseDays, phaseDayItems: [], library };
-  }
+  if (planResult.error) throw new Error(planResult.error.message);
+  const plan = planResult.data as UserMealPlanRow | null;
+  if (!plan) return null;
 
   const itemsResult = await supabase
-    .from("meal_program_phase_day_items")
+    .from("user_meal_plan_items")
     .select("*")
-    .in(
-      "meal_program_phase_day_id",
-      phaseDays.map((d) => d.id),
-    )
+    .eq("user_meal_plan_id", plan.id)
+    .order("day_of_week", { ascending: true })
     .order("sort_order", { ascending: true });
 
   if (itemsResult.error) throw new Error(itemsResult.error.message);
-  const phaseDayItems = (itemsResult.data ?? []) as MealProgramPhaseDayItemRow[];
+  return { plan, items: (itemsResult.data ?? []) as UserMealPlanItemRow[] };
+}
 
-  return { program, phases, phaseDays, phaseDayItems, library };
+/** Persist a freshly generated week: one plan row + its meal items. */
+export async function saveUserMealPlan(args: {
+  userId: string;
+  weekNumber: number;
+  phase: MealPhaseKey;
+  targets: DailyMacroTargets;
+  items: GeneratedPlanItem[];
+}): Promise<WeeklyMealPlan> {
+  const planResult = await supabase
+    .from("user_meal_plans")
+    .insert({
+      user_id: args.userId,
+      week_number: args.weekNumber,
+      phase_key: args.phase,
+      kcal_target: args.targets.kcal,
+      protein_g_target: args.targets.protein_g,
+      carbs_g_target: args.targets.carbs_g,
+      fats_g_target: args.targets.fats_g,
+      source: "ai",
+    })
+    .select("*")
+    .single();
+
+  if (planResult.error) throw new Error(planResult.error.message);
+  const plan = planResult.data as UserMealPlanRow;
+
+  const rows = args.items.map((it) => ({
+    user_meal_plan_id: plan.id,
+    day_of_week: it.day_of_week,
+    category: it.category,
+    sort_order: it.sort_order,
+    name_translations: it.name_translations,
+    note_translations: it.note_translations,
+    kcal: it.kcal,
+    protein_g: it.protein_g,
+    carbs_g: it.carbs_g,
+    fats_g: it.fats_g,
+  }));
+
+  const itemsResult = await supabase
+    .from("user_meal_plan_items")
+    .insert(rows)
+    .select("*");
+
+  if (itemsResult.error) throw new Error(itemsResult.error.message);
+  return { plan, items: (itemsResult.data ?? []) as UserMealPlanItemRow[] };
 }
 
 /** All meal_logs for the user in [startDate, endDate] inclusive. */

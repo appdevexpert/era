@@ -27,6 +27,8 @@ export interface MealRow {
   protein: number;
   carbs: number;
   fats: number;
+  /** Optional note/description shown under the macros (e.g. a custom meal comment). */
+  note?: string;
   /** True when the user has logged this meal for today. */
   added?: boolean;
   /** Origin of the row when added; ignored otherwise. */

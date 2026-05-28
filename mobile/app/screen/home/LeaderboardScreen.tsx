@@ -318,7 +318,7 @@ const LeaderboardScreen = () => {
   // sheet (handle + a couple rows), second snap covers the podium so the
   // list owns the full screen. Reanimated drives the spring under the hood.
   const sheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ["45%", "75%"], []);
+  const snapPoints = useMemo(() => ["35%", "70%"], []);
 
   // Initial load — show the full skeleton (podium + sheet + rows) instead of
   // a spinner. Once we have any data (even a stale page from refresh), switch

@@ -1,6 +1,10 @@
 // =====================================================================
 // Nutrition — row types mirror Supabase schema, view models are computed
 // client-side in selectors/mappers.
+//
+// Meal plans are per-user and AI-generated, one row per program week
+// (user_meal_plans) plus its meals (user_meal_plan_items). There is no
+// admin-authored meal program anymore.
 // =====================================================================
 
 export type MealCategoryEnum =
@@ -21,61 +25,46 @@ export type TranslationMap = Record<string, string>;
 
 // -------- raw rows ---------------------------------------------------
 
-export interface MealLibraryRow {
+/** One AI-generated weekly plan for a user (user_meal_plans). */
+export interface UserMealPlanRow {
   id: string;
-  slug: string;
+  user_id: string;
+  week_number: number;
+  phase_key: MealPhaseKey;
+  kcal_target: number;
+  protein_g_target: number;
+  carbs_g_target: number;
+  fats_g_target: number;
+  source: string;
+  generated_at: string;
+}
+
+/** One meal within a weekly plan (user_meal_plan_items). */
+export interface UserMealPlanItemRow {
+  id: string;
+  user_meal_plan_id: string;
+  day_of_week: number; // 1=Mon..7=Sun
   category: MealCategoryEnum;
+  sort_order: number;
+  name_translations: TranslationMap;
+  note_translations: TranslationMap;
   kcal: number;
   protein_g: number;
   carbs_g: number;
   fats_g: number;
-  name_translations: TranslationMap;
-  note_translations: TranslationMap;
-  is_active: boolean;
 }
 
-export interface MealProgramRow {
-  id: string;
-  duration_days: number;
-  is_active: boolean;
-  title_translations: TranslationMap;
-}
-
-export interface MealProgramPhaseRow {
-  id: string;
-  meal_program_id: string;
-  phase_key: MealPhaseKey;
-  sort_order: number;
-  week_count: number;
-  kcal_target: number | null;
-  protein_g_target: number | null;
-  carbs_g_target: number | null;
-  fats_g_target: number | null;
-}
-
-export interface MealProgramPhaseDayRow {
-  id: string;
-  meal_program_phase_id: string;
-  day_of_week: number; // 1=Mon..7=Sun
-  kcal_target: number | null;
-  protein_g_target: number | null;
-  carbs_g_target: number | null;
-  fats_g_target: number | null;
-}
-
-export interface MealProgramPhaseDayItemRow {
-  id: string;
-  meal_program_phase_day_id: string;
-  meal_library_id: string;
-  sort_order: number;
+/** A plan row joined with its items — what the slice caches per week. */
+export interface WeeklyMealPlan {
+  plan: UserMealPlanRow;
+  items: UserMealPlanItemRow[];
 }
 
 export interface MealLogRow {
   id: string;
   user_id: string;
   log_date: string; // 'YYYY-MM-DD'
-  meal_library_id: string | null;
-  meal_program_phase_day_item_id: string | null;
+  user_meal_plan_item_id: string | null;
   category: MealCategoryEnum;
   source: MealLogSource;
   name_snapshot: string;
@@ -95,15 +84,7 @@ export interface WaterLogRow {
   created_at: string;
 }
 
-// -------- bootstrap + computed view models ---------------------------
-
-export interface MealProgramBootstrapData {
-  program: MealProgramRow;
-  phases: MealProgramPhaseRow[];
-  phaseDays: MealProgramPhaseDayRow[];
-  phaseDayItems: MealProgramPhaseDayItemRow[];
-  library: MealLibraryRow[];
-}
+// -------- computed view models ---------------------------------------
 
 export interface DailyMacroTargets {
   kcal: number;

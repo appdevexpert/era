@@ -2,19 +2,22 @@ import type {
   DailyMacroTotals,
   DayStatus,
   MealCategoryEnum,
-  MealLibraryRow,
   MealLogRow,
-  MealProgramBootstrapData,
-  MealProgramPhaseRow,
+  MealPhaseKey,
+  UserMealPlanItemRow,
+  WeeklyMealPlan,
 } from "@/app/types/nutrition";
 import {
-  dayOfWeek,
   diffDays,
   isoDatesForWeek,
   parseIsoDate,
   startOfWeek,
   todayIso,
 } from "@/app/utils/nutritionDates";
+import {
+  computeCurrentPosition,
+  getWeekdayFromDate,
+} from "@/app/utils/programSchedule";
 
 // =====================================================================
 // Pure mappers — no Redux, no Supabase. Selectors call these.
@@ -23,74 +26,53 @@ import {
 // the smallest possible helper here, never the bulk view-model.
 // =====================================================================
 
+export const TOTAL_PROGRAM_WEEKS = 12;
+
 /**
- * Resolve the active phase + day_of_week for a given calendar date,
- * relative to when the user's program started.
- *
- * Returns `null` when the date falls outside the program window so the
- * caller can render an empty/missed state instead of crashing.
+ * Training phase for a program week. Fixed mapping (no admin/DB) — kept
+ * in sync with the workout program's 3-block, 12-week structure.
  */
-export function resolvePhaseDay(
-  date: string,
-  programStartDate: string | null,
-  phases: MealProgramPhaseRow[],
-): { phase: MealProgramPhaseRow; weekInPhase: number; dayOfWeek: number } | null {
-  if (!phases.length) return null;
-  if (!programStartDate) return null;
-
-  const offsetDays = diffDays(date, programStartDate);
-  if (offsetDays < 0) return null;
-
-  const weekFromStart = Math.floor(offsetDays / 7) + 1;
-  const ordered = [...phases].sort((a, b) => a.sort_order - b.sort_order);
-
-  let cumulativeWeeks = 0;
-  for (const phase of ordered) {
-    const endWeek = cumulativeWeeks + phase.week_count;
-    if (weekFromStart <= endWeek) {
-      return {
-        phase,
-        weekInPhase: weekFromStart - cumulativeWeeks,
-        dayOfWeek: dayOfWeek(parseIsoDate(date)),
-      };
-    }
-    cumulativeWeeks = endWeek;
-  }
-  // Past the program — clamp to the last phase to keep the screen useful.
-  const last = ordered[ordered.length - 1];
-  return {
-    phase: last,
-    weekInPhase: last.week_count,
-    dayOfWeek: dayOfWeek(parseIsoDate(date)),
-  };
+export function phaseForWeek(weekNumber: number): MealPhaseKey {
+  if (weekNumber <= 4) return "hypertrophy";
+  if (weekNumber <= 8) return "strength";
+  return "peak";
 }
 
-/** Returns just the planned-meal items for a (date, programData) combo. */
+/**
+ * Program week number a calendar date falls in — uses the same
+ * calendar-driven scheduling as workouts (signup-week aware), so meal
+ * weeks stay in sync with the workout week.
+ */
+export function weekNumberForDate(
+  date: string,
+  programStartDate: string | null,
+): number {
+  if (!programStartDate) return 1;
+  return computeCurrentPosition(
+    { programStartDate, totalWeeks: TOTAL_PROGRAM_WEEKS },
+    date,
+  ).weekNumber;
+}
+
+/**
+ * The planned meal items for a given date: looks up the cached week plan
+ * for that date's program week and returns the items for that weekday.
+ * Returns [] when the week hasn't been generated (e.g. a past week the
+ * user skipped) so the screen renders an empty plan rather than crashing.
+ */
 export function planItemsForDate(
   date: string,
   programStartDate: string | null,
-  bootstrap: MealProgramBootstrapData | null,
-): { itemId: string; library: MealLibraryRow }[] {
-  if (!bootstrap) return [];
-  const resolved = resolvePhaseDay(date, programStartDate, bootstrap.phases);
-  if (!resolved) return [];
+  planByWeek: Record<number, WeeklyMealPlan>,
+): UserMealPlanItemRow[] {
+  const week = weekNumberForDate(date, programStartDate);
+  const plan = planByWeek[week];
+  if (!plan) return [];
 
-  const phaseDay = bootstrap.phaseDays.find(
-    (d) =>
-      d.meal_program_phase_id === resolved.phase.id &&
-      d.day_of_week === resolved.dayOfWeek,
-  );
-  if (!phaseDay) return [];
-
-  const libraryById = new Map(bootstrap.library.map((m) => [m.id, m]));
-  return bootstrap.phaseDayItems
-    .filter((it) => it.meal_program_phase_day_id === phaseDay.id)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .map((it) => ({
-      itemId: it.id,
-      library: libraryById.get(it.meal_library_id)!,
-    }))
-    .filter((row) => !!row.library);
+  const dow = getWeekdayFromDate(date); // 1=Mon..7=Sun
+  return plan.items
+    .filter((it) => it.day_of_week === dow)
+    .sort((a, b) => a.sort_order - b.sort_order);
 }
 
 /** Sum macros across a list of meal_logs. */

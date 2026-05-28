@@ -58,6 +58,10 @@ import {
   selectWeeklyChartPoints,
   selectWeightStatus,
 } from "@/app/stores/selectors/weightSelectors";
+import {
+  buildPlanPhases,
+  selectCurrentWeekNumber,
+} from "@/app/stores/selectors/workoutSelectors";
 import { useAppDispatch } from "@/app/stores/store";
 import { getLocalizedText } from "@/app/utils/localization";
 import { ProgressFire, ProgressFlag, ProgressMedal } from "@/assets/icons";
@@ -252,11 +256,14 @@ const ProgressScreen = () => {
     dispatch(updateHeightThunk({ userId, height: value, heightUnit: unit }));
   };
 
-  const phases: PlanPhase[] = [
-    { label: t("progress.phaseHypertrophy"), active: true, progress: 0.65 },
-    { label: t("progress.phaseStrength"), active: false, progress: 0 },
-    { label: t("progress.phasePeak"), active: false, progress: 0 },
-  ];
+  const currentWeek = useSelector(selectCurrentWeekNumber) ?? 0;
+  const programDurationWeeks = useSelector(
+    (s: RootState) => s.workout.overview?.program.duration_weeks ?? 12,
+  );
+  const phases: PlanPhase[] = useMemo(
+    () => buildPlanPhases(currentWeek, programDurationWeeks, t),
+    [currentWeek, programDurationWeeks, t],
+  );
 
   const openPrHistory = () =>
     navigation.navigate("PrHistory", {

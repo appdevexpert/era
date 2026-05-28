@@ -2,25 +2,32 @@ import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/tool
 import {
   deleteMealLog,
   deleteWaterLog,
-  getActiveMealProgram,
   getMealLogsForRange,
+  getUserMealPlan,
   getWaterLogsForRange,
   insertMealLog,
   insertWaterLog,
+  saveUserMealPlan,
   updateWaterAmount,
   type MealLogInsertPayload,
 } from "@/app/services/nutritionService";
+import { generateWeeklyMealPlan } from "@/app/services/aiMealPlanService";
 import { signOutThunk } from "./authSlice";
 import { enqueue } from "./syncSlice";
 import type {
   MealCategoryEnum,
   MealLogRow,
   MealLogSource,
-  MealProgramBootstrapData,
   WaterLogRow,
+  WeeklyMealPlan,
 } from "@/app/types/nutrition";
 import type { LoadingState } from "@/app/types";
 import type { RootState } from "@/app/stores/store";
+import { phaseForWeek } from "@/app/utils/nutritionMappers";
+import {
+  calculateDailyTargets,
+  type GoalInputs,
+} from "@/app/utils/nutritionTargets";
 import {
   addDays,
   isoDatesForWeek,
@@ -31,16 +38,19 @@ import {
 } from "@/app/utils/nutritionDates";
 
 // =====================================================================
-// Nutrition Redux slice — caches the meal program bootstrap and the
-// user's logs keyed by date. Persisted to AsyncStorage so the screen
-// renders instantly on cold-start; the bootstrap thunk reconciles with
-// Supabase in the background.
+// Nutrition Redux slice — caches the per-user AI meal plans (keyed by
+// program week) and the user's logs (keyed by date). Persisted to
+// AsyncStorage so the screen renders instantly on cold-start.
 // =====================================================================
 
 interface NutritionState {
   status: LoadingState;
   error: string | null;
-  bootstrap: MealProgramBootstrapData | null;
+  /** AI-generated meal plans, keyed by program week number. */
+  planByWeek: Record<number, WeeklyMealPlan>;
+  /** Per-week flag while a plan is being generated (drives the skeleton). */
+  generatingWeeks: Record<number, boolean>;
+  planError: string | null;
   /** Logs grouped by 'YYYY-MM-DD'. Missing key = not yet fetched. */
   logsByDate: Record<string, MealLogRow[]>;
   /** At most one water row per date — UNIQUE (user_id, log_date) at the DB. */
@@ -55,7 +65,9 @@ interface NutritionState {
 const initialState: NutritionState = {
   status: "idle",
   error: null,
-  bootstrap: null,
+  planByWeek: {},
+  generatingWeeks: {},
+  planError: null,
   logsByDate: {},
   waterByDate: {},
   mutatingWaterByDate: {},
@@ -63,10 +75,48 @@ const initialState: NutritionState = {
   loadedAt: null,
 };
 
-// -------- thunks -----------------------------------------------------
+// -------- helpers ----------------------------------------------------
+
+const MEALS_PER_DAY = 4;
+
+/** Build the macro-calc inputs from the persisted onboarding goal data. */
+function goalInputsFromState(state: RootState): GoalInputs {
+  const g = state.onboarding.goalData;
+  return {
+    birth_year: typeof g.birthYear === "number" ? g.birthYear : null,
+    gender: g.gender ?? null,
+    weight: typeof g.weight === "number" ? g.weight : 70,
+    weight_unit: g.weightUnit === "lb" ? "lb" : "kg",
+    height: typeof g.height === "number" ? g.height : 175,
+    height_unit: g.heightUnit === "ft" ? "ft" : "cm",
+    level: g.level ?? null,
+    goal: g.goal ?? null,
+  };
+}
+
+function groupByDate(logs: MealLogRow[]): Record<string, MealLogRow[]> {
+  const map: Record<string, MealLogRow[]> = {};
+  for (const log of logs) {
+    (map[log.log_date] ??= []).push(log);
+  }
+  return map;
+}
+
+function indexWaterByDate(rows: WaterLogRow[]): Record<string, WaterLogRow> {
+  const map: Record<string, WaterLogRow> = {};
+  for (const row of rows) {
+    map[row.log_date] = row;
+  }
+  return map;
+}
+
+function removeRow(list: MealLogRow[] | undefined, id: string): MealLogRow[] {
+  return (list ?? []).filter((row) => row.id !== id);
+}
+
+// -------- thunks: load logs / water for the selected week ------------
 
 interface LoadNutritionBootstrapResult {
-  bootstrap: MealProgramBootstrapData | null;
   logsForWeek: Record<string, MealLogRow[]>;
   waterForWeek: Record<string, WaterLogRow>;
   selectedDate: string;
@@ -74,9 +124,8 @@ interface LoadNutritionBootstrapResult {
 }
 
 /**
- * One-shot bootstrap: fetch the active meal program AND the logs (meal +
- * water) for the currently selected week. Safe to dispatch on every
- * Nutrition tab mount — it overwrites the cache instead of merging.
+ * Load the meal + water logs for the currently selected week. The plan
+ * itself is loaded/generated separately by ensureWeekPlan.
  */
 export const loadNutritionBootstrap = createAsyncThunk<
   LoadNutritionBootstrapResult,
@@ -92,8 +141,7 @@ export const loadNutritionBootstrap = createAsyncThunk<
     const startIso = toIsoDate(weekStart);
     const endIso = addDays(startIso, 6);
 
-    const [bootstrap, mealLogs, waterLogs] = await Promise.all([
-      getActiveMealProgram(),
+    const [mealLogs, waterLogs] = await Promise.all([
       userId
         ? getMealLogsForRange(userId, startIso, endIso)
         : Promise.resolve([] as MealLogRow[]),
@@ -103,7 +151,6 @@ export const loadNutritionBootstrap = createAsyncThunk<
     ]);
 
     return {
-      bootstrap,
       logsForWeek: groupByDate(mealLogs),
       waterForWeek: indexWaterByDate(waterLogs),
       selectedDate,
@@ -117,9 +164,64 @@ export const loadNutritionBootstrap = createAsyncThunk<
 });
 
 /**
+ * Ensure a program week has a plan: use the cached one, else load it from
+ * Supabase, else generate it via AI and persist it. Generated once and
+ * fixed — the user cannot regenerate.
+ */
+export const ensureWeekPlan = createAsyncThunk<
+  { weekNumber: number; plan: WeeklyMealPlan | null },
+  number,
+  { rejectValue: string; state: RootState }
+>("nutrition/ensureWeekPlan", async (weekNumber, { getState, rejectWithValue }) => {
+  try {
+    const state = getState();
+    const userId = state.auth.user?.id ?? null;
+    if (!userId) return { weekNumber, plan: null };
+    if (state.nutrition.planByWeek[weekNumber]) {
+      return { weekNumber, plan: null }; // already cached
+    }
+
+    const existing = await getUserMealPlan(userId, weekNumber);
+    if (existing) return { weekNumber, plan: existing };
+
+    const phase = phaseForWeek(weekNumber);
+    const targets = calculateDailyTargets(goalInputsFromState(state), phase);
+    const items = await generateWeeklyMealPlan({
+      weekNumber,
+      phase,
+      mealsPerDay: MEALS_PER_DAY,
+      kcal: targets.kcal,
+      protein_g: targets.protein_g,
+      carbs_g: targets.carbs_g,
+      fats_g: targets.fats_g,
+    });
+    const saved = await saveUserMealPlan({
+      userId,
+      weekNumber,
+      phase,
+      targets,
+      items,
+    });
+    return { weekNumber, plan: saved };
+  } catch (error) {
+    console.warn("[ensureWeekPlan] failed:", error);
+    return rejectWithValue(
+      error instanceof Error ? error.message : "Unable to build your meal plan.",
+    );
+  }
+}, {
+  // Skip if this week is already cached or currently generating — prevents
+  // two screens (PlanGeneration + Nutrition) generating the same week twice
+  // (which caused a duplicate user_meal_plans row).
+  condition: (weekNumber, { getState }) => {
+    const { planByWeek, generatingWeeks } = getState().nutrition;
+    return !planByWeek[weekNumber] && !generatingWeeks[weekNumber];
+  },
+});
+
+/**
  * Move the selected date and fetch logs for the new week if we don't
- * already have them. UI updates optimistically — Redux already swapped
- * selectedDate by the time the network call returns.
+ * already have them. UI updates optimistically.
  */
 export const selectNutritionDate = createAsyncThunk<
   {
@@ -139,10 +241,6 @@ export const selectNutritionDate = createAsyncThunk<
       const weekDates = isoDatesForWeek(weekStart);
       const cachedMeals = state.nutrition.logsByDate;
 
-      // Meal logs use `undefined` to mean "not fetched"; water doesn't store
-      // empty rows, so cache freshness keys off the meal map only. If meals
-      // are cached for the whole week, water for that week was fetched in
-      // the same round trip, so we can skip.
       const everyDateCached = weekDates.every((d) => cachedMeals[d] !== undefined);
       if (everyDateCached || !userId) {
         return { date, logsForWeek: {}, waterForWeek: {} };
@@ -167,28 +265,6 @@ export const selectNutritionDate = createAsyncThunk<
   },
 );
 
-// -------- helpers ----------------------------------------------------
-
-function groupByDate(logs: MealLogRow[]): Record<string, MealLogRow[]> {
-  const map: Record<string, MealLogRow[]> = {};
-  for (const log of logs) {
-    (map[log.log_date] ??= []).push(log);
-  }
-  return map;
-}
-
-function indexWaterByDate(rows: WaterLogRow[]): Record<string, WaterLogRow> {
-  const map: Record<string, WaterLogRow> = {};
-  for (const row of rows) {
-    map[row.log_date] = row;
-  }
-  return map;
-}
-
-function removeRow(list: MealLogRow[] | undefined, id: string): MealLogRow[] {
-  return (list ?? []).filter((row) => row.id !== id);
-}
-
 // -------- writes: +/− on the water row for a date --------------------
 
 export interface AdjustWaterArgs {
@@ -203,22 +279,9 @@ export interface AdjustWaterArgs {
 
 interface AdjustWaterResult {
   date: string;
-  /** Server-persisted row, or null when the running total hit 0 and the row was deleted. */
   row: WaterLogRow | null;
 }
 
-/**
- * Single thunk for both +/− taps on the water card.
- *
- * Each (user_id, log_date) has at most one row (DB-level UNIQUE), so
- * every tap either inserts that row, updates its amount, or deletes it
- * when the running total would hit 0.
- *
- * Optimistic flow:
- *   pending   → reducer patches waterByDate immediately
- *   fulfilled → swap the optimistic row with the server row (or remove)
- *   rejected  → restore the previous row + enqueue a retry
- */
 export const adjustWaterAmount = createAsyncThunk<
   AdjustWaterResult,
   AdjustWaterArgs,
@@ -242,7 +305,6 @@ export const adjustWaterAmount = createAsyncThunk<
         return { date: args.date, row: updated };
       }
 
-      // No existing row → a − tap is a no-op (amount_ml CHECK > 0).
       if (newAmount <= 0) return { date: args.date, row: null };
 
       const inserted = await insertWaterLog(userId, args.date, newAmount);
@@ -270,9 +332,11 @@ export interface ToggleInsertArgs {
   tempId: string;
   category: MealCategoryEnum;
   source: MealLogSource;
+  /** The plan item this log fulfils, when toggling a planned meal. */
   planItemId?: string | null;
-  libraryId?: string | null;
   name: string;
+  /** Optional free-text note/comment stored on the log. */
+  notes?: string | null;
   kcal: number;
   protein_g: number;
   carbs_g: number;
@@ -290,20 +354,10 @@ export type ToggleMealLogArgs =
   | { date: string; action: "delete"; delete: ToggleDeleteArgs };
 
 interface ToggleMealLogResult {
-  /** Real DB row returned by the server on insert. */
   inserted?: MealLogRow;
-  /** Echoed-back id of the row that was deleted. */
   deletedId?: string;
 }
 
-/**
- * Single thunk for both +/− interactions.
- *
- * Optimistic flow:
- *   pending   → reducer patches logsByDate immediately
- *   fulfilled → swap temp id with the real server id
- *   rejected  → reverse the patch + enqueue a retry on the syncSlice
- */
 export const toggleMealLog = createAsyncThunk<
   ToggleMealLogResult,
   ToggleMealLogArgs,
@@ -319,8 +373,7 @@ export const toggleMealLog = createAsyncThunk<
       const payload: MealLogInsertPayload = {
         user_id: userId,
         log_date: args.date,
-        meal_library_id: args.insert.libraryId ?? null,
-        meal_program_phase_day_item_id: args.insert.planItemId ?? null,
+        user_meal_plan_item_id: args.insert.planItemId ?? null,
         category: args.insert.category,
         source: args.insert.source,
         name_snapshot: args.insert.name,
@@ -328,7 +381,7 @@ export const toggleMealLog = createAsyncThunk<
         protein_g: args.insert.protein_g,
         carbs_g: args.insert.carbs_g,
         fats_g: args.insert.fats_g,
-        notes: null,
+        notes: args.insert.notes ?? null,
       };
       const row = await insertMealLog(payload);
       return { inserted: row };
@@ -337,7 +390,6 @@ export const toggleMealLog = createAsyncThunk<
     await deleteMealLog(args.delete.logId);
     return { deletedId: args.delete.logId };
   } catch (error) {
-    // Queue for retry — never silently drop a user write.
     dispatch(
       enqueue({
         id: `meal-log-${args.action}-${Date.now()}`,
@@ -375,7 +427,6 @@ const nutritionSlice = createSlice({
     builder.addCase(loadNutritionBootstrap.fulfilled, (state, action) => {
       state.status = "succeeded";
       state.error = null;
-      state.bootstrap = action.payload.bootstrap;
       state.logsByDate = action.payload.logsForWeek;
       state.waterByDate = action.payload.waterForWeek;
       state.selectedDate = action.payload.selectedDate;
@@ -386,13 +437,26 @@ const nutritionSlice = createSlice({
       state.error = action.payload ?? "Unable to load nutrition.";
     });
 
+    // --- ensureWeekPlan: load-or-generate the week's plan -----------
+    builder.addCase(ensureWeekPlan.pending, (state, action) => {
+      state.generatingWeeks[action.meta.arg] = true;
+      state.planError = null;
+    });
+    builder.addCase(ensureWeekPlan.fulfilled, (state, action) => {
+      const { weekNumber, plan } = action.payload;
+      if (plan) state.planByWeek[weekNumber] = plan;
+      delete state.generatingWeeks[weekNumber];
+    });
+    builder.addCase(ensureWeekPlan.rejected, (state, action) => {
+      delete state.generatingWeeks[action.meta.arg];
+      state.planError = action.payload ?? "Unable to build your meal plan.";
+    });
+
     builder.addCase(selectNutritionDate.pending, (state, action) => {
-      // Optimistic — flip selectedDate immediately for snappy UI.
       state.selectedDate = action.meta.arg;
     });
     builder.addCase(selectNutritionDate.fulfilled, (state, action) => {
       state.selectedDate = action.payload.date;
-      // Merge — don't overwrite existing cached dates.
       Object.assign(state.logsByDate, action.payload.logsForWeek);
       Object.assign(state.waterByDate, action.payload.waterForWeek);
     });
@@ -411,7 +475,6 @@ const nutritionSlice = createSlice({
       } else if (current) {
         state.waterByDate[args.date] = { ...current, amount_ml: newAmount };
       } else {
-        // Synthetic row — id/timestamps overwritten when the server responds.
         state.waterByDate[args.date] = {
           id: args.tempId,
           user_id: "",
@@ -431,7 +494,6 @@ const nutritionSlice = createSlice({
     });
     builder.addCase(adjustWaterAmount.rejected, (state, action) => {
       const args = action.meta.arg;
-      // Rollback to the snapshot the caller passed in.
       if (args.previousRow) state.waterByDate[args.date] = args.previousRow;
       else delete state.waterByDate[args.date];
       delete state.mutatingWaterByDate[args.date];
@@ -446,8 +508,7 @@ const nutritionSlice = createSlice({
           id: args.insert.tempId,
           user_id: "",
           log_date: args.date,
-          meal_library_id: args.insert.libraryId ?? null,
-          meal_program_phase_day_item_id: args.insert.planItemId ?? null,
+          user_meal_plan_item_id: args.insert.planItemId ?? null,
           category: args.insert.category,
           source: args.insert.source,
           name_snapshot: args.insert.name,
@@ -455,7 +516,7 @@ const nutritionSlice = createSlice({
           protein_g: args.insert.protein_g,
           carbs_g: args.insert.carbs_g,
           fats_g: args.insert.fats_g,
-          notes: null,
+          notes: args.insert.notes ?? null,
         };
         (state.logsByDate[args.date] ??= []).push(optimistic);
       } else {
@@ -477,7 +538,6 @@ const nutritionSlice = createSlice({
     });
     builder.addCase(toggleMealLog.rejected, (state, action) => {
       const args = action.meta.arg;
-      // Rollback — exact inverse of the optimistic step.
       if (args.action === "insert") {
         state.logsByDate[args.date] = removeRow(
           state.logsByDate[args.date],

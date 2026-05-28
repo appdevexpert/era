@@ -79,6 +79,7 @@ export { default as MealChipFire } from "./meal-chip-fire.svg";
 export { default as MealChipBeans } from "./meal-chip-beans.svg";
 export { default as MealChipWheat } from "./meal-chip-wheat.svg";
 export { default as MealChipCheese } from "./meal-chip-cheese.svg";
+export { default as MealNoteChat } from "./meal-note-chat.svg";
 export { default as AwardPrBadge } from "./award-pr-badge.svg";
 export { default as LeaderboardBadge } from "./leaderboard-badge.svg";
 export { default as PtsDumbbell } from "./pts-dumbbell.svg";
