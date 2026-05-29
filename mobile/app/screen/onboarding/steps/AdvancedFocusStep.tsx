@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import type { SvgProps } from 'react-native-svg'
 import Animated, {
   Easing,
+  Extrapolation,
   interpolate,
   useAnimatedStyle,
   useSharedValue,
@@ -317,6 +318,36 @@ const BodySegment = ({ side, activeSide, onPress }: BodySegmentProps) => {
   )
 }
 
+const HIGHLIGHT_ANIMATION = {
+  duration: 500,
+  easing: Easing.out(Easing.cubic),
+} as const
+
+interface AnimatedHighlightProps {
+  Highlight: FC<SvgProps>
+  selected: boolean
+}
+
+const AnimatedHighlight = ({ Highlight, selected }: AnimatedHighlightProps) => {
+  const opacity = useSharedValue(selected ? 1 : 0)
+
+  useEffect(() => {
+    opacity.value = withTiming(selected ? 1 : 0, HIGHLIGHT_ANIMATION)
+  }, [selected, opacity])
+
+  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }))
+
+  return (
+    <Animated.View pointerEvents="none" style={[styles.muscleOverlay, animatedStyle]}>
+      <Highlight
+        width={horizontalScale(184)}
+        height={verticalScale(320)}
+        preserveAspectRatio="xMidYMid meet"
+      />
+    </Animated.View>
+  )
+}
+
 const MuscleBodyLayer = ({ gender, side, selectedAreas }: MuscleBodyLayerProps) => {
   const bodyAssets = BODY_ASSETS[gender]
   const BaseBody = side === 'front' ? bodyAssets.frontBase : bodyAssets.backBase
@@ -330,19 +361,15 @@ const MuscleBodyLayer = ({ gender, side, selectedAreas }: MuscleBodyLayerProps) 
         preserveAspectRatio="xMidYMid meet"
       />
       {FOCUS_AREAS_BY_SIDE[side].map((focus) => {
-        if (!selectedAreas.includes(focus)) return null
-
         const Highlight = highlights[focus]
         if (!Highlight) return null
 
         return (
-          <View key={focus} pointerEvents="none" style={styles.muscleOverlay}>
-            <Highlight
-              width={horizontalScale(184)}
-              height={verticalScale(320)}
-              preserveAspectRatio="xMidYMid meet"
-            />
-          </View>
+          <AnimatedHighlight
+            key={focus}
+            Highlight={Highlight}
+            selected={selectedAreas.includes(focus)}
+          />
         )
       })}
     </View>
@@ -356,29 +383,34 @@ const AdvancedFocusStep = ({ gender, value, onToggle }: AdvancedFocusStepProps) 
 
   useEffect(() => {
     bodySideProgress.value = withTiming(bodySide === 'back' ? 1 : 0, {
-      duration: 280,
-      easing: Easing.out(Easing.cubic),
+      duration: 540,
+      // Smooth symmetric ease-in-out — gentle accel, fast middle, soft settle.
+      easing: Easing.bezier(0.65, 0, 0.35, 1),
     })
   }, [bodySide, bodySideProgress])
 
+  // 3D card-flip rotation with perspective — replaces the flat scaleX flip
+  // so the body genuinely "turns around" instead of mirror-snapping.
   const bodyAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(bodySideProgress.value, [0, 0.5, 1], [1, 0.82, 1]),
     transform: [
+      { perspective: 2000 },
       {
-        scaleX: interpolate(bodySideProgress.value, [0, 1], [1, -1]),
+        rotateY: `${interpolate(bodySideProgress.value, [0, 1], [0, 180])}deg`,
       },
       {
-        scale: interpolate(bodySideProgress.value, [0, 0.5, 1], [1, 0.985, 1]),
+        scale: interpolate(bodySideProgress.value, [0, 0.5, 1], [1, 0.92, 1]),
       },
     ],
   }))
 
+  // Wider crossfade window so the front/back hand-off feels continuous —
+  // both layers blend briefly at the midpoint instead of snapping.
   const frontBodyStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(bodySideProgress.value, [0, 0.45, 0.55, 1], [1, 1, 0, 0]),
+    opacity: interpolate(bodySideProgress.value, [0.4, 0.55], [1, 0], Extrapolation.CLAMP),
   }))
 
   const backBodyStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(bodySideProgress.value, [0, 0.45, 0.55, 1], [0, 0, 1, 1]),
+    opacity: interpolate(bodySideProgress.value, [0.45, 0.6], [0, 1], Extrapolation.CLAMP),
   }))
 
   return (
@@ -548,6 +580,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bodyBackLayer: {
-    transform: [{ scaleX: -1 }],
+    // Pre-rotated 180° on the Y axis so the back body face appears
+    // upright once the parent rotates to 180° during the flip.
+    transform: [{ rotateY: '180deg' }],
   },
 })

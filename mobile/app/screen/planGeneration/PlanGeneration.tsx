@@ -7,11 +7,19 @@ import {
   View,
 } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
+import { useAnimatedCounter } from "@/app/hooks/useAnimatedCounter";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
+import Reanimated, {
+  Easing as ReEasing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import GradientBackground from "@/app/components/common/GradientBackground";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -44,8 +52,9 @@ const STEP_KEYS = [
 ] as const;
 
 const TOTAL_STEPS = STEP_KEYS.length;
-const PROGRESS_STEP = 4;
-const PROGRESS_INTERVAL_MS = 160;
+// Single smooth animation from 0% → 100% over this duration — same pattern as
+// the nutrition kcal counter (one target, useAnimatedCounter handles the rest).
+const PROGRESS_DURATION_MS = 16000;
 const TOTAL_ESTIMATED_SECONDS = 92;
 
 type StepStatus = "completed" | "loading" | "pending";
@@ -58,7 +67,9 @@ const getStepStatus = (index: number, progress: number): StepStatus => {
   return "pending";
 };
 
-/** Figma opacity: active step = 1.0, ±1 step = 0.5, ±2+ steps = 0.3 */
+// Distance-based fade — the loading step and the step that JUST finished both
+// read as the "now zone". Steps further from now zone fade in proportion to
+// their distance.
 const getStepOpacity = (index: number, progress: number): number => {
   const activeIndex = Math.min(
     Math.floor((progress / 100) * TOTAL_STEPS),
@@ -67,8 +78,13 @@ const getStepOpacity = (index: number, progress: number): number => {
   const distance = Math.abs(index - activeIndex);
   if (distance === 0) return 1;
   if (distance === 1) return 0.5;
-  return 0.3;
+  return 0.28;
 };
+
+const STATUS_TRANSITION = {
+  duration: 480,
+  easing: ReEasing.out(ReEasing.cubic),
+} as const;
 
 const formatTime = (seconds: number): string => {
   const m = Math.floor(seconds / 60);
@@ -78,78 +94,149 @@ const formatTime = (seconds: number): string => {
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
-const SpinningLoader = () => {
-  const spin = useRef(new Animated.Value(0)).current;
+// 6-point asterisk used for pending steps. Three lines through the centre at
+// 0°, 60°, 120°.
+const AsteriskGlyph = ({ color }: { color: string }) => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M12 4V20"
+      stroke={color}
+      strokeWidth={1.6}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M5.07 8L18.93 16"
+      stroke={color}
+      strokeWidth={1.6}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M18.93 8L5.07 16"
+      stroke={color}
+      strokeWidth={1.6}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+// 8-spoke starburst used as the loading indicator — spins continuously.
+const StarburstGlyph = ({ color }: { color: string }) => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    {/* 8 dashes radiating from the centre */}
+    <Path d="M12 3V7" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M12 17V21" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M3 12H7" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M17 12H21" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M5.64 5.64L8.46 8.46" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M15.54 15.54L18.36 18.36" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M5.64 18.36L8.46 15.54" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+    <Path d="M15.54 8.46L18.36 5.64" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+  </Svg>
+);
+
+/**
+ * 22×22 icon slot that crossfades between pending / loading / completed
+ * glyphs based on `status`. All three are stacked and fade in/out together
+ * so the row never "snaps" between visuals.
+ */
+const StepIcon = ({ status }: { status: StepStatus }) => {
+  const spin = useSharedValue(0);
+  const loadingOp = useSharedValue(status === "loading" ? 1 : 0);
+  const completedOp = useSharedValue(status === "completed" ? 1 : 0);
+  const pendingOp = useSharedValue(status === "pending" ? 1 : 0);
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.timing(spin, {
-        toValue: 1,
-        duration: 1000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
+    spin.value = 0;
+    spin.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: ReEasing.linear }),
+      -1,
+      false,
     );
-    loop.start();
-    return () => loop.stop();
   }, [spin]);
 
-  const rotate = spin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
+  useEffect(() => {
+    loadingOp.value = withTiming(status === "loading" ? 1 : 0, STATUS_TRANSITION);
+    completedOp.value = withTiming(status === "completed" ? 1 : 0, STATUS_TRANSITION);
+    pendingOp.value = withTiming(status === "pending" ? 1 : 0, STATUS_TRANSITION);
+  }, [status, loadingOp, completedOp, pendingOp]);
 
-  return (
-    <Animated.View style={[iconStyles.iconWrap, { transform: [{ rotate }] }]}>
-      <Feather name="loader" size={22} color={COLORS.neutral.white} />
-    </Animated.View>
-  );
-};
+  const loadingStyle = useAnimatedStyle(() => ({
+    opacity: loadingOp.value,
+    transform: [{ rotate: `${spin.value * 360}deg` }],
+  }));
+  const completedStyle = useAnimatedStyle(() => ({ opacity: completedOp.value }));
+  const pendingStyle = useAnimatedStyle(() => ({ opacity: pendingOp.value }));
 
-const StepIcon = ({ status }: { status: StepStatus }) => {
-  if (status === "completed") {
-    return (
-      <View style={[iconStyles.circle, iconStyles.completedBg]}>
-        <Feather name="check" size={16} color={COLORS.neutral.white} />
-      </View>
-    );
-  }
-  if (status === "loading") {
-    return <SpinningLoader />;
-  }
   return (
     <View style={iconStyles.iconWrap}>
-      <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-        <Path
-          d="M12 6V18M17.196 9L6.804 15M6.804 9L17.196 15"
-          stroke="#A2A1A6"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </Svg>
+      <Reanimated.View style={[iconStyles.layer, pendingStyle]} pointerEvents="none">
+        <AsteriskGlyph color="#6F6C7D" />
+      </Reanimated.View>
+      <Reanimated.View style={[iconStyles.layer, loadingStyle]} pointerEvents="none">
+        <StarburstGlyph color={COLORS.primary.base} />
+      </Reanimated.View>
+      <Reanimated.View style={[iconStyles.layer, completedStyle]} pointerEvents="none">
+        <View style={iconStyles.completedCircle}>
+          <Feather name="check" size={14} color={COLORS.neutral.white} />
+        </View>
+      </Reanimated.View>
     </View>
   );
 };
 
 const iconStyles = StyleSheet.create({
-  circle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  completedBg: {
-    backgroundColor: COLORS.primary.dark,
-  },
   iconWrap: {
     width: 24,
     height: 24,
     alignItems: "center",
     justifyContent: "center",
   },
+  layer: {
+    position: "absolute",
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Solid gold filled circle — matches Figma 5090:5506 / 5090:5498. The
+  // "done feels settled" treatment lives on the row opacity, not the icon.
+  completedCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: COLORS.primary.dark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
+
+// ── Step row ─────────────────────────────────────────────────────────────────
+
+interface StepRowProps {
+  stepKey: (typeof STEP_KEYS)[number];
+  status: StepStatus;
+  targetOpacity: number;
+}
+
+const StepRow = ({ stepKey, status, targetOpacity }: StepRowProps) => {
+  const { t } = useTranslation();
+  const opacity = useSharedValue(targetOpacity);
+
+  useEffect(() => {
+    opacity.value = withTiming(targetOpacity, STATUS_TRANSITION);
+  }, [targetOpacity, opacity]);
+
+  const rowStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Reanimated.View style={[styles.checklistItem, rowStyle]}>
+      <StepIcon status={status} />
+      <Text style={styles.checklistText}>
+        {t(`planGeneration.steps.${stepKey}`)}
+      </Text>
+    </Reanimated.View>
+  );
+};
 
 // ── Screen ───────────────────────────────────────────────────────────────────
 
@@ -160,9 +247,16 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   const workoutError = useSelector(selectWorkoutError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
 
-  const [progress, setProgress] = useState(0);
+  // Target = 100 fires once. useAnimatedCounter tweens the displayed integer
+  // smoothly from 0 → 100 over PROGRESS_DURATION_MS on the UI thread — same
+  // model as the nutrition kcal/water counters (one target, one smooth ramp).
+  const [progressTarget, setProgressTarget] = useState(0);
   const [completed, setCompleted] = useState(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const displayProgress = useAnimatedCounter(progressTarget, {
+    duration: PROGRESS_DURATION_MS,
+  });
+  const progress = displayProgress;
 
   const isFailed = workoutStatus === "failed";
   const isReady = completed && hasWorkoutBootstrap;
@@ -179,30 +273,23 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
     }
   }, [dispatch, hasWorkoutBootstrap, workoutStatus]);
 
-  // Animate progress counter
+  // Kick off the single 0 → 100 animation. The counter and the progress bar
+  // both ride the same long easing — no per-tick stepping.
   useEffect(() => {
     if (completed || isFailed) return;
-
-    const timer = setInterval(() => {
-      setProgress((current) => {
-        const next = Math.min(current + PROGRESS_STEP, 100);
-        if (next === 100) setCompleted(true);
-        return next;
-      });
-    }, PROGRESS_INTERVAL_MS);
-
-    return () => clearInterval(timer);
-  }, [completed, isFailed]);
-
-  // Sync animated bar to progress
-  useEffect(() => {
+    setProgressTarget(100);
     Animated.timing(progressAnim, {
-      toValue: progress,
-      duration: progress === 100 ? 450 : 260,
+      toValue: 100,
+      duration: PROGRESS_DURATION_MS,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [progress, progressAnim]);
+  }, [completed, isFailed, progressAnim]);
+
+  // Mark complete once the smooth display reaches 100.
+  useEffect(() => {
+    if (progress >= 100 && !completed) setCompleted(true);
+  }, [progress, completed]);
 
   // Navigate when ready
   useEffect(() => {
@@ -212,7 +299,8 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   }, [dispatch, isReady]);
 
   const handleRetry = () => {
-    setProgress(0);
+    setProgressTarget(0);
+    progressAnim.setValue(0);
     setCompleted(false);
     dispatch(loadWorkoutBootstrap());
   };
@@ -236,7 +324,7 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
           </Text>
 
           {/* Percentage */}
-          <Text style={styles.percentage}>{progress}%</Text>
+          <Text style={styles.percentage}>{displayProgress}%</Text>
 
           {/* Description */}
           <Text style={styles.subtitle}>
@@ -264,18 +352,14 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
 
           {/* Checklist */}
           <View style={styles.checklistContainer}>
-            {STEP_KEYS.map((key, index) => {
-              const status = getStepStatus(index, progress);
-              const opacity = getStepOpacity(index, progress);
-              return (
-                <View key={key} style={[styles.checklistItem, { opacity }]}>
-                  <StepIcon status={status} />
-                  <Text style={styles.checklistText}>
-                    {t(`planGeneration.steps.${key}`)}
-                  </Text>
-                </View>
-              );
-            })}
+            {STEP_KEYS.map((key, index) => (
+              <StepRow
+                key={key}
+                stepKey={key}
+                status={getStepStatus(index, progress)}
+                targetOpacity={getStepOpacity(index, progress)}
+              />
+            ))}
           </View>
 
           {/* Estimated time */}
@@ -335,13 +419,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Percentage
+  // Percentage — fixed minWidth + tabular numerals keep the layout still as
+  // the counter ramps 0 → 100. Surrounding content (subtitle, progress bar)
+  // stays put instead of shifting with each new digit.
   percentage: {
     fontFamily: FONTS.bold,
     fontWeight: "700",
     fontSize: responsiveFontSize(56),
     color: COLORS.neutral.white,
     marginBottom: verticalScale(8),
+    minWidth: horizontalScale(190),
+    fontVariant: ["tabular-nums"],
   },
 
   // Subtitle

@@ -12,9 +12,16 @@ interface StatsChipsRowProps {
   streakDays?: number;
   onPointsPress?: () => void;
   onStreakPress?: () => void;
+  onWorkoutPlanPress?: () => void;
 }
 
-const StatsChipsRow = ({ points = 340, streakDays = 5, onPointsPress, onStreakPress }: StatsChipsRowProps) => {
+const StatsChipsRow = ({
+  points = 340,
+  streakDays = 5,
+  onPointsPress,
+  onStreakPress,
+  onWorkoutPlanPress,
+}: StatsChipsRowProps) => {
   const { t } = useTranslation();
 
   return (
@@ -52,15 +59,17 @@ const StatsChipsRow = ({ points = 340, streakDays = 5, onPointsPress, onStreakPr
       </PressableScale>
 
       {/* Workout Plan chip */}
-      <LinearGradient
-        colors={["rgba(4, 95, 16, 0.3)", "rgba(225, 182, 0, 0.3)"]}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={styles.chip}
-      >
-        <StatWorkoutPlan width={32} height={32} />
-        <Text style={styles.chipLabel}>{t("workout.ui.workoutPlan")}</Text>
-      </LinearGradient>
+      <PressableScale onPress={onWorkoutPlanPress}>
+        <LinearGradient
+          colors={["rgba(4, 95, 16, 0.3)", "rgba(225, 182, 0, 0.3)"]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={styles.chip}
+        >
+          <StatWorkoutPlan width={32} height={32} />
+          <Text style={styles.chipLabel}>{t("workout.ui.workoutPlan")}</Text>
+        </LinearGradient>
+      </PressableScale>
     </ScrollView>
   );
 };

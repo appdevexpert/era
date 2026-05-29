@@ -17,7 +17,6 @@ import {
   MedalSilver,
   ProfileBackChevron,
 } from "@/assets/icons";
-import { DemoMedia } from "@/assets/images";
 import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
@@ -40,16 +39,24 @@ const PAGE_SIZE = 10;
 
 type Status = "idle" | "loading" | "success" | "error";
 
+const getInitial = (name?: string | null) => {
+  const trimmed = name?.trim();
+  if (!trimmed) return "?";
+  return trimmed.charAt(0).toUpperCase();
+};
+
 const Avatar = ({
   size,
   border,
   borderWidth = 1,
   uri,
+  name,
 }: {
   size: number;
   border: string;
   borderWidth?: number;
   uri?: string | null;
+  name?: string | null;
 }) => (
   <View
     style={{
@@ -60,13 +67,34 @@ const Avatar = ({
       borderColor: border,
       backgroundColor: "rgba(201, 168, 76, 0.12)",
       overflow: "hidden",
+      alignItems: "center",
+      justifyContent: "center",
     }}
   >
-    <Image
-      source={uri ? { uri } : DemoMedia}
-      style={{ width: "100%", height: "100%" }}
-      resizeMode="cover"
-    />
+    {uri ? (
+      <Image
+        source={{ uri }}
+        style={{ width: "100%", height: "100%" }}
+        resizeMode="cover"
+      />
+    ) : (
+      <>
+        <LinearGradient
+          colors={[COLORS.primary.dark, COLORS.primary.base]}
+          style={StyleSheet.absoluteFill}
+        />
+        <Text
+          style={{
+            fontFamily: FONTS.semiBold,
+            fontWeight: "700",
+            fontSize: size * 0.42,
+            color: "#1A1A1A",
+          }}
+        >
+          {getInitial(name)}
+        </Text>
+      </>
+    )}
   </View>
 );
 
@@ -113,6 +141,7 @@ const PodiumColumn = ({
           border={PODIUM_BORDER[rank]}
           borderWidth={rank === 1 ? 1.333 : 1}
           uri={entry?.avatarUrl}
+          name={entry?.displayName ?? fallbackName}
         />
         <Text style={styles.podiumName} numberOfLines={1}>
           {entry?.displayName ?? fallbackName}
@@ -172,8 +201,8 @@ const RankRow = ({
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(201, 168, 76, 0.3)", "rgba(17, 17, 17, 0)"]}
-          start={{ x: 1, y: 0.5 }}
-          end={{ x: 0, y: 0.5 }}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.rankWrap}>
@@ -184,6 +213,7 @@ const RankRow = ({
           border={COLORS.primary.light}
           borderWidth={0.867}
           uri={entry.avatarUrl}
+          name={entry.displayName ?? youLabel}
         />
         <Text
           style={[styles.rowName, { color: COLORS.primary.base }]}
@@ -202,7 +232,13 @@ const RankRow = ({
       <View style={styles.rankWrap}>
         <Text style={styles.rankText}>#{entry.rank}</Text>
       </View>
-      <Avatar size={52} border="transparent" borderWidth={0} uri={entry.avatarUrl} />
+      <Avatar
+        size={52}
+        border="transparent"
+        borderWidth={0}
+        uri={entry.avatarUrl}
+        name={entry.displayName}
+      />
       <Text style={styles.rowName} numberOfLines={1}>
         {entry.displayName ?? "—"}
       </Text>
@@ -262,11 +298,11 @@ const LeaderboardScreen = () => {
     loadPage(entries.length, "more");
   }, [entries.length, hasMore, loadPage, status]);
 
-  // Podium highlights the top 3 (Figma 4769:71418). List shows ranks 4+
-  // by default, falling back to all entries when there are fewer than 4 users
-  // so the sheet never renders empty in early-adopter state.
+  // Podium highlights the top 3 (Figma 4769:71418). Sheet shows the full
+  // ranked list — including the top 3 — so the entire leaderboard is
+  // scrollable inside the sheet.
   const podiumEntries = entries.slice(0, 3);
-  const listEntries = entries.length >= 4 ? entries.slice(3) : entries;
+  const listEntries = entries;
 
   // Each row sits inside the dark sheet — we wrap it with the sheet bg so the
   // 20px horizontal gutter on either side of the row stays #121212.
@@ -316,7 +352,8 @@ const LeaderboardScreen = () => {
 
   // BottomSheet snap points — first snap shows the podium + a peek of the
   // sheet (handle + a couple rows), second snap covers the podium so the
-  // list owns the full screen. Reanimated drives the spring under the hood.
+  // list owns the full screen. Scrolling at the lower snap pulls the sheet
+  // up to the higher snap first, then the list scrolls.
   const sheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["35%", "70%"], []);
 

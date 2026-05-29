@@ -93,27 +93,22 @@ export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
   muscles.forEach((muscle) => {
     let icon: MuscleGroup | null = null;
 
-    if (muscle === "triceps" || muscle === "biceps" || muscle === "forearms") {
-      icon = "arm";
-    }
-
-    if (muscle === "core" || muscle === "abs") {
-      icon = "abs";
-    }
-
-    if (
-      muscle === "legs" ||
-      muscle === "quads" ||
-      muscle === "hamstrings" ||
-      muscle === "calves" ||
-      muscle === "glutes"
-    ) {
-      icon = "leg";
-    }
-
-    if (muscle === "chest" || muscle === "shoulders") {
-      icon = muscle;
-    }
+    // Singular-key badges (new close-up Figma designs).
+    if (muscle === "triceps") icon = "tricep";
+    else if (muscle === "biceps") icon = "bicep";
+    else if (muscle === "forearms") icon = "forearm";
+    else if (muscle === "traps") icon = "traps";
+    else if (muscle === "neck") icon = "neck";
+    else if (muscle === "back") icon = "back";
+    else if (muscle === "chest") icon = "chest";
+    else if (muscle === "shoulders") icon = "shoulders";
+    else if (muscle === "quads") icon = "quads";
+    else if (muscle === "glutes") icon = "glutes";
+    else if (muscle === "hamstrings") icon = "hamstring";
+    else if (muscle === "calves") icon = "calves";
+    // Legacy generic icons — no per-muscle close-up yet.
+    else if (muscle === "core" || muscle === "abs") icon = "abs";
+    else if (muscle === "legs") icon = "leg";
 
     if (icon && !iconKeys.includes(icon)) {
       iconKeys.push(icon);

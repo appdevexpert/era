@@ -57,8 +57,10 @@ const OnboardingLayout = ({
 
   useEffect(() => {
     progressValue.value = withTiming(progress, {
-      duration: 360,
-      easing: Easing.out(Easing.cubic),
+      duration: 620,
+      // Same custom ease-in-out as the body-side flip — gentle accel,
+      // confident middle, soft settle. Consistent feel across the screen.
+      easing: Easing.bezier(0.65, 0, 0.35, 1),
     })
   }, [progress, progressValue])
 

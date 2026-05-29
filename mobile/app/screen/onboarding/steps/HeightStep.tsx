@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Dimensions, StyleSheet, Text, View } from 'react-native'
 import PressableScale from '@/app/components/common/PressableScale'
+import WeightRuler from '@/app/components/workout/WeightRuler'
+import { useAnimatedCounter } from '@/app/hooks/useAnimatedCounter'
 import Svg, { Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg'
 import Animated, {
   Easing,
@@ -13,9 +15,8 @@ import * as Haptics from 'expo-haptics'
 import { COLORS, GRADIENTS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import { horizontalScale, verticalScale } from '@/app/utils/responsive'
-import { RulerPicker } from 'react-native-ruler-picker'
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 const IS_SHORT_SCREEN = SCREEN_HEIGHT < 860
 
 // Pre-compute outside worklet to avoid crash
@@ -23,8 +24,6 @@ const PILL_OFFSET = horizontalScale(62.5)
 const CONTENT_TOP_PADDING = verticalScale(IS_SHORT_SCREEN ? 22 : 34)
 const HEIGHT_DISPLAY_TOP_MARGIN = verticalScale(IS_SHORT_SCREEN ? 58 : 84)
 const RULER_TOP_MARGIN = verticalScale(IS_SHORT_SCREEN ? 28 : 42)
-const RULER_HEIGHT = verticalScale(IS_SHORT_SCREEN ? 126 : 150)
-const RULER_INDICATOR_HEIGHT = verticalScale(IS_SHORT_SCREEN ? 80 : 94)
 const BMI_TOP_MARGIN = verticalScale(IS_SHORT_SCREEN ? 24 : 36)
 
 export type HeightUnit = 'cm' | 'ft'
@@ -37,6 +36,10 @@ interface HeightStepProps {
 }
 
 const UNIT_OPTIONS: HeightUnit[] = ['cm', 'ft']
+
+// Imperial uses 12 inches per foot — step is 1/12 ft so each ruler tick is
+// one inch (5'9" → 5'10" → 5'11" → 6'0"), not decimal-feet.
+const INCH_STEP = 1 / 12
 
 const UNIT_CONFIG: Record<
   HeightUnit,
@@ -60,11 +63,19 @@ const UNIT_CONFIG: Record<
   ft: {
     min: 3,
     max: 8,
-    step: 0.1,
-    fractionDigits: 1,
+    step: INCH_STEP,
+    fractionDigits: 0, // unused — formatFeetInches handles display
     label: 'Ft.',
-    displayLabel: 'ft',
+    displayLabel: '',
   },
+}
+
+/** 5.8333 ft → "5'10"" ; 5 ft → "5'0"" ; rounds to nearest inch. */
+const formatFeetInches = (valueFt: number): string => {
+  const totalInches = Math.round(valueFt * 12)
+  const ft = Math.floor(totalInches / 12)
+  const inches = totalInches - ft * 12
+  return `${ft}'${inches}"`
 }
 
 const SELECT_ANIMATION = {
@@ -77,7 +88,8 @@ const HEALTHY_BMI_COLOR = '#3DCA7A'
 const convertHeight = (height: number, fromUnit: HeightUnit, toUnit: HeightUnit) => {
   if (fromUnit === toUnit) return height
   if (fromUnit === 'cm') {
-    return Math.round((height / 30.48) * 10) / 10
+    // cm → ft, rounded to the nearest inch (1/12 ft).
+    return Math.round((height / 30.48) * 12) / 12
   }
   return Math.round(height * 30.48)
 }
@@ -107,8 +119,7 @@ const getBMIMessageKey = (bmi: number) => {
   return 'obese'
 }
 
-const GradientHeightText = ({ value, fractionDigits }: { value: number; fractionDigits: number }) => {
-  const text = fractionDigits > 0 ? value.toFixed(fractionDigits) : String(Math.round(value))
+const GradientHeightText = ({ text }: { text: string }) => {
   const fontSize = 60
 
   return (
@@ -213,25 +224,13 @@ const HeightStep = ({ value, unit, weight, onChange }: HeightStepProps) => {
     onChange(nextHeight, nextUnit)
   }
 
-  const handleValueChange = (nextValue: string) => {
-    const parsedValue = Number(nextValue)
-    if (!Number.isNaN(parsedValue)) {
-      const rounded = config.fractionDigits > 0
-        ? Math.round(parsedValue * 10) / 10
-        : Math.round(parsedValue)
-      if (rounded !== displayHeight) {
-        Haptics.selectionAsync()
-      }
+  const handleRulerChange = (nextValue: number) => {
+    // For ft, snap to nearest inch (1/12). For cm, snap to integer.
+    const rounded = unit === 'ft'
+      ? Math.round(nextValue * 12) / 12
+      : Math.round(nextValue)
+    if (rounded !== displayHeight) {
       setDisplayHeight(rounded)
-    }
-  }
-
-  const handleValueChangeEnd = (nextValue: string) => {
-    const parsedValue = Number(nextValue)
-    if (!Number.isNaN(parsedValue)) {
-      const rounded = config.fractionDigits > 0
-        ? Math.round(parsedValue * 10) / 10
-        : Math.round(parsedValue)
       onChange(rounded, unit)
     }
   }
@@ -239,43 +238,46 @@ const HeightStep = ({ value, unit, weight, onChange }: HeightStepProps) => {
   const heightInCm = unit === 'cm' ? displayHeight : displayHeight * 30.48
   const bmi = calculateBMI(weight, heightInCm)
 
+  // Smoothly tween the displayed height between ruler ticks. For ft, step is
+  // 1/12 ft (one inch) — the counter rounds to inch boundaries while still
+  // animating fluidly between them.
+  const animatedHeight = useAnimatedCounter(displayHeight, {
+    step: unit === 'ft' ? 1 / 12 : 1,
+    duration: 240,
+  })
+  // Smooth BMI display — tweens to 0.1 precision so it ticks through 22.3,
+  // 22.4, 22.5 instead of snapping.
+  const animatedBmi = useAnimatedCounter(bmi, { step: 0.1, duration: 240 })
+
+  const displayText =
+    unit === 'ft' ? formatFeetInches(animatedHeight) : String(Math.round(animatedHeight))
+
   return (
     <View style={styles.container}>
       <UnitSwitch unit={unit} onSelect={handleUnitSelect} />
 
       <View style={styles.heightDisplay}>
-        <GradientHeightText value={displayHeight} fractionDigits={config.fractionDigits} />
-        <Text style={styles.heightUnit}>{config.displayLabel}</Text>
+        <GradientHeightText text={displayText} />
+        {config.displayLabel ? (
+          <Text style={styles.heightUnit}>{config.displayLabel}</Text>
+        ) : null}
       </View>
 
       <View style={styles.rulerContainer}>
-        <RulerPicker
+        <WeightRuler
           key={rulerKey}
-          width={SCREEN_WIDTH}
-          height={RULER_HEIGHT}
+          label=""
+          unit=""
+          value={displayHeight}
+          onValueChange={handleRulerChange}
           min={config.min}
           max={config.max}
           step={config.step}
-          fractionDigits={config.fractionDigits}
-          initialValue={value}
-          unit=""
-          indicatorHeight={RULER_INDICATOR_HEIGHT}
-          indicatorColor={COLORS.primary.dark}
-          gapBetweenSteps={horizontalScale(14)}
-          shortStepHeight={verticalScale(14)}
-          longStepHeight={verticalScale(32)}
-          stepWidth={2}
-          shortStepColor={COLORS.alpha.white12}
-          longStepColor={COLORS.neutral.white}
-          valueTextStyle={styles.hiddenRulerText}
-          unitTextStyle={styles.hiddenRulerText}
-          decelerationRate="fast"
-          onValueChange={handleValueChange}
-          onValueChangeEnd={handleValueChangeEnd}
+          headerless
         />
       </View>
 
-      <BMIDisplay bmi={bmi} />
+      <BMIDisplay bmi={animatedBmi} />
     </View>
   )
 }
@@ -345,11 +347,6 @@ const styles = StyleSheet.create({
     marginTop: RULER_TOP_MARGIN,
     marginHorizontal: horizontalScale(-24),
     alignItems: 'center',
-  },
-  hiddenRulerText: {
-    color: COLORS.alpha.transparent,
-    fontSize: 1,
-    fontWeight: '400',
   },
   bmiContainer: {
     marginTop: BMI_TOP_MARGIN,

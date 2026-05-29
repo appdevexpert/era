@@ -190,6 +190,7 @@ const WorkoutScreen = () => {
             streakDays={currentStreak}
             onPointsPress={() => navigation.navigate("Points")}
             onStreakPress={handleStreakPress}
+            onWorkoutPlanPress={openWorkoutPlan}
           />
         </View>
 

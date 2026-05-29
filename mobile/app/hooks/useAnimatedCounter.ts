@@ -29,9 +29,7 @@ export function useAnimatedCounter(target: number, options: Options = {}): numbe
   const { duration = 900, step = 1 } = options;
 
   const animated = useSharedValue(target);
-  const [display, setDisplay] = useState(() =>
-    step <= 1 ? Math.round(target) : Math.round(target / step) * step,
-  );
+  const [display, setDisplay] = useState(() => Math.round(target / step) * step);
 
   useEffect(() => {
     animated.value = withTiming(target, {
@@ -44,9 +42,10 @@ export function useAnimatedCounter(target: number, options: Options = {}): numbe
     () => {
       "worklet";
       // Inlined rounding — calling an out-of-worklet helper from inside a
-      // worklet crashes under the Reanimated 4 worklet runtime.
+      // worklet crashes under the Reanimated 4 worklet runtime. Using the
+      // divide formula uniformly handles step=1, step=10, AND step=0.1.
       const v = animated.value;
-      return step <= 1 ? Math.round(v) : Math.round(v / step) * step;
+      return Math.round(v / step) * step;
     },
     (current, previous) => {
       if (current !== previous) runOnJS(setDisplay)(current);

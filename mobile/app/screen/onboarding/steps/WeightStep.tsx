@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Dimensions, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import PressableScale from '@/app/components/common/PressableScale'
+import WeightRuler from '@/app/components/workout/WeightRuler'
+import { useAnimatedCounter } from '@/app/hooks/useAnimatedCounter'
 import Svg, { Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg'
 import Animated, {
   Easing,
@@ -12,9 +14,6 @@ import * as Haptics from 'expo-haptics'
 import { COLORS, GRADIENTS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import { horizontalScale, verticalScale } from '@/app/utils/responsive'
-import { RulerPicker } from 'react-native-ruler-picker'
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window')
 
 // Pre-compute outside worklet to avoid crash
 const PILL_OFFSET = horizontalScale(62.5)
@@ -156,57 +155,36 @@ const WeightStep = ({ value, unit, onChange }: WeightStepProps) => {
     onChange(nextWeight, nextUnit)
   }
 
-  const handleValueChange = (nextValue: string) => {
-    const parsedValue = Number(nextValue)
-    if (!Number.isNaN(parsedValue)) {
-      const rounded = Math.round(parsedValue)
-      if (rounded !== displayWeight) {
-        Haptics.selectionAsync()
-      }
-      setDisplayWeight(rounded)
+  const handleRulerChange = (nextValue: number) => {
+    if (nextValue !== displayWeight) {
+      setDisplayWeight(nextValue)
+      onChange(nextValue, unit)
     }
   }
 
-  const handleValueChangeEnd = (nextValue: string) => {
-    const parsedValue = Number(nextValue)
-    if (!Number.isNaN(parsedValue)) {
-      onChange(Math.round(parsedValue), unit)
-    }
-  }
+  // Smoothly tween the big gold number between ruler ticks.
+  const animatedWeight = useAnimatedCounter(displayWeight, { duration: 240 })
 
   return (
     <View style={styles.container}>
       <UnitSwitch unit={unit} onSelect={handleUnitSelect} />
 
       <View style={styles.weightDisplay}>
-        <GradientWeightText value={displayWeight} />
+        <GradientWeightText value={animatedWeight} />
         <Text style={styles.weightUnit}>{config.displayLabel}</Text>
       </View>
 
       <View style={styles.rulerContainer}>
-        <RulerPicker
+        <WeightRuler
           key={rulerKey}
-          width={SCREEN_WIDTH}
-          height={verticalScale(150)}
+          label=""
+          unit=""
+          value={displayWeight}
+          onValueChange={handleRulerChange}
           min={config.min}
           max={config.max}
           step={1}
-          fractionDigits={0}
-          initialValue={value}
-          unit=""
-          indicatorHeight={verticalScale(94)}
-          indicatorColor={COLORS.primary.dark}
-          gapBetweenSteps={horizontalScale(14)}
-          shortStepHeight={verticalScale(14)}
-          longStepHeight={verticalScale(32)}
-          stepWidth={2}
-          shortStepColor={COLORS.alpha.white12}
-          longStepColor={COLORS.neutral.white}
-          valueTextStyle={styles.hiddenRulerText}
-          unitTextStyle={styles.hiddenRulerText}
-          decelerationRate="fast"
-          onValueChange={handleValueChange}
-          onValueChangeEnd={handleValueChangeEnd}
+          headerless
         />
       </View>
     </View>
@@ -278,10 +256,5 @@ const styles = StyleSheet.create({
     marginTop: verticalScale(42),
     marginHorizontal: horizontalScale(-24),
     alignItems: 'center',
-  },
-  hiddenRulerText: {
-    color: COLORS.alpha.transparent,
-    fontSize: 1,
-    fontWeight: '400',
   },
 })

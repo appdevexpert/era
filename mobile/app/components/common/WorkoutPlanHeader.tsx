@@ -1,14 +1,14 @@
+import MuscleHighlightBadge, {
+  type MuscleHighlightKey,
+} from "@/app/components/common/MuscleHighlightBadge";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList, MuscleGroup } from "@/app/navigation/types";
 import {
   ArrowBack,
-  FocusMuscleChest,
-  FocusMuscleShoulders,
-  FocusMuscleArm,
   FocusMuscleAbs,
-  FocusMuscleLeg,
   FocusMuscleFront,
+  FocusMuscleLeg,
 } from "@/assets/icons";
 import { BlurView } from "expo-blur";
 import type { FC } from "react";
@@ -21,20 +21,39 @@ import type { NativeStackHeaderProps } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 
 const MUSCLE_ICON_SIZE = 44;
-const MUSCLE_SVG_SIZE = 64;
 
-const MUSCLE_MAP: Record<MuscleGroup, FC<SvgProps>> = {
-  chest: FocusMuscleChest,
-  shoulders: FocusMuscleShoulders,
-  arm: FocusMuscleArm,
+// New Figma close-up badges (5097:7786 etc.) — composited from body
+// silhouette + muscle highlight. Same SVG for everyone, no gender split.
+const FIGMA_BADGES: Partial<Record<MuscleGroup, MuscleHighlightKey>> = {
+  shoulder: "shoulder",
+  shoulders: "shoulder",
+  chest: "chest",
+  tricep: "tricep",
+  bicep: "bicep",
+  arm: "bicep",
+  forearm: "forearm",
+  back: "back",
+  traps: "traps",
+  neck: "neck",
+  quads: "quads",
+  glutes: "glutes",
+  hamstring: "hamstring",
+  calves: "calves",
+};
+
+// Legacy single-glyph badges kept for the muscles the new Figma set doesn't
+// cover yet (abs, leg, front).
+const LEGACY_ICONS: Partial<Record<MuscleGroup, FC<SvgProps>>> = {
   abs: FocusMuscleAbs,
   leg: FocusMuscleLeg,
   front: FocusMuscleFront,
 };
 
-const MuscleCircle = ({ Icon }: { Icon: FC<SvgProps> }) => (
+const LEGACY_SVG_SIZE = 64;
+
+const LegacyCircle = ({ Icon }: { Icon: FC<SvgProps> }) => (
   <View style={styles.muscleCircle}>
-    <Icon width={MUSCLE_SVG_SIZE} height={MUSCLE_SVG_SIZE} />
+    <Icon width={LEGACY_SVG_SIZE} height={LEGACY_SVG_SIZE} />
   </View>
 );
 
@@ -64,8 +83,14 @@ const WorkoutPlanHeader = ({ navigation, route }: NativeStackHeaderProps) => {
             </View>
             <View style={styles.muscleGrid}>
               {muscles.map((key) => {
-                const Icon = MUSCLE_MAP[key];
-                return Icon ? <MuscleCircle key={key} Icon={Icon} /> : null;
+                const figmaKey = FIGMA_BADGES[key];
+                if (figmaKey) {
+                  return <MuscleHighlightBadge key={key} muscle={figmaKey} />;
+                }
+                const LegacyIcon = LEGACY_ICONS[key];
+                return LegacyIcon ? (
+                  <LegacyCircle key={key} Icon={LegacyIcon} />
+                ) : null;
               })}
             </View>
           </View>

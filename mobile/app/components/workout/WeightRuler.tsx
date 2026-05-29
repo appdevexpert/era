@@ -67,7 +67,10 @@ const WeightRuler = ({
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (e) => {
-      const v = min + e.contentOffset.x / TICK_SPACING;
+      // 1 tick = 1 step. For step=1 this is a no-op; for fractional steps
+      // (e.g. height in ft uses step=0.1) we must multiply tick count by step
+      // so scrolling 25 ticks from min=3 maps to 3 + 25 × 0.1 = 5.5 ft.
+      const v = min + (e.contentOffset.x / TICK_SPACING) * step;
       const rounded = Math.round(v / step) * step;
       if (rounded !== lastReported.value) {
         lastReported.value = rounded;

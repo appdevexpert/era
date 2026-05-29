@@ -26,10 +26,21 @@ export type PlanGenerationStackParamList = {
 export type MuscleGroup =
   | "chest"
   | "shoulders"
+  | "shoulder"
   | "arm"
   | "abs"
   | "leg"
-  | "front";
+  | "front"
+  | "tricep"
+  | "bicep"
+  | "forearm"
+  | "back"
+  | "traps"
+  | "neck"
+  | "quads"
+  | "glutes"
+  | "hamstring"
+  | "calves";
 
 export type DayStatus = "missed" | "completed" | "future" | "active";
 
