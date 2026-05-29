@@ -18,7 +18,8 @@ import { TablerPlus } from "@/assets/icons";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,7 +39,7 @@ const GRID_PADDING = 24;
 const GRID_COLUMNS = 3;
 
 const AddNewTile = ({ onPress, label }: { onPress: () => void; label: string }) => (
-  <Pressable onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}>
+  <PressableScale onPress={onPress} style={styles.tile}>
     <View style={styles.addNewThumb}>
       {/* Glass blur substrate */}
       <GlassFill effect="clear" scheme="dark" style={styles.addNewGlass} />
@@ -55,7 +56,7 @@ const AddNewTile = ({ onPress, label }: { onPress: () => void; label: string }) 
       </View>
     </View>
     <Text style={styles.addNewLabel}>{label}</Text>
-  </Pressable>
+  </PressableScale>
 );
 
 const PhotoTile = ({
@@ -65,9 +66,9 @@ const PhotoTile = ({
   photo: TransformPhoto;
   onPress: () => void;
 }) => (
-  <Pressable
+  <PressableScale
     onPress={onPress}
-    style={({ pressed }) => [styles.tile, pressed && { opacity: 0.85 }]}
+    style={styles.tile}
   >
     <View style={styles.photoThumb}>
       {photo.imageUri ? (
@@ -79,7 +80,7 @@ const PhotoTile = ({
       ) : null}
     </View>
     <Text style={styles.photoDate}>{photo.date}</Text>
-  </Pressable>
+  </PressableScale>
 );
 
 const TransformationGalleryScreen = () => {

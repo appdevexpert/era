@@ -5,7 +5,8 @@ import WeekDaySelector, { type DayItem } from "@/app/components/workout/WeekDayS
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
 
@@ -63,7 +64,7 @@ const StreakBottomSheet = forwardRef<BottomSheetModal, StreakBottomSheetProps>(
           </View>
 
           {/* View Points button */}
-          <Pressable style={styles.viewBtn} onPress={onViewPoints}>
+          <PressableScale style={styles.viewBtn} onPress={onViewPoints}>
             <LinearGradient
               colors={[
                 "rgba(201,168,76,0.6)",
@@ -76,7 +77,7 @@ const StreakBottomSheet = forwardRef<BottomSheetModal, StreakBottomSheetProps>(
             />
             <GlassFill />
             <Text style={styles.viewBtnText}>{t("workout.ui.viewEraPoints")}</Text>
-          </Pressable>
+          </PressableScale>
         </BottomSheetView>
       </BottomSheetModal>
     );

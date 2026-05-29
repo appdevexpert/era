@@ -6,6 +6,7 @@ import {
   type BaseToastProps,
   type ToastConfig,
 } from "react-native-toast-message";
+import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 
 const SuccessToast = (props: BaseToastProps) => {
@@ -14,7 +15,7 @@ const SuccessToast = (props: BaseToastProps) => {
   return (
     <BaseToast
       {...props}
-      style={[styles.toastCard, { top: -top, backgroundColor: "#16C47F" }]}
+      style={[styles.toastCard, { top: -top, backgroundColor: COLORS.semantic.success }]}
       contentContainerStyle={[styles.toastContent, { paddingTop: top + 40 }]}
       text2Style={styles.toastText}
     />
@@ -27,7 +28,7 @@ const ErrorToastComponent = (props: BaseToastProps) => {
   return (
     <ErrorToast
       {...props}
-      style={[styles.toastCard, { top: -top, backgroundColor: "#FF4F4F" }]}
+      style={[styles.toastCard, { top: -top, backgroundColor: COLORS.semantic.danger }]}
       contentContainerStyle={[styles.toastContent, { paddingTop: top + 40 }]}
       text2Style={styles.toastText2}
     />

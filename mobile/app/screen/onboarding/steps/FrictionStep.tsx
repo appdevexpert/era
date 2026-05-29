@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import { LinearGradient } from 'expo-linear-gradient'
 import Animated, {
@@ -87,7 +88,7 @@ const FrictionOption = ({
   }))
 
   return (
-    <Pressable onPress={onPress} style={styles.optionPressable}>
+    <PressableScale onPress={onPress} style={styles.optionPressable}>
       <Animated.View style={[styles.optionFrame, optionStyle]}>
         <Animated.View pointerEvents="none" style={[styles.selectedBorderLayer, selectedBorderStyle]}>
           <LinearGradient
@@ -134,7 +135,7 @@ const FrictionOption = ({
           </View>
         </View>
       </Animated.View>
-    </Pressable>
+    </PressableScale>
   )
 }
 

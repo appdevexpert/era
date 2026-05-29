@@ -3,7 +3,8 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { MuscleGroup } from "@/app/navigation/types";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 export interface DayItem {
   key: string;
@@ -40,7 +41,7 @@ const DayPill = ({
   // State 3: Today + Completed — gold-to-green gradient with ✓
   if (day.active && day.completed) {
     return (
-      <Pressable onPress={onPress} style={styles.pillBase}>
+      <PressableScale onPress={onPress} style={styles.pillBase}>
         <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
@@ -53,14 +54,14 @@ const DayPill = ({
         <View style={styles.checkBadge}>
           <Text style={styles.checkMark}>✓</Text>
         </View>
-      </Pressable>
+      </PressableScale>
     );
   }
 
   // State 1: Missed — dark-to-red gradient with ✕
   if (day.missed) {
     return (
-      <Pressable onPress={onPress} style={styles.pillBase}>
+      <PressableScale onPress={onPress} style={styles.pillBase}>
         <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
@@ -73,14 +74,14 @@ const DayPill = ({
         <View style={styles.missBadge}>
           <Text style={styles.missMark}>✕</Text>
         </View>
-      </Pressable>
+      </PressableScale>
     );
   }
 
   // State 2: Past Completed — dark-to-green gradient with ✓
   if (day.completed) {
     return (
-      <Pressable onPress={onPress} style={styles.pillBase}>
+      <PressableScale onPress={onPress} style={styles.pillBase}>
         <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
@@ -93,14 +94,14 @@ const DayPill = ({
         <View style={styles.checkBadge}>
           <Text style={styles.checkMark}>✓</Text>
         </View>
-      </Pressable>
+      </PressableScale>
     );
   }
 
   // State 4: Today + Not Completed — solid gold with date badge
   if (day.active) {
     return (
-      <Pressable onPress={onPress} style={styles.pillBase}>
+      <PressableScale onPress={onPress} style={styles.pillBase}>
         <GlassFill effect="clear" scheme="light" style={styles.glassFill} />
         <LinearGradient
           pointerEvents="none"
@@ -111,7 +112,7 @@ const DayPill = ({
         <View style={styles.dateBadgeActive}>
           <Text style={styles.dateTextActive}>{day.date}</Text>
         </View>
-      </Pressable>
+      </PressableScale>
     );
   }
 
@@ -129,9 +130,9 @@ const DayPill = ({
 
   if (enableInactivePress) {
     return (
-      <Pressable onPress={onPress} style={styles.pillInactive}>
+      <PressableScale onPress={onPress} style={styles.pillInactive}>
         {inactiveContent}
-      </Pressable>
+      </PressableScale>
     );
   }
   return <View style={styles.pillInactive}>{inactiveContent}</View>;

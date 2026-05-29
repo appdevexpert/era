@@ -2,7 +2,8 @@ import GlassFill from "@/app/components/common/GlassFill";
 import { FONTS } from "@/app/constants/fonts";
 import { ChevronRight, LeaderboardBadge } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 const GOLD = "#C9A84C";
@@ -15,9 +16,9 @@ const LeaderboardCard = ({ onPress }: LeaderboardCardProps) => {
   const { t } = useTranslation();
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={styles.card}
     >
       <GlassFill effect="clear" scheme="dark" style={styles.glass} />
       <LinearGradient
@@ -39,7 +40,7 @@ const LeaderboardCard = ({ onPress }: LeaderboardCardProps) => {
       <View style={styles.badge} pointerEvents="none">
         <LeaderboardBadge width={48} height={61} />
       </View>
-    </Pressable>
+    </PressableScale>
   );
 };
 
@@ -53,7 +54,6 @@ const styles = StyleSheet.create({
     minHeight: 78,
     justifyContent: "center",
   },
-  pressed: { opacity: 0.9 },
   glass: { borderRadius: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
   textCol: { flex: 1, gap: 8 },

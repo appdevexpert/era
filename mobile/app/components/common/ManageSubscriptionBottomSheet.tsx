@@ -10,7 +10,8 @@ import {
 } from "@gorhom/bottom-sheet";
 import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 export interface ManageSubscriptionBottomSheetRef {
@@ -172,7 +173,7 @@ const ManageSubscriptionBottomSheet = forwardRef<
             {proFeatures.map((f, i) => (
               <Bullet key={i} text={f} />
             ))}
-            <Pressable onPress={() => onUpgrade?.("pro")} style={styles.ctaWrap}>
+            <PressableScale onPress={() => onUpgrade?.("pro")} style={styles.ctaWrap}>
               <LinearGradient
                 colors={CTA_GRADIENT}
                 start={{ x: 1, y: 0.5 }}
@@ -183,7 +184,7 @@ const ManageSubscriptionBottomSheet = forwardRef<
                   {t("profile.subscription.pro.cta")}
                 </Text>
               </LinearGradient>
-            </Pressable>
+            </PressableScale>
           </View>
 
           {/* ERA Familie */}
@@ -205,7 +206,7 @@ const ManageSubscriptionBottomSheet = forwardRef<
             {familieFeatures.map((f, i) => (
               <Bullet key={i} text={f} />
             ))}
-            <Pressable
+            <PressableScale
               onPress={() => onUpgrade?.("familie")}
               style={styles.ctaWrap}
             >
@@ -219,7 +220,7 @@ const ManageSubscriptionBottomSheet = forwardRef<
                   {t("profile.subscription.familie.cta")}
                 </Text>
               </LinearGradient>
-            </Pressable>
+            </PressableScale>
           </View>
         </BottomSheetScrollView>
 

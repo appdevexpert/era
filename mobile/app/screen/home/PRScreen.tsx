@@ -4,7 +4,8 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { PrTrophy } from "@/assets/images";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
@@ -59,7 +60,7 @@ const PRScreen = () => {
       </View>
 
       {/* Continue button */}
-      <Pressable
+      <PressableScale
         style={[styles.continueBtn, { marginBottom: insets.bottom + 16 }]}
         onPress={() => navigation.goBack()}
       >
@@ -75,7 +76,7 @@ const PRScreen = () => {
         />
         <GlassFill />
         <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
-      </Pressable>
+      </PressableScale>
     </View>
   );
 };

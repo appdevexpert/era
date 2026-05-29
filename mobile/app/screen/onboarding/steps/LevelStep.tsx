@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
@@ -27,7 +28,7 @@ const LevelStep = ({ value, onSelect }: LevelStepProps) => {
         const isSelected = value === key
 
         return (
-          <Pressable key={key} onPress={() => onSelect(key)}>
+          <PressableScale key={key} onPress={() => onSelect(key)}>
             <AnimatedSelectableCard selected={isSelected} contentStyle={styles.cardContent}>
               <View style={styles.cardHeader}>
                 <Icon width={24} height={24} />
@@ -39,7 +40,7 @@ const LevelStep = ({ value, onSelect }: LevelStepProps) => {
                 {t(`onboarding.steps.level.options.${key}Desc`)}
               </Text>
             </AnimatedSelectableCard>
-          </Pressable>
+          </PressableScale>
         )
       })}
     </View>

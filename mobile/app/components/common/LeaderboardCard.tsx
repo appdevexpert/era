@@ -3,7 +3,8 @@ import { FONTS } from "@/app/constants/fonts";
 import { LeaderboardAward, LeaderboardChevron } from "@/assets/icons";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 interface LeaderboardCardProps {
   title: string;
@@ -12,9 +13,9 @@ interface LeaderboardCardProps {
 }
 
 const LeaderboardCard = ({ title, subtitle, onPress }: LeaderboardCardProps) => (
-  <Pressable
+  <PressableScale
     onPress={onPress}
-    style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
+    style={styles.card}
   >
     <GlassView
       pointerEvents="none"
@@ -45,7 +46,7 @@ const LeaderboardCard = ({ title, subtitle, onPress }: LeaderboardCardProps) => 
     <View pointerEvents="none" style={styles.awardWrap}>
       <LeaderboardAward width={54} height={71} />
     </View>
-  </Pressable>
+  </PressableScale>
 );
 
 export default LeaderboardCard;

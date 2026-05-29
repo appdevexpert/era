@@ -14,7 +14,8 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRef } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -118,7 +119,7 @@ const SessionCompleteScreen = () => {
       {/* Bottom buttons */}
       <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 16 }]}>
         {/* Capture Progress */}
-        <Pressable
+        <PressableScale
           style={styles.captureBtn}
           onPress={() => addPhotoSheetRef.current?.show()}
         >
@@ -127,10 +128,10 @@ const SessionCompleteScreen = () => {
           <Text style={styles.captureBtnText}>
             {t("workout.ui.captureProgress")}
           </Text>
-        </Pressable>
+        </PressableScale>
 
         {/* Continue */}
-        <Pressable
+        <PressableScale
           style={styles.continueBtn}
           onPress={() => {
             dispatch(clearSession());
@@ -149,7 +150,7 @@ const SessionCompleteScreen = () => {
           />
           <GlassFill />
           <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       <AddPhotoBottomSheet

@@ -1,6 +1,7 @@
 import { FONTS } from "@/app/constants/fonts";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 interface LogMealBadgeProps {
@@ -14,12 +15,11 @@ const LogMealBadge = ({ onPress, disabled }: LogMealBadgeProps) => {
   const { t } = useTranslation();
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
-      style={({ pressed }) => [
+      style={[
         styles.badge,
-        pressed && !disabled && styles.pressed,
         disabled && styles.disabled,
       ]}
     >
@@ -31,7 +31,7 @@ const LogMealBadge = ({ onPress, disabled }: LogMealBadgeProps) => {
         style={StyleSheet.absoluteFill}
       />
       <Text style={styles.text}>{t("nutrition.logMeal")}</Text>
-    </Pressable>
+    </PressableScale>
   );
 };
 
@@ -43,9 +43,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     overflow: "hidden",
-  },
-  pressed: {
-    opacity: 0.85,
   },
   disabled: {
     opacity: 0.4,

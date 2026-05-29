@@ -26,13 +26,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
   type ListRenderItem,
 } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 
@@ -377,9 +377,9 @@ const LeaderboardScreen = () => {
         tint="dark"
         style={[styles.header, { paddingTop: insets.top + 8 }]}
       >
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+        <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
           <ProfileBackChevron width={24} height={24} />
-        </Pressable>
+        </PressableScale>
         <View style={{ gap: 6 }}>
           <Text style={styles.eyebrow}>
             {myRank > 0 ? `#${myRank}` : t("progress.leaderboardUnranked")}

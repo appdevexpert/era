@@ -1,7 +1,8 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 interface SettingsRowProps {
   icon: ReactNode;
@@ -34,13 +35,13 @@ const SettingsRow = ({
 
   if (onPress) {
     return (
-      <Pressable
+      <PressableScale
         onPress={onPress}
         disabled={disabled}
         style={[styles.row, disabled && styles.disabled]}
       >
         {content}
-      </Pressable>
+      </PressableScale>
     );
   }
   return <View style={styles.row}>{content}</View>;

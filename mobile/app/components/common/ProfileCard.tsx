@@ -3,7 +3,8 @@ import { FONTS } from "@/app/constants/fonts";
 import { AltArrowLeft, FluentPremium, ProfileUserCircle } from "@/assets/icons";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 export interface ProfileCardProps {
   name: string;
@@ -71,7 +72,7 @@ ProfileCard = ({
             {subscriptionLabel}
           </Text>
         </View>
-        <Pressable
+        <PressableScale
           onPress={onManagePress}
           hitSlop={8}
           style={styles.subscriptionRight}
@@ -80,7 +81,7 @@ ProfileCard = ({
           <View style={styles.chevronWrap}>
             <AltArrowLeft width={18} height={18} />
           </View>
-        </Pressable>
+        </PressableScale>
       </View>
 
       <View style={styles.progressRow}>

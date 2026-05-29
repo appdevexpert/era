@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
@@ -33,7 +34,7 @@ const GoalStep = ({ value, onSelect }: GoalStepProps) => {
       {GOALS.map(({ key, icon: Icon }) => {
         const isSelected = value === key
         return (
-          <Pressable key={key} style={styles.cardWrapper} onPress={() => onSelect(key)}>
+          <PressableScale key={key} style={styles.cardWrapper} onPress={() => onSelect(key)}>
             <AnimatedSelectableCard
               selected={isSelected}
               style={styles.cardFrame}
@@ -51,7 +52,7 @@ const GoalStep = ({ value, onSelect }: GoalStepProps) => {
 
               <Icon width={28} height={28} />
             </AnimatedSelectableCard>
-          </Pressable>
+          </PressableScale>
         )
       })}
     </View>

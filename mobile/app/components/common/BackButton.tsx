@@ -1,7 +1,5 @@
-import { GlassView } from 'expo-glass-effect'
-import { LinearGradient } from 'expo-linear-gradient'
-import { Pressable, StyleSheet } from 'react-native'
 import { useNavigation } from '@react-navigation/native'
+import IconButton from '@/app/components/common/IconButton'
 import { ChevronBack } from '@/assets/icons'
 
 interface BackButtonProps {
@@ -20,41 +18,16 @@ const BackButton = ({ onPress }: BackButtonProps) => {
   }
 
   return (
-    <Pressable onPress={handlePress}>
-      <LinearGradient
-        colors={['rgba(201, 168, 76, 0.2)', 'rgba(247, 224, 111, 0.2)', 'rgba(252, 243, 192, 0.2)']}
-        start={{ x: 1, y: 0.5 }}
-        end={{ x: 0, y: 0.5 }}
-        style={styles.button}
-      >
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="clear"
-          colorScheme="light"
-          style={styles.glass}
-        />
-        <ChevronBack width={20} height={20} />
-      </LinearGradient>
-    </Pressable>
+    <IconButton
+      onPress={handlePress}
+      size={32}
+      glassEffect="clear"
+      scheme="light"
+      tint="regular"
+    >
+      <ChevronBack width={20} height={20} />
+    </IconButton>
   )
 }
 
 export default BackButton
-
-const styles = StyleSheet.create({
-  button: {
-    width: 32,
-    height: 32,
-    borderRadius: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  glass: {
-  //  position: "absolute",
-  //  left: 0,
-  //  right: 0,
-  //  top: 0,
-  //  bottom: 0
-  },
-})

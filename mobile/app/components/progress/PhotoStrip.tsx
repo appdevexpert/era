@@ -1,7 +1,8 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { CameraIcon } from "@/assets/icons";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 export interface ProgressPhoto {
@@ -23,9 +24,9 @@ interface PhotoStripProps {
  * hasn't uploaded any progress photos yet.
  */
 const EmptyState = ({ onAddPhoto, label }: { onAddPhoto: () => void; label: string }) => (
-  <Pressable
+  <PressableScale
     onPress={onAddPhoto}
-    style={({ pressed }) => [styles.emptyCard, pressed && { opacity: 0.85 }]}
+    style={styles.emptyCard}
   >
     <View style={styles.emptyRow}>
       <View style={styles.emptyIconPill}>
@@ -33,7 +34,7 @@ const EmptyState = ({ onAddPhoto, label }: { onAddPhoto: () => void; label: stri
       </View>
       <Text style={styles.emptyText}>{label}</Text>
     </View>
-  </Pressable>
+  </PressableScale>
 );
 
 const PhotoStrip = ({ photos, onAddPhoto, onPhotoPress }: PhotoStripProps) => {
@@ -55,14 +56,14 @@ const PhotoStrip = ({ photos, onAddPhoto, onPhotoPress }: PhotoStripProps) => {
       style={styles.scroll}
       contentContainerStyle={styles.scrollContent}
     >
-      <Pressable style={styles.addCard} onPress={onAddPhoto}>
+      <PressableScale style={styles.addCard} onPress={onAddPhoto}>
         <View style={styles.addIcon}>
           <CameraIcon width={24} height={24} />
         </View>
         <Text style={styles.addText}>{t("progress.addNewPhoto")}</Text>
-      </Pressable>
+      </PressableScale>
       {photos.map((p) => (
-        <Pressable
+        <PressableScale
           key={p.id}
           style={styles.col}
           onPress={() => onPhotoPress?.(p)}
@@ -74,7 +75,7 @@ const PhotoStrip = ({ photos, onAddPhoto, onPhotoPress }: PhotoStripProps) => {
             <View style={styles.thumb} />
           )}
           <Text style={styles.date}>{p.date}</Text>
-        </Pressable>
+        </PressableScale>
       ))}
     </ScrollView>
   );

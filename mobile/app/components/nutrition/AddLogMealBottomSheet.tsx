@@ -13,6 +13,7 @@ import {
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -356,26 +357,25 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                     const label = portion ? `${item.name} (${portion})` : item.name;
                     const isEditing = editingIndex === index;
                     return (
-                      <Pressable
+                      <PressableScale
                         key={`${item.name}-${index}`}
                         onPress={() => handleSelectChip(index)}
-                        style={({ pressed }) => [
+                        style={[
                           styles.stagedRow,
                           isEditing && styles.stagedRowEditing,
-                          pressed && { opacity: 0.7 },
                         ]}
                       >
                         <Text style={styles.stagedText} numberOfLines={1}>
                           {label}
                         </Text>
-                        <Pressable
+                        <PressableScale
                           onPress={() => handleRemoveStagedItem(index)}
                           hitSlop={8}
                           style={styles.stagedRemoveBtn}
                         >
                           <Text style={styles.stagedRemoveText}>×</Text>
-                        </Pressable>
-                      </Pressable>
+                        </PressableScale>
+                      </PressableScale>
                     );
                   })}
                 </View>
@@ -406,7 +406,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                 </View>
                 <View style={[styles.field, styles.flex1]}>
                   <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.units")}</Text>
-                  <Pressable
+                  <PressableScale
                     onPress={() => setUnitsOpen((open) => !open)}
                     style={[styles.input, styles.dropdownInput, unitsOpen && styles.dropdownInputOpen]}
                   >
@@ -416,7 +416,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                     <View style={[styles.chevron, unitsOpen ? styles.chevronUp : styles.chevronDown]}>
                       <ChevronBack width={20} height={20} color="rgba(240,240,240,0.5)" />
                     </View>
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
 
@@ -426,34 +426,32 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                   {UNIT_OPTIONS.map((option) => {
                     const active = option.value === units;
                     return (
-                      <Pressable
+                      <PressableScale
                         key={option.value}
                         onPress={() => {
                           setUnits(option.value);
                           setUnitsOpen(false);
                         }}
-                        style={({ pressed }) => [
+                        style={[
                           styles.unitOption,
                           active && styles.unitOptionActive,
-                          pressed && { opacity: 0.7 },
                         ]}
                       >
                         <Text style={[styles.unitOptionText, active && styles.unitOptionTextActive]}>
                           {option.label}
                         </Text>
-                      </Pressable>
+                      </PressableScale>
                     );
                   })}
                 </View>
               ) : null}
 
-              <Pressable
+              <PressableScale
                 onPress={handleUpsertItem}
                 disabled={saving || itemName.trim().length === 0}
-                style={({ pressed }) => [
+                style={[
                   styles.addItemButton,
                   (saving || itemName.trim().length === 0) && styles.addItemButtonDisabled,
-                  pressed && { opacity: 0.7 },
                 ]}
               >
                 <TablerPlus width={14} height={14} color="#F0F0F0" />
@@ -462,7 +460,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                     ? t("nutrition.logMealSheet.updateItem")
                     : t("nutrition.logMealSheet.addItem")}
                 </Text>
-              </Pressable>
+              </PressableScale>
             </View>
 
             {/* Comments */}

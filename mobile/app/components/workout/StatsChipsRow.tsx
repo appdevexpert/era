@@ -3,7 +3,8 @@ import { FONTS } from "@/app/constants/fonts";
 import { horizontalScale } from "@/app/utils/responsive";
 import { StatCoin, StatFire, StatWorkoutPlan } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 interface StatsChipsRowProps {
@@ -24,7 +25,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5, onPointsPress, onStreakPr
       style={styles.scroll}
     >
       {/* Points chip */}
-      <Pressable style={styles.chip} onPress={onPointsPress}>
+      <PressableScale style={styles.chip} onPress={onPointsPress}>
         <LinearGradient
           colors={["rgba(201, 168, 76, 0.25)", "rgba(201, 168, 76, 0.25)"]}
           style={[StyleSheet.absoluteFill, { borderRadius: 90 }]}
@@ -33,10 +34,10 @@ const StatsChipsRow = ({ points = 340, streakDays = 5, onPointsPress, onStreakPr
           <StatCoin width={24} height={24} />
         </View>
         <Text style={styles.chipLabel}>{t("workout.ui.points", { count: points })}</Text>
-      </Pressable>
+      </PressableScale>
 
       {/* Streak chip */}
-      <Pressable onPress={onStreakPress}>
+      <PressableScale onPress={onStreakPress}>
         <LinearGradient
           colors={["rgba(221, 62, 68, 0.08)", "rgba(247, 224, 111, 0.08)"]}
           start={{ x: 0, y: 0.5 }}
@@ -48,7 +49,7 @@ const StatsChipsRow = ({ points = 340, streakDays = 5, onPointsPress, onStreakPr
           </View>
           <Text style={styles.chipLabel}>{t("workout.ui.streak", { count: streakDays })}</Text>
         </LinearGradient>
-      </Pressable>
+      </PressableScale>
 
       {/* Workout Plan chip */}
       <LinearGradient

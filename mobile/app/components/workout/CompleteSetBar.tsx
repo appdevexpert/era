@@ -1,8 +1,9 @@
 import GlassFill from "@/app/components/common/GlassFill";
+import PressableScale from "@/app/components/common/PressableScale";
 import TintButton from "@/app/components/common/TintButton";
 import { SkipNext } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 type CompleteSetBarProps = {
@@ -25,7 +26,7 @@ const GoldButton = ({
   style: object;
   children: React.ReactNode;
 }) => (
-  <Pressable style={style} onPress={onPress}>
+  <PressableScale style={style} onPress={onPress}>
     <LinearGradient
       colors={[...GRADIENT_COLORS]}
       start={{ x: 1, y: 0.5 }}
@@ -34,7 +35,7 @@ const GoldButton = ({
     />
     <GlassFill />
     {children}
-  </Pressable>
+  </PressableScale>
 );
 
 const CompleteSetBar = ({

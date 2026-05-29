@@ -3,7 +3,8 @@ import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/W
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { EditPen } from "@/assets/icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 interface WeightStatsCardProps {
@@ -80,10 +81,10 @@ const WeightStatsCard = ({
         </View>
         <View style={{ flex: 1, gap: 6, alignItems: "flex-end" }}>
           <Text style={styles.tinyEyebrow}>{t("progress.height")}</Text>
-          <Pressable onPress={onEditHeight} hitSlop={8} style={styles.heightRow}>
+          <PressableScale onPress={onEditHeight} hitSlop={8} style={styles.heightRow}>
             <Text style={styles.heightValue}>{heightLabel ?? "—"}</Text>
             <EditPen width={24} height={24} />
-          </Pressable>
+          </PressableScale>
         </View>
       </View>
     </View>

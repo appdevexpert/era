@@ -34,10 +34,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#000000",
           "dark": {
             "backgroundColor": "#000000"
           }
@@ -52,7 +49,8 @@
           "cameraPermission": "Allow ERA to use your camera to capture progress photos.",
           "photosPermission": "Allow ERA to access your photo library to upload progress photos."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "reactCompiler": true

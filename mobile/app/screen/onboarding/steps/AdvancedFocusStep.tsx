@@ -1,5 +1,6 @@
 import { type FC, useEffect, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import { GlassView } from 'expo-glass-effect'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -217,7 +218,7 @@ const MuscleChip = ({ focus, selected, onPress }: MuscleChipProps) => {
   }))
 
   return (
-    <Pressable onPress={onPress} style={styles.chipPressable}>
+    <PressableScale onPress={onPress} style={styles.chipPressable}>
       <View style={styles.chipSurface}>
         <GlassView
           pointerEvents="none"
@@ -256,7 +257,7 @@ const MuscleChip = ({ focus, selected, onPress }: MuscleChipProps) => {
           </Text>
         </Animated.View>
       </View>
-    </Pressable>
+    </PressableScale>
   )
 }
 
@@ -282,7 +283,7 @@ const BodySegment = ({ side, activeSide, onPress }: BodySegmentProps) => {
   }))
 
   return (
-    <Pressable onPress={onPress} style={styles.segment}>
+    <PressableScale onPress={onPress} style={styles.segment}>
       <View style={styles.segmentSurface}>
         <GlassView
           pointerEvents="none"
@@ -312,7 +313,7 @@ const BodySegment = ({ side, activeSide, onPress }: BodySegmentProps) => {
           </Text>
         </Animated.View>
       </View>
-    </Pressable>
+    </PressableScale>
   )
 }
 

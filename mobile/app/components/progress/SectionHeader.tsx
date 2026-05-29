@@ -1,6 +1,7 @@
 import { FONTS } from "@/app/constants/fonts";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 interface SectionHeaderProps {
   title: string;
@@ -16,9 +17,9 @@ const SectionHeader = ({ title, subtitle, actionLabel, onAction }: SectionHeader
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
     {actionLabel ? (
-      <Pressable
+      <PressableScale
         onPress={onAction}
-        style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
+        style={styles.pill}
       >
         <LinearGradient
           pointerEvents="none"
@@ -28,7 +29,7 @@ const SectionHeader = ({ title, subtitle, actionLabel, onAction }: SectionHeader
           style={StyleSheet.absoluteFill}
         />
         <Text style={styles.pillText}>{actionLabel}</Text>
-      </Pressable>
+      </PressableScale>
     ) : null}
   </View>
 );
@@ -59,7 +60,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     overflow: "hidden",
   },
-  pressed: { opacity: 0.85 },
   pillText: {
     fontFamily: FONTS.medium,
     fontSize: 14,

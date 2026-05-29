@@ -42,10 +42,10 @@ const IncButton = ({
   disabled?: boolean;
 }) => (
   <IconButton
-    onPress={disabled ? undefined : onPress}
+    onPress={onPress}
+    disabled={disabled}
     size={32}
     tint={emphasized ? "emphasized" : "subtle"}
-    style={disabled ? { opacity: 0.4 } : undefined}
   >
     <Text style={styles.incSymbol}>{symbol}</Text>
   </IconButton>

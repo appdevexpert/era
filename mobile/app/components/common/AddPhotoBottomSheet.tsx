@@ -15,7 +15,8 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 export interface AddPhotoBottomSheetRef {
@@ -145,23 +146,23 @@ const AddPhotoBottomSheet = forwardRef<
         </View>
 
         <View style={styles.cardsRow}>
-          <Pressable onPress={handleTakePhoto} style={styles.choiceCard}>
+          <PressableScale onPress={handleTakePhoto} style={styles.choiceCard}>
             <View style={styles.iconCircle}>
               <AddPhotoCamera width={36} height={36} />
             </View>
             <Text style={styles.choiceLabel}>
               {t("progress.addPhoto.clickPhoto")}
             </Text>
-          </Pressable>
+          </PressableScale>
 
-          <Pressable onPress={handlePickFromGallery} style={styles.choiceCard}>
+          <PressableScale onPress={handlePickFromGallery} style={styles.choiceCard}>
             <View style={styles.iconCircle}>
               <AddPhotoGallery width={36} height={36} />
             </View>
             <Text style={styles.choiceLabel}>
               {t("progress.addPhoto.uploadGallery")}
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </BottomSheetView>
     </BottomSheetModal>

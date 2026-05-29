@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { Feather, FontAwesome } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useTranslation } from 'react-i18next'
@@ -132,7 +132,7 @@ const Login = ({ navigation }: LoginProps) => {
               style={styles.input}
               
             />
-            <Pressable
+            <PressableScale
               hitSlop={12}
               onPress={() => setPasswordHidden((prev) => !prev)}
               style={styles.eyeButton}
@@ -142,17 +142,17 @@ const Login = ({ navigation }: LoginProps) => {
                 size={22}
                 color={COLORS.primary.dark}
               />
-            </Pressable>
+            </PressableScale>
           </View>
 
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             hitSlop={12}
             onPress={() => navigation.navigate('ForgotPassword')}
             style={styles.forgotButton}
           >
             <Text style={styles.forgotText}>{t('auth.forgotPasswordQuestion')}</Text>
-          </Pressable>
+          </PressableScale>
         </View>
 
         {validationError && (
@@ -179,22 +179,22 @@ const Login = ({ navigation }: LoginProps) => {
 
           <View style={styles.socialRow}>
             {Platform.OS === 'ios' && (
-              <Pressable
+              <PressableScale
                 onPress={handleAppleLogin}
                 style={styles.socialButton}
               >
                 <FontAwesome name="apple" size={25} color={COLORS.neutral.white} />
                 <Text style={styles.socialText}>{t('auth.apple')}</Text>
-              </Pressable>
+              </PressableScale>
             )}
 
-            <Pressable
+            <PressableScale
               onPress={handleGoogleLogin}
               style={styles.socialButton}
             >
               <GoogleLogo width={24} height={24} />
               <Text style={styles.socialText}>{t('auth.google')}</Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </View>
       </KeyboardAvoidingView>

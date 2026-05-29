@@ -12,7 +12,8 @@ import {
 } from "@/assets/icons";
 import { BlurView } from "expo-blur";
 import type { FC } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SvgProps } from "react-native-svg";
@@ -53,9 +54,9 @@ const WorkoutPlanHeader = ({ navigation, route }: NativeStackHeaderProps) => {
         {hasIcons ? (
           <View style={styles.row}>
             <View style={styles.left}>
-              <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+              <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
                 <ArrowBack width={24} height={24} />
-              </Pressable>
+              </PressableScale>
               <View style={styles.textBlock}>
                 <Text style={styles.subtitle}>{subtitle}</Text>
                 <Text style={styles.title}>{title}</Text>
@@ -70,9 +71,9 @@ const WorkoutPlanHeader = ({ navigation, route }: NativeStackHeaderProps) => {
           </View>
         ) : (
           <>
-            <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+            <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
               <ArrowBack width={24} height={24} />
-            </Pressable>
+            </PressableScale>
             <View style={styles.textBlock}>
               <Text style={styles.subtitle}>{subtitle}</Text>
               <Text style={styles.title}>{title}</Text>

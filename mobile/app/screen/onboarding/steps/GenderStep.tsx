@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS } from '@/app/constants/colors'
@@ -53,7 +54,7 @@ const GenderStep = ({ value, onSelect }: GenderStepProps) => {
           )
 
           return (
-            <Pressable
+            <PressableScale
               key={gender}
               style={styles.cardWrapper}
               onPress={() => onSelect(gender)}
@@ -72,7 +73,7 @@ const GenderStep = ({ value, onSelect }: GenderStepProps) => {
                   {card}
                 </View>
               )}
-            </Pressable>
+            </PressableScale>
           )
         })}
       </View>

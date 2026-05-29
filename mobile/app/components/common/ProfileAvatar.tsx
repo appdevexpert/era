@@ -2,7 +2,8 @@ import { COLORS } from "@/app/constants/colors";
 import { type HomeStackParamList } from "@/app/navigation/types";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleSheet, Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 interface ProfileAvatarProps {
   /** Letter shown inside the circle — usually the user's first initial. */
@@ -22,7 +23,7 @@ const ProfileAvatar = ({ initial, onPress, marginBottom }: ProfileAvatarProps) =
   const handlePress = onPress ?? (() => navigation.navigate("Profile"));
 
   return (
-    <Pressable
+    <PressableScale
       onPress={handlePress}
       style={[styles.avatar, marginBottom !== undefined && { marginBottom }]}
       hitSlop={10}
@@ -32,7 +33,7 @@ const ProfileAvatar = ({ initial, onPress, marginBottom }: ProfileAvatarProps) =
         style={StyleSheet.absoluteFill}
       />
       <Text style={styles.text}>{initial}</Text>
-    </Pressable>
+    </PressableScale>
   );
 };
 

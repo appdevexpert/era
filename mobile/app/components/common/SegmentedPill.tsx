@@ -1,7 +1,8 @@
+import PressableScale from "@/app/components/common/PressableScale";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { useEffect } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -49,7 +50,7 @@ const SegmentedPill = ({
   const handleToggle = () => onChange?.(selectedIndex === 0 ? 1 : 0);
 
   return (
-    <Pressable onPress={handleToggle} style={styles.track}>
+    <PressableScale onPress={handleToggle} style={styles.track}>
       <Animated.View style={[styles.pill, pillStyle]} />
       <View style={styles.half} pointerEvents="none">
         <Text style={styles.label}>{leftLabel}</Text>
@@ -57,7 +58,7 @@ const SegmentedPill = ({
       <View style={styles.half} pointerEvents="none">
         <Text style={styles.label}>{rightLabel}</Text>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 };
 

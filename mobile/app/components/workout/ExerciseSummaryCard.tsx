@@ -2,7 +2,8 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { ChevronRight } from "@/assets/icons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 
 export interface ExerciseSummaryDelta {
   kg: number;
@@ -74,12 +75,12 @@ const ExerciseSummaryCard = ({
 
   if (onPress) {
     return (
-      <Pressable
+      <PressableScale
         onPress={onPress}
-        style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+        style={styles.card}
       >
         {inner}
-      </Pressable>
+      </PressableScale>
     );
   }
   return <View style={styles.card}>{inner}</View>;

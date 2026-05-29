@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { Feather } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useTranslation } from 'react-i18next'
@@ -158,7 +158,7 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
                     autoCapitalize="none"
                     style={styles.input}
                   />
-                  <Pressable
+                  <PressableScale
                     hitSlop={12}
                     onPress={() => setPasswordHidden((prev) => !prev)}
                     style={styles.eyeButton}
@@ -168,7 +168,7 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
                       size={22}
                       color={COLORS.primary.dark}
                     />
-                  </Pressable>
+                  </PressableScale>
                 </View>
 
                 <View style={styles.inputWrap}>
@@ -182,7 +182,7 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
                     autoCapitalize="none"
                     style={styles.input}
                   />
-                  <Pressable
+                  <PressableScale
                     hitSlop={12}
                     onPress={() => setConfirmPasswordHidden((prev) => !prev)}
                     style={styles.eyeButton}
@@ -192,7 +192,7 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
                       size={22}
                       color={COLORS.primary.dark}
                     />
-                  </Pressable>
+                  </PressableScale>
                 </View>
               </View>
 

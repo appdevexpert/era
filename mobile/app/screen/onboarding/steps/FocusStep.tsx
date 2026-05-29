@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import type { SvgProps } from 'react-native-svg'
 import { COLORS } from '@/app/constants/colors'
@@ -78,7 +79,7 @@ const FocusStep = ({ value, onSelect }: FocusStepProps) => {
       {FOCUS_OPTIONS.map(({ key, icons }) => {
         const isSelected = value === key
         return (
-          <Pressable key={key} style={styles.cardWrapper} onPress={() => onSelect(key)}>
+          <PressableScale key={key} style={styles.cardWrapper} onPress={() => onSelect(key)}>
             <AnimatedSelectableCard
               selected={isSelected}
               style={styles.cardFrame}
@@ -99,7 +100,7 @@ const FocusStep = ({ value, onSelect }: FocusStepProps) => {
                 })}
               </View>
             </AnimatedSelectableCard>
-          </Pressable>
+          </PressableScale>
         )
       })}
     </View>

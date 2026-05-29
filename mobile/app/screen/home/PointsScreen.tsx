@@ -12,7 +12,8 @@ import type { PointEventRow, PointEventType } from "@/app/services/sessionServic
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
@@ -130,7 +131,7 @@ const PointsScreen = () => {
         ]}
       >
         {/* Tip card */}
-        <Pressable style={styles.tipCard} onPress={() => optimizeSheetRef.current?.show()}>
+        <PressableScale style={styles.tipCard} onPress={() => optimizeSheetRef.current?.show()}>
           <ChartGold width={42} height={42} />
           <View style={styles.tipContent}>
             <Text style={styles.tipTitle}>{t("workout.ui.howToOptimise")}</Text>
@@ -141,7 +142,7 @@ const PointsScreen = () => {
             height={16}
             style={{ transform: [{ rotate: "180deg" }] }}
           />
-        </Pressable>
+        </PressableScale>
 
         {/* History */}
         <Text style={styles.sectionLabel}>{t("workout.ui.history")}</Text>
@@ -161,9 +162,9 @@ const PointsScreen = () => {
         style={[styles.header, { paddingTop: insets.top }]}
       >
         <View style={styles.headerContent}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
+          <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
             <ArrowBack width={24} height={24} />
-          </Pressable>
+          </PressableScale>
           <View style={styles.titleBlock}>
             <Text style={styles.title}>{t("workout.ui.pointsTitle")}</Text>
             <Svg height={50} width={200}>

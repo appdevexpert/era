@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Dimensions, StyleSheet, Text, View } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import Svg, { Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 'react-native-svg'
 import Animated, {
   Easing,
@@ -115,7 +116,7 @@ const UnitSwitch = ({
     <View style={styles.unitSwitch}>
       <Animated.View style={[styles.unitSelectedPill, selectedPillStyle]} />
       {UNIT_OPTIONS.map((option) => (
-        <Pressable
+        <PressableScale
           key={option}
           style={styles.unitOption}
           onPress={() => {
@@ -124,7 +125,7 @@ const UnitSwitch = ({
           }}
         >
           <Text style={styles.unitOptionText}>{UNIT_CONFIG[option].label}</Text>
-        </Pressable>
+        </PressableScale>
       ))}
     </View>
   )

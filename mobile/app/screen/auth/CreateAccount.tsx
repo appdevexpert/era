@@ -2,13 +2,13 @@ import { ReactNode, useEffect, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import PressableScale from '@/app/components/common/PressableScale'
 import { Feather } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useTranslation } from 'react-i18next'
@@ -145,7 +145,7 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
               onChangeText={(v) => { setPassword(v); clearValidation() }}
               secureTextEntry={passwordHidden}
               rightAccessory={(
-                <Pressable
+                <PressableScale
                   hitSlop={12}
                   onPress={() => setPasswordHidden((prev) => !prev)}
                   style={styles.eyeButton}
@@ -155,7 +155,7 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
                     size={22}
                     color={COLORS.primary.dark}
                   />
-                </Pressable>
+                </PressableScale>
               )}
             />
             <AuthInput
@@ -165,7 +165,7 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
               onChangeText={(v) => { setConfirmPassword(v); clearValidation() }}
               secureTextEntry={confirmPasswordHidden}
               rightAccessory={(
-                <Pressable
+                <PressableScale
                   hitSlop={12}
                   onPress={() => setConfirmPasswordHidden((prev) => !prev)}
                   style={styles.eyeButton}
@@ -175,7 +175,7 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
                     size={22}
                     color={COLORS.primary.dark}
                   />
-                </Pressable>
+                </PressableScale>
               )}
             />
           </View>

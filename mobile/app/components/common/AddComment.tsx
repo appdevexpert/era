@@ -1,7 +1,8 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { MicLargeIcon } from "@/assets/icons";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 type AddCommentProps = {
@@ -27,9 +28,9 @@ const AddComment = ({ value, onChangeText, onMicPress }: AddCommentProps) => {
           multiline
           textAlignVertical="top"
         />
-        <Pressable style={styles.micButton} onPress={onMicPress} hitSlop={8}>
+        <PressableScale style={styles.micButton} onPress={onMicPress} hitSlop={8}>
           <MicLargeIcon width={24} height={24} />
-        </Pressable>
+        </PressableScale>
       </View>
     </View>
   );

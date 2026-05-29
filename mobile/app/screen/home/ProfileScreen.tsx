@@ -31,12 +31,12 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useRef } from "react";
 import {
   ActivityIndicator,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -196,13 +196,13 @@ const ProfileScreen = () => {
 
       <ScreenFades topExtra={80} bottomExtra={60} />
 
-      <Pressable
+      <PressableScale
         onPress={() => navigation.goBack()}
         hitSlop={12}
         style={[styles.backButton, { top: insets.top + 8 }]}
       >
         <ProfileBackChevron width={24} height={24} />
-      </Pressable>
+      </PressableScale>
 
       <ManageSubscriptionBottomSheet ref={subscriptionSheetRef} />
     </View>

@@ -5,7 +5,8 @@ import { WorkoutCard as WorkoutCardBg } from "@/assets/images";
 import GlassFill from "@/app/components/common/GlassFill";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 // Figma: card 337x297, content at (24,24) w=289, program at (25,222), start at (237,197)
@@ -43,7 +44,7 @@ const WorkoutCard = ({
 
   return (
     <View style={styles.wrapper}>
-      <Pressable onPress={onCardPress} style={styles.cardPressLayer}>
+      <PressableScale onPress={onCardPress} style={styles.cardPressLayer}>
         {/* Card shape image */}
         <Image
           source={WorkoutCardBg}
@@ -104,10 +105,10 @@ const WorkoutCard = ({
             </View>
           </View>
         </View>
-      </Pressable>
+      </PressableScale>
 
       {/* Start / View button */}
-      <Pressable onPress={onStartPress} style={styles.startButton}>
+      <PressableScale onPress={onStartPress} style={styles.startButton}>
         <GlassView
           pointerEvents="none"
           glassEffectStyle={{
@@ -132,7 +133,7 @@ const WorkoutCard = ({
         <Text style={[styles.startText, completed && styles.startTextCompleted]}>
           {completed ? t("workout.ui.view") : t("workout.ui.start")}
         </Text>
-      </Pressable>
+      </PressableScale>
 
 
     </View>

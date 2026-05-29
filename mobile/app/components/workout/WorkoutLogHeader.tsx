@@ -2,10 +2,11 @@ import { ArrowBack } from "@/assets/icons";
 import { COLORS, GRADIENTS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { horizontalScale } from "@/app/utils/responsive";
-import GlassFill from "@/app/components/common/GlassFill";
+import IconButton from "@/app/components/common/IconButton";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import Animated, {
   Extrapolation,
@@ -145,9 +146,9 @@ const WorkoutLogHeader = ({
     <BlurView intensity={24} tint="dark" style={[styles.header, { paddingTop: topInset + 8 }]}>
       {/* Nav row */}
       <View style={styles.navRow}>
-        <Pressable onPress={onBack} hitSlop={12}>
+        <PressableScale onPress={onBack} hitSlop={12}>
           <ArrowBack width={24} height={24} />
-        </Pressable>
+        </PressableScale>
 
         <View style={styles.navContent}>
           <Animated.View
@@ -213,19 +214,17 @@ const WorkoutLogHeader = ({
           </View>
         </View>
 
-        <Pressable onPress={onAddSet} disabled={!canAddSet} hitSlop={8}>
-          <View
-            style={[styles.addSetBtn, !canAddSet && styles.addSetBtnDisabled]}
-          >
-            <GlassFill />
-            <LinearGradient
-              pointerEvents="none"
-              colors={["rgba(201,168,76,0.12)", "rgba(241,203,48,0.12)"]}
-              style={StyleSheet.absoluteFill}
-            />
-            <Text style={styles.addSetIcon}>+</Text>
-          </View>
-        </Pressable>
+        <IconButton
+          onPress={onAddSet}
+          disabled={!canAddSet}
+          hitSlop={8}
+          size={32}
+          borderRadius={16}
+          glassEffect="regular"
+          tint="subtle"
+        >
+          <Text style={styles.addSetIcon}>+</Text>
+        </IconButton>
       </View> : null}
     </BlurView>
   );
@@ -374,17 +373,6 @@ const styles = StyleSheet.create({
   },
   setLabelActive: {
     color: COLORS.primary.dark,
-  },
-  addSetBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  addSetBtnDisabled: {
-    opacity: 0.3,
   },
   addSetIcon: {
     fontFamily: FONTS.medium,

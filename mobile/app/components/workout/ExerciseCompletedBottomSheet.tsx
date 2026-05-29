@@ -4,7 +4,8 @@ import { FONTS } from "@/app/constants/fonts";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { forwardRef, useCallback, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 
@@ -80,7 +81,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
           <AddComment value={comment} onChangeText={setComment} />
 
           {/* Continue button */}
-          <Pressable style={styles.continueBtn} onPress={handleContinue}>
+          <PressableScale style={styles.continueBtn} onPress={handleContinue}>
             <LinearGradient
               colors={[
                 "rgba(201,168,76,0.6)",
@@ -93,7 +94,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
             />
             <GlassFill />
             <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
-          </Pressable>
+          </PressableScale>
         </BottomSheetView>
       </BottomSheet>
     );

@@ -7,7 +7,8 @@ import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useRoute } from "@react-navigation/native";
@@ -254,18 +255,18 @@ const CardioTimerScreen = () => {
 
         {/* Cancel / Start buttons */}
         <View style={styles.controlsRow}>
-          <Pressable style={styles.cancelBtn} onPress={handleCancel}>
+          <PressableScale style={styles.cancelBtn} onPress={handleCancel}>
             <Text style={styles.cancelBtnText}>{t("workout.ui.cancel")}</Text>
-          </Pressable>
+          </PressableScale>
 
-          <Pressable
+          <PressableScale
             style={[styles.startBtn, running && styles.stopBtn]}
             onPress={running ? handleStop : handleStart}
           >
             <Text style={[styles.startBtnText, running && styles.stopBtnText]}>
               {running ? "Stop" : t("workout.ui.start")}
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </Animated.ScrollView>
 
@@ -279,7 +280,7 @@ const CardioTimerScreen = () => {
 
       {/* Complete Session button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={styles.completeBtn} onPress={async () => {
+        <PressableScale style={styles.completeBtn} onPress={async () => {
           const exIdx = exerciseIndex - 1;
           const actualDuration = duration - remaining;
 
@@ -309,7 +310,7 @@ const CardioTimerScreen = () => {
           <Text style={styles.completeBtnText}>
             {t("workout.ui.completeSession")}
           </Text>
-        </Pressable>
+        </PressableScale>
       </View>
     </View>
   );

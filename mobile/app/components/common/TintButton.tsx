@@ -1,8 +1,9 @@
 import GlassFill from "@/app/components/common/GlassFill";
+import PressableScale from "@/app/components/common/PressableScale";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 
 export type TintButtonVariant = "destructive" | "gold";
 
@@ -15,7 +16,7 @@ interface TintButtonProps {
 }
 
 const TintButton = ({ label, onPress, variant, style, disabled = false }: TintButtonProps) => (
-  <Pressable
+  <PressableScale
     style={[styles.base, style, disabled && styles.disabled]}
     onPress={onPress}
     disabled={disabled}
@@ -33,7 +34,7 @@ const TintButton = ({ label, onPress, variant, style, disabled = false }: TintBu
     )}
     <GlassFill style={styles.fill} />
     <Text style={styles.label}>{label}</Text>
-  </Pressable>
+  </PressableScale>
 );
 
 export default TintButton;

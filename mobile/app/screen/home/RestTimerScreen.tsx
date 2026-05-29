@@ -3,10 +3,10 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
-import GlassFill from "@/app/components/common/GlassFill";
-import { LinearGradient } from "expo-linear-gradient";
+import IconButton from "@/app/components/common/IconButton";
 import { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useRoute } from "@react-navigation/native";
@@ -200,9 +200,9 @@ const RestTimerScreen = () => {
           label={t("workout.ui.seconds")}
         />
 
-        <Pressable style={styles.addBtn} onPress={handleAdd30}>
+        <PressableScale style={styles.addBtn} onPress={handleAdd30}>
           <Text style={styles.addBtnText}>{t("workout.ui.addSeconds")}</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       {/* Up Next card */}
@@ -217,19 +217,19 @@ const RestTimerScreen = () => {
             })}
           </Text>
         </View>
-        <Pressable style={styles.upNextChevron} onPress={goToExercise}>
-          <GlassFill scheme="light" />
-          <LinearGradient
-            pointerEvents="none"
-            colors={["rgba(201,168,76,0.12)", "rgba(241,203,48,0.12)"]}
-            style={StyleSheet.absoluteFill}
-          />
+        <IconButton
+          onPress={goToExercise}
+          size={42}
+          glassEffect="regular"
+          scheme="light"
+          tint="subtle"
+        >
           <ChevronBack
             width={20}
             height={20}
             style={{ transform: [{ rotate: "180deg" }] }}
           />
-        </Pressable>
+        </IconButton>
       </View>
     </View>
   );
@@ -331,13 +331,5 @@ const styles = StyleSheet.create({
     color: COLORS.primary.dark,
     letterSpacing: 0.56,
     textTransform: "uppercase",
-  },
-  upNextChevron: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
   },
 });

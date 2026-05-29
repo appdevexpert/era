@@ -10,7 +10,8 @@ import BottomSheet from "@gorhom/bottom-sheet";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
@@ -230,18 +231,18 @@ const TimerLogScreen = () => {
 
         {/* Start / Reset buttons */}
         <View style={styles.controlsRow}>
-          <Pressable style={styles.resetBtn} onPress={resetStopwatch}>
+          <PressableScale style={styles.resetBtn} onPress={resetStopwatch}>
             <Text style={styles.resetBtnText}>{t("workout.ui.reset")}</Text>
-          </Pressable>
+          </PressableScale>
 
-          <Pressable
+          <PressableScale
             style={[styles.startBtn, running && styles.stopBtn]}
             onPress={running ? stopStopwatch : startStopwatch}
           >
             <Text style={[styles.startBtnText, running && styles.stopBtnText]}>
               {running ? "Stop" : t("workout.ui.start")}
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </Animated.ScrollView>
 

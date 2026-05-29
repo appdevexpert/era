@@ -69,8 +69,8 @@ const MealCard = ({ meal, onToggle, disabled }: MealCardProps) => {
           <IconButton
             size={40}
             tint={added ? "subtle" : "emphasized"}
-            onPress={!disabled && onToggle ? () => onToggle(meal) : undefined}
-            style={disabled ? { opacity: 0.4 } : undefined}
+            onPress={onToggle ? () => onToggle(meal) : undefined}
+            disabled={disabled}
           >
             {added ? (
               <TablerMinus width={20} height={20} color={BUTTON_ICON_COLOR} />

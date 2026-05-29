@@ -1,7 +1,8 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
-import { Pressable, StyleProp, StyleSheet, ViewStyle } from "react-native";
+import { StyleProp, StyleSheet, ViewStyle } from "react-native";
 import GlassFill from "./GlassFill";
+import PressableScale from "./PressableScale";
 
 export type IconButtonTint = "none" | "subtle" | "regular" | "emphasized";
 
@@ -15,6 +16,8 @@ interface IconButtonProps {
   borderRadius?: number;
   /** Glass effect intensity. `"clear"` is the lighter variant used for chips. */
   glassEffect?: "regular" | "clear";
+  /** Glass color scheme — `"light"` brightens the glass for use on darker surfaces. */
+  scheme?: "dark" | "light";
   /** Gold gradient overlay strength. Use `"none"` for pure glass. */
   tint?: IconButtonTint;
   disabled?: boolean;
@@ -39,6 +42,7 @@ const IconButton = ({
   size = 32,
   borderRadius,
   glassEffect = "clear",
+  scheme = "dark",
   tint = "regular",
   disabled,
   style,
@@ -48,18 +52,19 @@ const IconButton = ({
   const tintAlpha = tint === "none" ? null : TINT_ALPHA[tint];
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
       hitSlop={hitSlop}
-      style={({ pressed }) => [
+      style={[
         styles.base,
-        { width: size, height: size, borderRadius: radius, opacity: pressed ? 0.85 : 1 },
+        { width: size, height: size, borderRadius: radius },
+        disabled && styles.disabled,
         style,
       ]}
     >
-      <GlassFill effect={glassEffect} scheme="dark" style={{ borderRadius: radius }} />
-      {tintAlpha !== null ? (
+      <GlassFill effect={glassEffect} scheme={scheme} style={{ borderRadius: radius }} />
+      {tintAlpha !== null && !disabled ? (
         <LinearGradient
           pointerEvents="none"
           colors={[`rgba(201,168,76,${tintAlpha})`, `rgba(241,203,48,${tintAlpha})`]}
@@ -69,7 +74,7 @@ const IconButton = ({
         />
       ) : null}
       {children}
-    </Pressable>
+    </PressableScale>
   );
 };
 
@@ -80,5 +85,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+  },
+  disabled: {
+    opacity: 0.4,
   },
 });

@@ -29,6 +29,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -132,7 +133,7 @@ const CompletedExerciseRow = ({
   exercise: CompletedExerciseView;
   onPress: () => void;
 }) => (
-  <Pressable style={styles.exerciseRow} onPress={onPress}>
+  <PressableScale style={styles.exerciseRow} onPress={onPress}>
     <View style={[styles.exerciseCopy, { flex: 1 }]}>
       <Text numberOfLines={1} style={styles.exerciseName}>
         {exercise.name}
@@ -146,7 +147,7 @@ const CompletedExerciseRow = ({
       </View>
     </View>
     <ChevronRight width={16} height={16} color="#F0F0F0" />
-  </Pressable>
+  </PressableScale>
 );
 
 const SkippedExerciseRow = ({

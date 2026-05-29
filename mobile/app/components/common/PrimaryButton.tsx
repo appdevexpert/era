@@ -1,6 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient'
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text } from 'react-native'
 import GlassFill from '@/app/components/common/GlassFill'
+import PressableScale from '@/app/components/common/PressableScale'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 
@@ -13,7 +14,7 @@ interface PrimaryButtonProps {
 
 const PrimaryButton = ({ label, onPress, disabled = false, loading = false }: PrimaryButtonProps) => {
   return (
-    <Pressable onPress={onPress} disabled={disabled || loading}>
+    <PressableScale onPress={onPress} disabled={disabled || loading}>
       <LinearGradient
         colors={
           disabled || loading
@@ -31,7 +32,7 @@ const PrimaryButton = ({ label, onPress, disabled = false, loading = false }: Pr
           <Text style={styles.label}>{label}</Text>
         )}
       </LinearGradient>
-    </Pressable>
+    </PressableScale>
   )
 }
 

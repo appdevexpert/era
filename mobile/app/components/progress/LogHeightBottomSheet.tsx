@@ -18,7 +18,8 @@ import {
   useRef,
   useState,
 } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import Animated, {
   useAnimatedStyle,
@@ -185,7 +186,7 @@ const LogHeightBottomSheet = forwardRef<
           </View>
 
           <View style={styles.unitToggleWrap}>
-            <Pressable
+            <PressableScale
               onPress={() => handleUnitToggle(unit === "cm" ? "ft" : "cm")}
               style={styles.unitTrack}
             >
@@ -200,7 +201,7 @@ const LogHeightBottomSheet = forwardRef<
                   {t("progress.logHeightSheet.unitFt")}
                 </Text>
               </View>
-            </Pressable>
+            </PressableScale>
           </View>
 
           <View style={styles.valueRulerCol}>

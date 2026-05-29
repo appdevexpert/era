@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { Feather } from "@expo/vector-icons";
@@ -294,11 +294,11 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
               {workoutError ? (
                 <Text style={styles.errorText}>{workoutError}</Text>
               ) : null}
-              <Pressable onPress={handleRetry} style={styles.retryButton}>
+              <PressableScale onPress={handleRetry} style={styles.retryButton}>
                 <Text style={styles.retryText}>
                   {t("planGeneration.actions.retry")}
                 </Text>
-              </Pressable>
+              </PressableScale>
             </View>
           ) : null}
         </View>

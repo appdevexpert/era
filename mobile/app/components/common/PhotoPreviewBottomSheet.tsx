@@ -18,11 +18,11 @@ import {
 import {
   Image,
   ImageSourcePropType,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 export interface PhotoPreviewBottomSheetRef {
@@ -114,12 +114,9 @@ const PhotoPreviewBottomSheet = forwardRef<
           </Text>
 
           {/* Download CTA — glass pill tinted with gold gradient */}
-          <Pressable
+          <PressableScale
             onPress={handleDownload}
-            style={({ pressed }) => [
-              styles.downloadBtn,
-              pressed && { opacity: 0.85 },
-            ]}
+            style={styles.downloadBtn}
           >
             <GlassFill style={styles.downloadGlass} />
             <LinearGradient
@@ -133,7 +130,7 @@ const PhotoPreviewBottomSheet = forwardRef<
             <Text style={styles.downloadText}>
               {t("progress.photoPreview.download")}
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </BottomSheetView>
     </BottomSheetModal>

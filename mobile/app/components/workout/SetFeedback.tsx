@@ -2,7 +2,8 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { FeedbackLight, FeedbackCorrect, FeedbackHeavy } from "@/assets/icons";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import type { SvgProps } from "react-native-svg";
 
@@ -38,14 +39,14 @@ const SetFeedback = ({ onSelect }: SetFeedbackProps) => {
         {OPTIONS.map(({ key, labelKey, Icon }) => {
           const isSelected = selected === key;
           return (
-            <Pressable
+            <PressableScale
               key={key}
               style={[styles.card, isSelected && styles.cardSelected]}
               onPress={() => handlePress(key)}
             >
               <Text style={styles.cardLabel}>{t(labelKey)}</Text>
               <Icon width={39} height={39} />
-            </Pressable>
+            </PressableScale>
           );
         })}
       </View>

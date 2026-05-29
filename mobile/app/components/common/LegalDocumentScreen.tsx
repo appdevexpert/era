@@ -5,12 +5,12 @@ import { verticalScale } from "@/app/utils/responsive";
 import { ProfileBackChevron } from "@/assets/icons";
 import { useNavigation } from "@react-navigation/native";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type LegalSection = {
@@ -86,13 +86,13 @@ const LegalDocumentScreen = ({
 
       <ScreenFades topExtra={80} bottomExtra={60} />
 
-      <Pressable
+      <PressableScale
         onPress={() => navigation.goBack()}
         hitSlop={12}
         style={[styles.backButton, { top: insets.top + 8 }]}
       >
         <ProfileBackChevron width={24} height={24} />
-      </Pressable>
+      </PressableScale>
     </View>
   );
 };

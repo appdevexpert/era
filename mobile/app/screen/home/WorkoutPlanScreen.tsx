@@ -22,7 +22,8 @@ import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdjustmentInfoBottomSheet, { type AdjustmentInfoBottomSheetRef } from "@/app/components/workout/AdjustmentInfoBottomSheet";
-import { LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import Svg, { Line } from "react-native-svg";
@@ -103,7 +104,7 @@ const getDayPillColors = (status: WorkoutDayStatus, isToday = false) => {
 const DayPillItem = ({ pill, onPress }: { pill: DayPill; onPress?: () => void }) => {
   const colors = getDayPillColors(pill.status, pill.isToday);
   const hasGradient = pill.status !== "future";
-  const Wrapper = onPress ? Pressable : View;
+  const Wrapper = onPress ? PressableScale : View;
 
   return (
     <Wrapper style={styles.dayPillShadow} onPress={onPress}>
@@ -202,16 +203,16 @@ const WeekSection = ({ week, isLast, hasAdjustment, onDayPress, onInfoPress }: {
       </View>
 
       {week.weekNumber === 1 && hasAdjustment ? (
-        <Pressable style={styles.infoRow} onPress={() => onInfoPress(1)}>
+        <PressableScale style={styles.infoRow} onPress={() => onInfoPress(1)}>
           <InfoCircleGold width={18} height={18} />
           <Text style={styles.infoText}>{t("workout.ui.weekInitialNote")}</Text>
-        </Pressable>
+        </PressableScale>
       ) : null}
       {week.weekNumber === 4 && hasAdjustment ? (
-        <Pressable style={styles.infoRow} onPress={() => onInfoPress(4)}>
+        <PressableScale style={styles.infoRow} onPress={() => onInfoPress(4)}>
           <InfoCircleGold width={18} height={18} />
           <Text style={styles.infoText}>{t("workout.ui.weekAdjustedNote")}</Text>
-        </Pressable>
+        </PressableScale>
       ) : null}
     </View>
   );

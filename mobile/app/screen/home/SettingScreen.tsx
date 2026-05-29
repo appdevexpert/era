@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
 const SettingScreen = () => {
@@ -15,7 +16,7 @@ const SettingScreen = () => {
 
       <View style={styles.row}>
         <Text style={styles.label}>{t("language.title")}</Text>
-        <Pressable onPress={toggleLanguage} style={styles.langButton}>
+        <PressableScale onPress={toggleLanguage} style={styles.langButton}>
           <Text style={[styles.langOption, !isNorwegian && styles.langActive]}>
             {t("language.english")}
           </Text>
@@ -23,7 +24,7 @@ const SettingScreen = () => {
           <Text style={[styles.langOption, isNorwegian && styles.langActive]}>
             {t("language.norwegian")}
           </Text>
-        </Pressable>
+        </PressableScale>
       </View>
     </View>
   );
