@@ -20,7 +20,14 @@ const preferencesPersistConfig = { key: "preferences", storage: AsyncStorage };
 const workoutPersistConfig = {
   key: "workout",
   storage: AsyncStorage,
-  whitelist: ["programId", "overview", "currentDayDetail", "completedDayIds", "loadedAt"],
+  whitelist: [
+    "programId",
+    "overview",
+    "currentDayDetail",
+    "completedDayIds",
+    "loadedAt",
+    "versionSignature",
+  ],
 };
 const nutritionPersistConfig = {
   key: "nutrition",

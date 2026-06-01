@@ -3,6 +3,7 @@ import type { RootState } from "@/app/stores/store";
 import {
   buildWeekDays,
   canNavigateWeek,
+  dedupePlanMealLogs,
   phaseForWeek,
   planItemsForDate,
   sumMacros,
@@ -108,10 +109,15 @@ export const selectLogsForSelectedDate = createSelector(
     nutrition.logsByDate[nutrition.selectedDate] ?? [],
 );
 
-/** Daily totals (sum of selected date's logged kcal/macros). */
+/**
+ * Daily totals (sum of selected date's logged kcal/macros).
+ * Plan-linked logs are deduped by user_meal_plan_item_id so totals match
+ * what the UI renders (selectMergedMealRows also dedupes by plan_item_id).
+ * Without this, retry-driven server duplicates inflate the macros card.
+ */
 export const selectDailyTotals = createSelector(
   [selectLogsForSelectedDate],
-  (logs): DailyMacroTotals => sumMacros(logs),
+  (logs): DailyMacroTotals => sumMacros(dedupePlanMealLogs(logs).unique),
 );
 
 /** 7 day-pill view models for the week containing selectedDate. */

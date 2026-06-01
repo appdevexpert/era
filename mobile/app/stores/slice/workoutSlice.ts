@@ -5,6 +5,7 @@ import { loadWeightBootstrap } from "./weightSlice";
 import {
   getCompletedSessionDayIds,
   getProgramDayDetail,
+  getProgramVersion,
   getWorkoutOverview,
 } from "@/app/services/workoutService";
 import {
@@ -22,6 +23,7 @@ export type WorkoutBootstrapData = {
   currentDayDetail: ProgramDayDetailData;
   completedDayIds: string[];
   loadedAt: string;
+  versionSignature: string | null;
 };
 
 interface WorkoutState {
@@ -33,6 +35,13 @@ interface WorkoutState {
   /** program_day_ids of days with completed workout sessions */
   completedDayIds: string[];
   loadedAt: string | null;
+  /**
+   * "<MAX(updated_at)>:<total row count>" snapshot of the server at the time
+   * the bootstrap was fetched. Compared on app foreground to detect any
+   * admin-side change (insert / update / delete) without refetching the
+   * whole plan.
+   */
+  versionSignature: string | null;
 }
 
 const initialState: WorkoutState = {
@@ -43,6 +52,7 @@ const initialState: WorkoutState = {
   currentDayDetail: null,
   completedDayIds: [],
   loadedAt: null,
+  versionSignature: null,
 };
 
 type LoadWorkoutBootstrapArgs = {
@@ -116,17 +126,49 @@ export const loadWorkoutBootstrap = createAsyncThunk<
 
     const currentDayDetail = await getProgramDayDetail(targetDayId);
 
+    // Capture the server's change-signature AFTER all data is fetched. Any
+    // subsequent admin edit will move the signature forward; the next
+    // checkAndRefreshIfStale will see the mismatch and trigger a refetch.
+    const versionSignature = await getProgramVersion();
+
     return {
       programId: overview.program.id,
       overview,
       currentDayDetail,
       completedDayIds,
       loadedAt: new Date().toISOString(),
+      versionSignature,
     };
   } catch (error) {
     return rejectWithValue(
       error instanceof Error ? error.message : "Unable to load workout.",
     );
+  }
+});
+
+/**
+ * Asks the server for the latest program change-signature and refetches the
+ * full workout bootstrap only when the signature differs from the cached one.
+ * The signature ("<MAX(updated_at)>:<row count>") moves on insert / update /
+ * delete, so any admin-side change is detected. Runs silently — never blocks
+ * UI, never surfaces errors. Skips when no cache exists yet (PlanGeneration
+ * handles the cold-load case), when a load is already in flight, or when the
+ * cached entry pre-dates the signature feature (no versionSignature stored).
+ */
+export const checkAndRefreshIfStale = createAsyncThunk<
+  void,
+  void,
+  { state: RootState }
+>("workout/checkAndRefreshIfStale", async (_, { dispatch, getState }) => {
+  const workout = getState().workout;
+  if (!workout.overview) return;
+  if (workout.status === "loading") return;
+
+  const serverSignature = await getProgramVersion();
+  if (!serverSignature) return;
+
+  if (serverSignature !== workout.versionSignature) {
+    dispatch(loadWorkoutBootstrap());
   }
 });
 
@@ -155,6 +197,7 @@ const workoutSlice = createSlice({
       state.currentDayDetail = action.payload.currentDayDetail;
       state.completedDayIds = action.payload.completedDayIds;
       state.loadedAt = action.payload.loadedAt;
+      state.versionSignature = action.payload.versionSignature;
     });
     builder.addCase(loadWorkoutBootstrap.rejected, (state, action) => {
       state.status = "failed";

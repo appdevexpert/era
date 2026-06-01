@@ -20,9 +20,10 @@ import {
   insertWaterLog,
   updateWaterAmount,
 } from "@/app/services/nutritionService";
-import type {
-  AdjustWaterArgs,
-  ToggleMealLogArgs,
+import {
+  upsertMealLog,
+  type AdjustWaterArgs,
+  type ToggleMealLogArgs,
 } from "@/app/stores/slice/nutritionSlice";
 
 const MAX_RETRIES = 5;
@@ -57,7 +58,11 @@ export const useSyncQueue = () => {
       "nutrition.insertMealLog": async (params: ToggleMealLogArgs) => {
         if (params.action !== "insert") return;
         if (!userId) throw new Error("Cannot retry meal insert — not authenticated");
-        await insertMealLog({
+        // Same client-supplied id from the original attempt. If the row
+        // already exists on Supabase (the previous attempt actually won),
+        // insertMealLog's unique-violation branch returns the existing row.
+        const row = await insertMealLog({
+          id: params.insert.id,
           user_id: userId,
           log_date: params.date,
           user_meal_plan_item_id: params.insert.planItemId ?? null,
@@ -70,6 +75,12 @@ export const useSyncQueue = () => {
           fats_g: params.insert.fats_g,
           notes: params.insert.notes ?? null,
         });
+        // Bring the row back into Redux. The original thunk's rejected
+        // handler removed the optimistic row when the first attempt failed,
+        // so without this dispatch Redux would stay empty even though the
+        // server has the row — and the user would re-tap, creating a true
+        // duplicate with a different UUID that the PK constraint can't catch.
+        dispatch(upsertMealLog({ date: params.date, row }));
       },
       "nutrition.deleteMealLog": async (params: ToggleMealLogArgs) => {
         if (params.action !== "delete") return;
@@ -90,7 +101,7 @@ export const useSyncQueue = () => {
         }
       },
     }),
-    [userId],
+    [userId, dispatch],
   );
 
   /** Queue a failed write for retry */

@@ -7,7 +7,7 @@ import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -149,6 +149,7 @@ const CardioTimerScreen = () => {
   // Countdown
   const [remaining, setRemaining] = useState(duration);
   const [running, setRunning] = useState(false);
+  const [saving, setSaving] = useState(false);
   const animatedProgress = useSharedValue(1);
 
   useEffect(() => {
@@ -280,22 +281,34 @@ const CardioTimerScreen = () => {
 
       {/* Complete Session button */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <PressableScale style={styles.completeBtn} onPress={async () => {
-          const exIdx = exerciseIndex - 1;
-          const actualDuration = duration - remaining;
+        <PressableScale
+          style={styles.completeBtn}
+          disabled={saving}
+          onPress={async () => {
+            if (saving) return;
+            setSaving(true);
+            try {
+              const exIdx = exerciseIndex - 1;
+              const actualDuration = duration - remaining;
 
-          // Log cardio duration to session_sets + session_cardio_logs
-          await logCardioResult(exIdx, actualDuration);
-          await completeExerciseResult(exIdx);
+              // Log cardio duration to session_sets + session_cardio_logs
+              await logCardioResult(exIdx, actualDuration);
+              await completeExerciseResult(exIdx);
 
-          const nextIdx = exIdx + 1;
-          const total = sessionWorkout?.exercises.length ?? 0;
-          if (nextIdx >= total) {
-            navigateToSessionComplete();
-          } else {
-            navigateToRest(nextIdx, 1);
-          }
-        }}>
+              const nextIdx = exIdx + 1;
+              const total = sessionWorkout?.exercises.length ?? 0;
+              if (nextIdx >= total) {
+                navigateToSessionComplete();
+              } else {
+                navigateToRest(nextIdx, 1);
+              }
+              // Keep saving=true so spinner stays until screen unmounts on navigation
+            } catch (e) {
+              setSaving(false);
+              throw e;
+            }
+          }}
+        >
           <LinearGradient
             colors={[
               "rgba(201,168,76,0.6)",
@@ -307,9 +320,13 @@ const CardioTimerScreen = () => {
             style={StyleSheet.absoluteFill}
           />
           <GlassFill />
-          <Text style={styles.completeBtnText}>
-            {t("workout.ui.completeSession")}
-          </Text>
+          {saving ? (
+            <ActivityIndicator color={COLORS.neutral.white} />
+          ) : (
+            <Text style={styles.completeBtnText}>
+              {t("workout.ui.completeSession")}
+            </Text>
+          )}
         </PressableScale>
       </View>
     </View>

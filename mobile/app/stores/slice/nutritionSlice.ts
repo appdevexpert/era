@@ -328,8 +328,13 @@ export const adjustWaterAmount = createAsyncThunk<
 // -------- writes: +/− toggle on a meal row ---------------------------
 
 export interface ToggleInsertArgs {
-  /** Pre-generated temp id used by the optimistic row. */
-  tempId: string;
+  /**
+   * Client-generated UUID used as BOTH the optimistic row's id and the
+   * Supabase row's primary key. Sending the same id on a retry makes the
+   * insert idempotent — the second attempt hits the PK unique constraint
+   * and is treated as success by `insertMealLog`.
+   */
+  id: string;
   category: MealCategoryEnum;
   source: MealLogSource;
   /** The plan item this log fulfils, when toggling a planned meal. */
@@ -371,6 +376,7 @@ export const toggleMealLog = createAsyncThunk<
   try {
     if (args.action === "insert") {
       const payload: MealLogInsertPayload = {
+        id: args.insert.id,
         user_id: userId,
         log_date: args.date,
         user_meal_plan_item_id: args.insert.planItemId ?? null,
@@ -417,6 +423,20 @@ const nutritionSlice = createSlice({
     /** Set the selected date without fetching. Used by tests / dev tools. */
     setSelectedDate(state, action: PayloadAction<string>) {
       state.selectedDate = action.payload;
+    },
+    /**
+     * Idempotently add a server row into logsByDate, keyed by `id`. Used
+     * by the sync queue when an insertMealLog retry succeeds AFTER the
+     * thunk's rejected handler already rolled back the optimistic row —
+     * without this, Redux would stay empty even though the server has the
+     * row, and the user would re-tap and create a true duplicate.
+     */
+    upsertMealLog(state, action: PayloadAction<{ date: string; row: MealLogRow }>) {
+      const { date, row } = action.payload;
+      const list = state.logsByDate[date] ??= [];
+      const idx = list.findIndex((r) => r.id === row.id);
+      if (idx >= 0) list[idx] = row;
+      else list.push(row);
     },
   },
   extraReducers: (builder) => {
@@ -505,7 +525,7 @@ const nutritionSlice = createSlice({
       const args = action.meta.arg;
       if (args.action === "insert") {
         const optimistic: MealLogRow = {
-          id: args.insert.tempId,
+          id: args.insert.id,
           user_id: "",
           log_date: args.date,
           user_meal_plan_item_id: args.insert.planItemId ?? null,
@@ -529,8 +549,11 @@ const nutritionSlice = createSlice({
     builder.addCase(toggleMealLog.fulfilled, (state, action) => {
       const args = action.meta.arg;
       if (args.action === "insert" && action.payload.inserted) {
+        // Optimistic row's id == server row's id (client-supplied UUID),
+        // so this just refreshes the row with the canonical server values
+        // (e.g. user_id, which we left blank optimistically).
         const list = state.logsByDate[args.date] ?? [];
-        const idx = list.findIndex((row) => row.id === args.insert.tempId);
+        const idx = list.findIndex((row) => row.id === args.insert.id);
         if (idx >= 0) list[idx] = action.payload.inserted;
         else list.push(action.payload.inserted);
         state.logsByDate[args.date] = list;
@@ -541,7 +564,7 @@ const nutritionSlice = createSlice({
       if (args.action === "insert") {
         state.logsByDate[args.date] = removeRow(
           state.logsByDate[args.date],
-          args.insert.tempId,
+          args.insert.id,
         );
       } else {
         (state.logsByDate[args.date] ??= []).push(args.delete.snapshot);
@@ -553,5 +576,5 @@ const nutritionSlice = createSlice({
   },
 });
 
-export const { clearNutritionCache, setSelectedDate } = nutritionSlice.actions;
+export const { clearNutritionCache, setSelectedDate, upsertMealLog } = nutritionSlice.actions;
 export default nutritionSlice.reducer;

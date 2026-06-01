@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Linking } from "react-native";
+import { AppState, Linking } from "react-native";
 import {
   AuthNavigator,
   HomeNavigator,
@@ -12,7 +12,10 @@ import {
   loadGoalDataFromSupabase,
   submitGoalData,
 } from "@/app/stores/slice/onboardingSlice";
-import { clearWorkoutCache } from "@/app/stores/slice/workoutSlice";
+import {
+  checkAndRefreshIfStale,
+  clearWorkoutCache,
+} from "@/app/stores/slice/workoutSlice";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
@@ -154,6 +157,22 @@ const Navigation = () => {
   useEffect(() => {
     if (queueLength > 0) flushQueue();
   }, [queueLength, flushQueue]);
+
+  // Detect admin-side program changes. Compares server's MAX(updated_at)
+  // against the cached loadedAt and silently refetches the workout bootstrap
+  // only when the server is newer — no UI, no spinner. Fires on:
+  //   (a) cold start once redux has rehydrated and the user is logged in,
+  //   (b) every background → active transition.
+  // AppState's "change" event only fires on transitions, so without (a) a
+  // freshly-launched app would never validate its cache.
+  useEffect(() => {
+    if (!isLoggedIn || !hasWorkoutBootstrap) return;
+    dispatch(checkAndRefreshIfStale());
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") dispatch(checkAndRefreshIfStale());
+    });
+    return () => sub.remove();
+  }, [dispatch, isLoggedIn, hasWorkoutBootstrap]);
 
   // Pull the user's body data from Supabase whenever we know who they are.
   // Cheap network call; harmless if Redux already has fresh values.

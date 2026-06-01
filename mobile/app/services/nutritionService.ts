@@ -110,10 +110,15 @@ export async function getMealLogsForRange(
   return (data ?? []) as MealLogRow[];
 }
 
-/** Payload for INSERT INTO meal_logs (no id; server generates). */
-export type MealLogInsertPayload = Omit<MealLogRow, "id">;
+/**
+ * Payload for INSERT INTO meal_logs. The client provides the `id` (a UUID
+ * generated up-front) so retries are idempotent — if the original insert
+ * succeeded server-side but the response was lost, the retry hits the PK
+ * unique constraint and we treat it as success.
+ */
+export type MealLogInsertPayload = MealLogRow;
 
-/** Insert a single meal_log row, returning the saved row with its server id. */
+/** Insert a single meal_log row, returning the saved row. */
 export async function insertMealLog(
   payload: MealLogInsertPayload,
 ): Promise<MealLogRow> {
@@ -123,7 +128,22 @@ export async function insertMealLog(
     .select("*")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // 23505 = unique_violation. The row already exists with this client-
+    // supplied id, which means our original insert won the race even though
+    // we never saw the response. Fetch and return the existing row so the
+    // caller can treat the write as successful.
+    if (error.code === "23505") {
+      const existing = await supabase
+        .from("meal_logs")
+        .select("*")
+        .eq("id", payload.id)
+        .single();
+      if (existing.error) throw new Error(existing.error.message);
+      return existing.data as MealLogRow;
+    }
+    throw new Error(error.message);
+  }
   return data as MealLogRow;
 }
 

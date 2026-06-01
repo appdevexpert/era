@@ -269,3 +269,18 @@ export async function getCompletedSessionDayIds(
     .map((row) => row.program_day_id as string)
     .filter(Boolean);
 }
+
+/**
+ * Returns MAX(updated_at) across all 8 workout-plan tables.
+ * Used on app foreground to detect admin-side changes without refetching the
+ * whole bootstrap. Returns null on network/RPC failure so callers can silently
+ * skip the freshness check and keep the cached plan.
+ */
+export async function getProgramVersion(): Promise<string | null> {
+  const { data, error } = await supabase.rpc("get_program_version");
+  if (error) {
+    console.warn("[getProgramVersion]", error.message);
+    return null;
+  }
+  return (data as string | null) ?? null;
+}

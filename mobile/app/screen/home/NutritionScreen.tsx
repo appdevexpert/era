@@ -52,6 +52,7 @@ import {
 } from "@/app/utils/nutritionMappers";
 import { addDays, todayIso } from "@/app/utils/nutritionDates";
 import { getWeekdayFromDate } from "@/app/utils/programSchedule";
+import { uuidv4 } from "@/app/utils/uuid";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -250,7 +251,7 @@ const NutritionScreen = () => {
           date: selectedDate,
           action: "insert",
           insert: {
-            tempId: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            id: uuidv4(),
             category,
             source: "user_custom",
             planItemId: null,
@@ -275,15 +276,28 @@ const NutritionScreen = () => {
       if (!merged) return;
 
       if (merged.added && merged.logId) {
-        const snapshot = todaysLogs.find((log) => log.id === merged.logId);
-        if (!snapshot) return;
-        dispatch(
-          toggleMealLog({
-            date: selectedDate,
-            action: "delete",
-            delete: { logId: merged.logId, snapshot },
-          }),
-        );
+        // When the meal is plan-linked, sync-queue retries may have created
+        // duplicate rows for the same plan_item_id. The merged view dedupes
+        // them for display, so a single tap on `-` must clear ALL of them
+        // — otherwise the user would have to tap multiple times to fully
+        // remove a meal whose duplicates they never knew existed.
+        const idsToDelete = merged.planItemId
+          ? todaysLogs
+              .filter((log) => log.user_meal_plan_item_id === merged.planItemId)
+              .map((log) => log.id)
+          : [merged.logId];
+
+        for (const logId of idsToDelete) {
+          const snapshot = todaysLogs.find((log) => log.id === logId);
+          if (!snapshot) continue;
+          dispatch(
+            toggleMealLog({
+              date: selectedDate,
+              action: "delete",
+              delete: { logId, snapshot },
+            }),
+          );
+        }
         return;
       }
 
@@ -293,7 +307,7 @@ const NutritionScreen = () => {
           date: selectedDate,
           action: "insert",
           insert: {
-            tempId: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            id: uuidv4(),
             category: merged.category,
             source: merged.source === "plan" ? "plan" : "library_custom",
             planItemId: merged.planItemId ?? null,

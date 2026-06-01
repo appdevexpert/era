@@ -89,6 +89,41 @@ export function sumMacros(logs: MealLogRow[]): DailyMacroTotals {
   );
 }
 
+export interface DedupePlanLogsResult {
+  unique: MealLogRow[];
+  duplicateIds: string[];
+}
+
+/**
+ * Group plan-linked meal logs by (log_date, user_meal_plan_item_id) — keeps
+ * the first row in each group, surfaces the rest as duplicates so the caller
+ * can delete them server-side. Custom logs (no plan item link) are never
+ * deduplicated; a user may legitimately log the same dish twice.
+ *
+ * Why: a flaky network can cause insertMealLog to succeed on Supabase but
+ * "fail" client-side, which then enqueues a retry that creates a second row.
+ * Up to MAX_RETRIES extra rows can accumulate per real tap.
+ */
+export function dedupePlanMealLogs(rows: MealLogRow[]): DedupePlanLogsResult {
+  const seen = new Set<string>();
+  const unique: MealLogRow[] = [];
+  const duplicateIds: string[] = [];
+  for (const row of rows) {
+    if (!row.user_meal_plan_item_id) {
+      unique.push(row);
+      continue;
+    }
+    const key = `${row.log_date}|${row.user_meal_plan_item_id}`;
+    if (seen.has(key)) {
+      duplicateIds.push(row.id);
+    } else {
+      seen.add(key);
+      unique.push(row);
+    }
+  }
+  return { unique, duplicateIds };
+}
+
 // -------- Week selector status ---------------------------------------
 
 export interface WeekDayStatus {
