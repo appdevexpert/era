@@ -7,7 +7,7 @@ type WaveAudioProps = {
   barCount?: number;
 };
 
-const DEFAULT_BAR_COUNT = 43;
+const DEFAULT_BAR_COUNT = 56;
 
 const WaveAudio: React.FC<WaveAudioProps> = ({
   isRecording,

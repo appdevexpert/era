@@ -61,7 +61,7 @@ interface VideoQueuePlayerProps {
 }
 
 const VideoQueuePlayer = ({ queue, onFinish }: VideoQueuePlayerProps) => {
-  const indexRef = useRef(0);
+  const indexRef = useRef(0);  
   const finishedRef = useRef(false);
   const advancingForIndexRef = useRef<number>(-1);
   const containerOpacity = useSharedValue(1);

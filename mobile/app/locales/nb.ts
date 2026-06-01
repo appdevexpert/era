@@ -650,6 +650,8 @@ const nb = {
       feedbackHeavy: "Tungt",
       addComments: "Legg til kommentar",
       commentPlaceholder: "Skriv dine tanker...",
+      listening: "Lytter...",
+      micPermissionDenied: "Mikrofontilgang kreves for diktering.",
       completeSet: "Fullfør sett",
       completeExercise: "Fullfør øvelse",
       exerciseCompleted: "Øvelse fullført",

@@ -50,7 +50,14 @@
           "photosPermission": "Allow ERA to access your photo library to upload progress photos."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow ERA to use the microphone to dictate workout notes.",
+          "speechRecognitionPermission": "Allow ERA to use speech recognition to convert your voice into text."
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true

@@ -650,6 +650,8 @@ const en = {
       feedbackHeavy: "Felt Heavy",
       addComments: "Add Comments",
       commentPlaceholder: "Write your thoughts...",
+      listening: "Listening...",
+      micPermissionDenied: "Microphone permission is required to dictate.",
       completeSet: "Complete Set",
       completeExercise: "Complete Exercise",
       exerciseCompleted: "Exercise Completed",
