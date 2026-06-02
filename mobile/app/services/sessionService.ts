@@ -494,6 +494,14 @@ export async function checkAndCreatePR(params: {
  * Locked spec: only `max_weight` counts as a PR. Same weight + more reps is
  * NOT a PR. See memory/project_pr_calculation_spec.md.
  */
+export interface SetPRDetail {
+  weightKg: number;
+  reps: number;
+  previousBestKg: number;
+  weightUnit: string;
+  points: number;
+}
+
 export async function checkAndCreateSetPRs(params: {
   userId: string;
   exerciseId: string;
@@ -504,10 +512,10 @@ export async function checkAndCreateSetPRs(params: {
   loggedWeight: number | null;
   loggedReps: number | null;
   weightUnit: string;
-}): Promise<{ prCount: number; pointsAwarded: number }> {
+}): Promise<{ prCount: number; pointsAwarded: number; prDetail: SetPRDetail | null }> {
   const { loggedWeight, loggedReps } = params;
   if (loggedWeight == null || loggedReps == null || loggedWeight <= 0 || loggedReps <= 0) {
-    return { prCount: 0, pointsAwarded: 0 };
+    return { prCount: 0, pointsAwarded: 0, prDetail: null };
   }
 
   const result = await checkAndCreatePR({
@@ -524,8 +532,31 @@ export async function checkAndCreateSetPRs(params: {
     reps: loggedReps,
   });
 
-  if (!result) return { prCount: 0, pointsAwarded: 0 };
-  return { prCount: 1, pointsAwarded: PR_POINTS };
+  if (!result) return { prCount: 0, pointsAwarded: 0, prDetail: null };
+  return {
+    prCount: 1,
+    pointsAwarded: PR_POINTS,
+    prDetail: {
+      weightKg: loggedWeight,
+      reps: loggedReps,
+      previousBestKg: result.previousBest,
+      weightUnit: params.weightUnit,
+      points: PR_POINTS,
+    },
+  };
+}
+
+/**
+ * Marks the given session_sets row as a personal record. Called by
+ * useWorkoutSession after checkAndCreateSetPRs confirms a PR, so the
+ * Exercise History badge picks up the flag on read.
+ */
+export async function markSetAsPersonalRecord(sessionSetId: string): Promise<void> {
+  const { error } = await supabase
+    .from("session_sets")
+    .update({ is_personal_record: true })
+    .eq("id", sessionSetId);
+  throwIfError(error, "Failed to mark set as personal record");
 }
 
 /* ─── Points + streak ─── */

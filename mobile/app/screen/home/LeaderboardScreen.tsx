@@ -10,7 +10,6 @@ import {
   fetchMyLeaderboardRank,
   type LeaderboardEntry,
 } from "@/app/services/leaderboardService";
-import type { RootState } from "@/app/stores/store";
 import {
   MedalBronze,
   MedalGold,
@@ -33,7 +32,6 @@ import {
 } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useSelector } from "react-redux";
 
 const PAGE_SIZE = 10;
 
@@ -188,16 +186,14 @@ const PodiumColumn = ({
 
 const RankRow = ({
   entry,
-  isYou,
-  youLabel,
+  isTop,
 }: {
   entry: LeaderboardEntry;
-  isYou: boolean;
-  youLabel: string;
+  isTop: boolean;
 }) => {
-  if (isYou) {
+  if (isTop) {
     return (
-      <View style={styles.rowYou}>
+      <View style={styles.rowTop}>
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(201, 168, 76, 0.3)", "rgba(17, 17, 17, 0)"]}
@@ -213,13 +209,13 @@ const RankRow = ({
           border={COLORS.primary.light}
           borderWidth={0.867}
           uri={entry.avatarUrl}
-          name={entry.displayName ?? youLabel}
+          name={entry.displayName}
         />
         <Text
           style={[styles.rowName, { color: COLORS.primary.base }]}
           numberOfLines={1}
         >
-          {entry.displayName ?? youLabel}
+          {entry.displayName ?? "—"}
         </Text>
         <Text style={[styles.rowPts, { color: COLORS.primary.dark }]}>
           {entry.totalPoints} pts
@@ -251,7 +247,6 @@ const LeaderboardScreen = () => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp<HomeStackParamList>>();
-  const currentUserId = useSelector((s: RootState) => s.auth.user?.id ?? null);
 
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [status, setStatus] = useState<Status>("idle");
@@ -309,14 +304,10 @@ const LeaderboardScreen = () => {
   const renderItem: ListRenderItem<LeaderboardEntry> = useCallback(
     ({ item }) => (
       <View style={styles.sheetRowWrap}>
-        <RankRow
-          entry={item}
-          isYou={item.userId === currentUserId}
-          youLabel={t("progress.leaderboardYou")}
-        />
+        <RankRow entry={item} isTop={item.rank === 1} />
       </View>
     ),
-    [currentUserId, t],
+    [],
   );
 
   // Empty / error states live inside the dark sheet so the chrome doesn't
@@ -595,7 +586,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 14,
   },
-  rowYou: {
+  rowTop: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,

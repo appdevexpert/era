@@ -47,6 +47,16 @@ import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import * as sessionService from "@/app/services/sessionService";
 import { suggestFutureSetWeights } from "@/app/utils/setSuggestion";
 
+/** PR detail shaped for PRScreen route params — returned by completeExerciseResult. */
+export interface CompletedExercisePRDetail {
+  exerciseName: string;
+  exerciseCategory: string;
+  weightLabel: string;
+  reps: number;
+  previousBestLabel: string;
+  points: number;
+}
+
 export const useWorkoutSession = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
@@ -350,15 +360,18 @@ export const useWorkoutSession = () => {
     [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId],
   );
 
-  /** Complete an exercise */
+  /** Complete an exercise. Returns PR detail when this exercise broke a max_weight PR. */
   const completeExerciseResult = useCallback(
-    async (exerciseIndex: number, comment?: string) => {
-      if (!sessionWorkout) return;
+    async (
+      exerciseIndex: number,
+      comment?: string,
+    ): Promise<{ prDetail: CompletedExercisePRDetail | null }> => {
+      if (!sessionWorkout) return { prDetail: null };
       const ex = sessionWorkout.exercises[exerciseIndex];
-      if (!ex) return;
+      if (!ex) return { prDetail: null };
 
       const seId = exerciseMap[ex.id];
-      if (!seId) return;
+      if (!seId) return { prDetail: null };
 
       dispatch(incrementExercisesCompleted());
 
@@ -368,72 +381,102 @@ export const useWorkoutSession = () => {
         () => sessionService.completeExercise(seId, comment),
       );
 
-      if (userId && sessionId) {
-        const setIds = setMap[seId] ?? [];
-        const lastSetId = setIds.length > 0 ? setIds[setIds.length - 1] : null;
+      if (!userId || !sessionId) return { prDetail: null };
 
-        // Use actual logged values from this session, not planned values
-        const loggedMap = completedSetsMap[ex.exerciseLibraryId] ?? {};
-        const logged = Object.values(loggedMap);
-        const lastLogged = logged.length > 0 ? logged[logged.length - 1] : null;
+      const setIds = setMap[seId] ?? [];
+      const lastSetId = setIds.length > 0 ? setIds[setIds.length - 1] : null;
 
-        // Find the best set (highest weight, then highest reps as tiebreaker)
-        const historical = exerciseStatsMap[ex.exerciseLibraryId];
-        const bestLogged = logged.reduce<{ weight: number; reps: number } | null>(
-          (best, s) => {
-            if (s.weight == null) return best;
-            if (!best) return { weight: s.weight, reps: s.reps ?? 0 };
-            if (s.weight > best.weight || (s.weight === best.weight && (s.reps ?? 0) > best.reps)) {
-              return { weight: s.weight, reps: s.reps ?? 0 };
-            }
-            return best;
-          },
-          null,
-        );
+      // Use actual logged values from this session, not planned values
+      const loggedMap = completedSetsMap[ex.exerciseLibraryId] ?? {};
+      const logged = Object.values(loggedMap);
+      const lastLogged = logged.length > 0 ? logged[logged.length - 1] : null;
 
-        const isBest = bestLogged != null && (
-          !historical?.bestWeight ||
-          bestLogged.weight > historical.bestWeight ||
-          (bestLogged.weight === historical.bestWeight && bestLogged.reps > (historical.bestReps ?? 0))
-        );
-
-        const statParams = {
-          userId,
-          exerciseId: ex.exerciseLibraryId,
-          lastWeight: lastLogged?.weight ?? null,
-          lastWeightUnit: lastLogged?.weightUnit ?? ex.weightUnit,
-          lastReps: lastLogged?.reps ?? null,
-          lastDuration: lastLogged?.duration ?? null,
-          lastFeedback: null,
-          sessionSetId: lastSetId,
-          isBest,
-          bestWeight: isBest ? bestLogged!.weight : undefined,
-          bestReps: isBest ? bestLogged!.reps : undefined,
-        };
-        await syncWrite("upsertUserExerciseStat", statParams as Record<string, unknown>, () =>
-          sessionService.upsertUserExerciseStat(statParams),
-        );
-
-        // PR detection (Standard tier: max_weight + max_reps + e1RM).
-        // One PR row + one +100 ERA point event per metric broken.
-        if (bestLogged && lastSetId) {
-          try {
-            await sessionService.checkAndCreateSetPRs({
-              userId,
-              exerciseId: ex.exerciseLibraryId,
-              exerciseName: ex.name,
-              sessionId,
-              sessionExerciseId: seId,
-              sessionSetId: lastSetId,
-              loggedWeight: bestLogged.weight,
-              loggedReps: bestLogged.reps,
-              weightUnit: ex.weightUnit,
-            });
-          } catch (err) {
-            console.warn("[useWorkoutSession] PR check failed", err);
-          }
+      // Find the best set (highest weight, then highest reps as tiebreaker).
+      // Track setNumber too so we can attribute the PR row + is_personal_record
+      // flag to the actual heaviest set, not just the last one.
+      const historical = exerciseStatsMap[ex.exerciseLibraryId];
+      let bestSetNumber = -1;
+      let bestLogged: { weight: number; reps: number } | null = null;
+      for (const [setNumStr, s] of Object.entries(loggedMap)) {
+        if (s.weight == null) continue;
+        const reps = s.reps ?? 0;
+        if (
+          !bestLogged ||
+          s.weight > bestLogged.weight ||
+          (s.weight === bestLogged.weight && reps > bestLogged.reps)
+        ) {
+          bestLogged = { weight: s.weight, reps };
+          bestSetNumber = Number(setNumStr);
         }
       }
+      const bestSetId = bestSetNumber >= 0 ? (setIds[bestSetNumber] ?? null) : null;
+
+      const isBest = bestLogged != null && (
+        !historical?.bestWeight ||
+        bestLogged.weight > historical.bestWeight ||
+        (bestLogged.weight === historical.bestWeight && bestLogged.reps > (historical.bestReps ?? 0))
+      );
+
+      const statParams = {
+        userId,
+        exerciseId: ex.exerciseLibraryId,
+        lastWeight: lastLogged?.weight ?? null,
+        lastWeightUnit: lastLogged?.weightUnit ?? ex.weightUnit,
+        lastReps: lastLogged?.reps ?? null,
+        lastDuration: lastLogged?.duration ?? null,
+        lastFeedback: null,
+        sessionSetId: lastSetId,
+        isBest,
+        bestWeight: isBest ? bestLogged!.weight : undefined,
+        bestReps: isBest ? bestLogged!.reps : undefined,
+      };
+      await syncWrite("upsertUserExerciseStat", statParams as Record<string, unknown>, () =>
+        sessionService.upsertUserExerciseStat(statParams),
+      );
+
+      // PR detection — locked to max_weight only (see PR_FEATURE.md).
+      // Attribute to the actual best set, not lastSetId — otherwise the
+      // Exercise History badge lands on the wrong row.
+      let prDetail: CompletedExercisePRDetail | null = null;
+      if (bestLogged && bestSetId) {
+        try {
+          const result = await sessionService.checkAndCreateSetPRs({
+            userId,
+            exerciseId: ex.exerciseLibraryId,
+            exerciseName: ex.name,
+            sessionId,
+            sessionExerciseId: seId,
+            sessionSetId: bestSetId,
+            loggedWeight: bestLogged.weight,
+            loggedReps: bestLogged.reps,
+            weightUnit: ex.weightUnit,
+          });
+
+          if (result.prDetail) {
+            // Flip is_personal_record so the History card renders the gold badge.
+            try {
+              await sessionService.markSetAsPersonalRecord(bestSetId);
+            } catch (err) {
+              console.warn("[useWorkoutSession] markSetAsPersonalRecord failed", err);
+            }
+
+            const { weightKg, reps, previousBestKg, weightUnit, points } = result.prDetail;
+            prDetail = {
+              exerciseName: ex.name,
+              exerciseCategory: ex.exerciseCategory || ex.category || "compound",
+              weightLabel: `${weightKg} ${weightUnit}`,
+              reps,
+              previousBestLabel:
+                previousBestKg > 0 ? `${previousBestKg} ${weightUnit}` : "—",
+              points,
+            };
+          }
+        } catch (err) {
+          console.warn("[useWorkoutSession] PR check failed", err);
+        }
+      }
+
+      return { prDetail };
     },
     [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite],
   );

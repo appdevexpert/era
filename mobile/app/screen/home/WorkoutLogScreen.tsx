@@ -13,7 +13,8 @@ import { horizontalScale } from "@/app/utils/responsive";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useRef, useState } from "react";
@@ -32,6 +33,8 @@ import Animated, {
 const WorkoutLogScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutLog">>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
   const {
     exerciseName,
@@ -119,18 +122,31 @@ const WorkoutLogScreen = () => {
 
   /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
-    (_comment: string) => {
+    async (_comment: string) => {
       sheetRef.current?.close();
-      completeExerciseResult(exIdx, _comment);
+      // PR detection runs inside completeExerciseResult — await it so we know
+      // whether to push the PR celebration screen on top of the next destination.
+      const result = await completeExerciseResult(exIdx, _comment);
 
       const nextIdx = exIdx + 1;
       if (nextIdx >= total) {
-        navigateToSessionComplete();
-        return;
+        await navigateToSessionComplete();
+      } else {
+        navigateToRest(nextIdx, 1);
       }
-      navigateToRest(nextIdx, 1);
+
+      if (result.prDetail) {
+        navigation.navigate("PRScreen", {
+          exerciseName: result.prDetail.exerciseName,
+          exerciseCategory: result.prDetail.exerciseCategory,
+          weight: result.prDetail.weightLabel,
+          reps: result.prDetail.reps,
+          previousBest: result.prDetail.previousBestLabel,
+          points: result.prDetail.points,
+        });
+      }
     },
-    [exIdx, total, completeExerciseResult, navigateToRest, navigateToSessionComplete],
+    [exIdx, total, completeExerciseResult, navigateToRest, navigateToSessionComplete, navigation],
   );
 
   const COLLAPSE_DISTANCE = 60;
