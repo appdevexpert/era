@@ -9,16 +9,23 @@ import { clearSession } from "@/app/stores/slice/sessionSlice";
 import { uploadProgressPhotoThunk } from "@/app/stores/slice/photoSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import { CameraIcon } from "@/assets/icons";
-import { PrTrophy } from "@/assets/images";
+import { TrophyGold } from "@/assets/images";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRef } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+// Figma trophy is 432px on a 402px frame (≈1.075x). Scale to current screen.
+const TROPHY_SIZE = Math.round(SCREEN_WIDTH * 1.075);
+// Figma positions trophy at top:-74 relative to the frame top (ribbon extends past status bar).
+const TROPHY_TOP_OFFSET = -90;
+const TOP_GRADIENT_HEIGHT = 237;
 
 const StatCard = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.statCard}>
@@ -44,7 +51,7 @@ const SessionCompleteScreen = () => {
     setsLogged,
     eraPoints,
     newPRs,
-    bonusPoints,
+   // bonusPoints,
   } = route.params;
 
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
@@ -76,20 +83,44 @@ const SessionCompleteScreen = () => {
   };
 
   const subtitle =
-    `${programTitle} \u2022 ${t("workout.ui.weekLabel", { number: weekNumber })} \u2022 ${t("workout.ui.dayLabel", { number: dayNumber })}`.toUpperCase();
+    `${programTitle} • ${t("workout.ui.weekLabel", { number: weekNumber })} • ${t("workout.ui.dayLabel", { number: dayNumber })}`.toUpperCase();
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* Trophy + Title */}
-      <View style={styles.topSection}>
-        <Image source={PrTrophy} style={styles.trophy} />
+    <View style={styles.root}>
+      {/* Gold gradient backdrop covering the top area */}
+      <LinearGradient
+        colors={["rgba(201,168,76,0.4)", "rgba(201,168,76,0)"]}
+        style={[
+          styles.topGradient,
+          { height: TOP_GRADIENT_HEIGHT + insets.top },
+        ]}
+        pointerEvents="none"
+      />
+
+      {/* Trophy — ribbon extends above status bar */}
+      <View
+        style={[
+          styles.trophyWrap,
+          { marginTop: insets.top + TROPHY_TOP_OFFSET },
+        ]}
+        pointerEvents="none"
+      >
+        <Image
+          source={TrophyGold}
+          style={{ width: TROPHY_SIZE, height: TROPHY_SIZE }}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Title + points badge */}
+      <View style={styles.titleSection}>
         <Text style={styles.title}>{t("workout.ui.sessionComplete")}</Text>
         <Text style={styles.subtitle}>{subtitle}</Text>
-        <View style={styles.pointsBadge}>
+        {/* <View style={styles.pointsBadge}>
           <Text style={styles.pointsText}>
             {t("workout.ui.eraPoints", { count: bonusPoints })}
           </Text>
-        </View>
+        </View> */}
       </View>
 
       {/* Stat grid */}
@@ -123,7 +154,7 @@ const SessionCompleteScreen = () => {
           style={styles.captureBtn}
           onPress={() => addPhotoSheetRef.current?.show()}
         >
-          <GlassFill />
+          <GlassFill style={styles.captureBtnGlass} />
           <CameraIcon width={24} height={24} />
           <Text style={styles.captureBtnText}>
             {t("workout.ui.captureProgress")}
@@ -167,18 +198,21 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.neutral.black2,
-    paddingHorizontal: 20,
   },
-  topSection: {
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  trophyWrap: {
     alignItems: "center",
-    marginTop: 40,
-    gap: 8,
   },
-  trophy: {
-    width: 140,
-    height: 140,
-    opacity: 0.8,
-    marginBottom: 8,
+  titleSection: {
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    marginTop: -24,
   },
   title: {
     fontFamily: FONTS.display,
@@ -215,6 +249,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     gap: 12,
+    paddingHorizontal: 20,
   },
   statsRow: {
     flexDirection: "row",
@@ -225,10 +260,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutral.black3,
     borderWidth: 1,
     borderColor: COLORS.neutral.charcoal,
-    borderRadius: 16,
-    paddingVertical: 20,
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   statLabel: {
     fontFamily: FONTS.regular,
@@ -242,32 +278,36 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: FONTS.medium,
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: "500",
-    lineHeight: 48,
+    lineHeight: 43.2,
     color: COLORS.neutral.white,
     textAlign: "center",
     fontVariant: ["tabular-nums"],
   },
   bottomSection: {
     gap: 12,
+    paddingHorizontal: 20,
   },
   captureBtn: {
-    height: 48,
-    borderRadius: 999,
-
+    height: 53,
+    borderRadius: 138,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
     overflow: "hidden",
   },
+  captureBtnGlass: {
+    borderRadius: 138,
+  },
   captureBtnText: {
-    fontFamily: FONTS.medium,
-    fontSize: 16,
-    fontWeight: "500",
-    lineHeight: 19.2,
+    fontFamily: FONTS.semiBold,
+    fontSize: 18,
+    fontWeight: "600",
+    lineHeight: 21.6,
     color: COLORS.neutral.white,
+    letterSpacing: 0.36,
   },
   continueBtn: {
     height: 53,

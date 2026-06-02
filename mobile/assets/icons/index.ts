@@ -128,3 +128,4 @@ export { default as EditPen } from "./edit-pen.svg";
 export { default as MedalGold } from "./medal-gold.svg";
 export { default as MedalSilver } from "./medal-silver.svg";
 export { default as MedalBronze } from "./medal-bronze.svg";
+export { default as TrophyGold } from "./trophy1.svg";

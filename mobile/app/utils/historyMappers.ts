@@ -183,21 +183,44 @@ const buildChart = (
   }
 
   const realWeeks = [...bestByWeek.keys()].sort((a, b) => a - b);
+  const firstRealWeek = realWeeks[0];
   const maxRealWeek = realWeeks[realWeeks.length - 1];
-  const lastTick = Math.max(maxRealWeek, MIN_CHART_WEEKS);
+  // X-axis anchors at firstRealWeek and spans at least MIN_CHART_WEEKS ticks.
+  // This keeps the data line aligned with its real program weeks instead of
+  // always starting at W1 — gifted-charts plots by index, so the first array
+  // entry MUST correspond to the first visible tick.
+  const lastTick = Math.max(maxRealWeek, firstRealWeek + MIN_CHART_WEEKS - 1);
 
-  // X-axis ALWAYS spans at least MIN_CHART_WEEKS — matches the Figma shell.
-  const xTickLabels = Array.from({ length: lastTick }, (_, i) =>
-    t("history.chartWeekTick", { number: i + 1 }),
-  );
+  const xTickLabels: string[] = [];
+  for (let w = firstRealWeek; w <= lastTick; w++) {
+    xTickLabels.push(t("history.chartWeekTick", { number: w }));
+  }
 
-  // Line points: only the real-data weeks. `value` is kg or seconds.
-  let points: ExerciseHistoryChartPoint[] = realWeeks.map((w) => ({
-    weekNumber: w,
-    label: t("history.chartWeekTick", { number: w }),
-    value: round(bestByWeek.get(w) as number),
-    isReal: w === maxRealWeek,
-  }));
+  // Build points from firstRealWeek to maxRealWeek with no index gaps.
+  // For weeks where the user didn't log, we carry the previous value forward
+  // and flag the point as non-real — gifted-charts can't render line breaks,
+  // so a flat stub between two real weeks is the cleanest visual compromise.
+  let points: ExerciseHistoryChartPoint[] = [];
+  let carry: number | null = null;
+  for (let w = firstRealWeek; w <= maxRealWeek; w++) {
+    const real = bestByWeek.get(w);
+    if (real != null) {
+      carry = round(real);
+      points.push({
+        weekNumber: w,
+        label: t("history.chartWeekTick", { number: w }),
+        value: carry,
+        isReal: w === maxRealWeek,
+      });
+    } else if (carry != null) {
+      points.push({
+        weekNumber: w,
+        label: t("history.chartWeekTick", { number: w }),
+        value: carry,
+        isReal: false,
+      });
+    }
+  }
 
   // gifted-charts can't render a line from a single point. When the user has
   // only one week of data, add a phantom point at the next week with the same

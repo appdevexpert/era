@@ -1175,3 +1175,40 @@ as $$
 $$;
 
 grant execute on function public.get_my_progress_photos(int) to authenticated;
+
+-- Returns a single fingerprint string the mobile client compares against its
+-- cached copy on app foreground. Shape: "<MAX(updated_at)>:<total row count>"
+-- across every table that holds program / exercise content. Any admin insert,
+-- update, or delete moves the fingerprint forward, so the client knows to
+-- refetch the workout bootstrap. STABLE + SECURITY INVOKER so it respects
+-- each caller's RLS view of the tables.
+create or replace function public.get_program_version()
+returns text
+language sql
+stable
+set search_path = public
+as $$
+  select (
+    greatest(
+      coalesce((select max(updated_at) from public.user_program_assignments), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.workout_programs), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.program_weeks), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.program_days), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.program_day_sections), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.program_day_exercises), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.planned_exercise_sets), 'epoch'::timestamptz),
+      coalesce((select max(updated_at) from public.exercise_library), 'epoch'::timestamptz)
+    )::text
+  ) || ':' || (
+    (select count(*) from public.user_program_assignments) +
+    (select count(*) from public.workout_programs) +
+    (select count(*) from public.program_weeks) +
+    (select count(*) from public.program_days) +
+    (select count(*) from public.program_day_sections) +
+    (select count(*) from public.program_day_exercises) +
+    (select count(*) from public.planned_exercise_sets) +
+    (select count(*) from public.exercise_library)
+  )::text;
+$$;
+
+grant execute on function public.get_program_version() to authenticated;
