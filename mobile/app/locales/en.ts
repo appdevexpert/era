@@ -233,6 +233,55 @@ const en = {
     profile: "Profile",
     notifications: "Notifications",
   },
+  twelveWeekCompletion: {
+    title: "You Finished.\nNow you are Stronger!",
+    weekComplete: "Week 12 Complete",
+    statSessions: "Sessions",
+    statPrs: "PRs Achieved",
+    statPoints: "ERA Points",
+    recap: "12 weeks. 72 sessions.\nEvery rep built the real you.",
+    cta: "What's Next?",
+    devTestButton: "12-Week Completion",
+  },
+  cycle2Begins: {
+    title: "Cycle 2 Begins",
+    subtitle: "Your new starting weights have been calculated from your Week 12 performance. Week 1 starts now, heavier.",
+    colExercises: "Exercises",
+    colOld: "Old",
+    colNew: "New",
+    footnote: "Your previous 12-week cycle is saved permanently in your history.",
+    cta: "Start Cycle 2, Week 1",
+  },
+  whatComesNow: {
+    title: "What Comes Now?",
+    subtitle: "Choose how you continue your journey. There is no wrong answer.",
+    cta: "Confirm & Start",
+    restart: {
+      title: "Restart Heavier",
+      badge: "Most Popular",
+      bullets: [
+        "The program resets to Week 1.",
+        "It starts with new weights calculated from your Week 12 performance.",
+        "Progressive overload continues from a stronger base.",
+      ],
+    },
+    deload: {
+      title: "Deload Week",
+      badge: "Recommended",
+      bullets: [
+        "One week at 55% of your Week 12 weights.",
+        "Full recovery for muscles, joints, and nervous system — then restart heavier.",
+      ],
+    },
+    next: {
+      title: "Next Program",
+      badge: "ERA Pro",
+      bullets: [
+        "You have outgrown this program.",
+        "ERA suggests your next level — Intermediate or Advanced — for a new challenge.",
+      ],
+    },
+  },
   profile: {
     fallbackName: "User",
     sections: {

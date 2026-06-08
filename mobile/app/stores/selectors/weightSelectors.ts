@@ -175,7 +175,13 @@ export const selectChartYRange = (
   return { yMin, yMax, yStep };
 };
 
-const CM_PER_INCH = 2.54;
+const CM_PER_FOOT = 30.48;
+
+/**
+ * Storage convention for `goals.height`:
+ *   - cm-mode → centimeters
+ *   - ft-mode → decimal feet (e.g. 5.9166 for 5'11")
+ */
 
 /** Returns height in metres (used by BMI). Null when we have no height yet. */
 const heightMeters = (
@@ -183,7 +189,7 @@ const heightMeters = (
   unit: "cm" | "ft",
 ): number | null => {
   if (height === null || height <= 0) return null;
-  const cm = unit === "ft" ? height * CM_PER_INCH : height;
+  const cm = unit === "ft" ? height * CM_PER_FOOT : height;
   return cm / 100;
 };
 
@@ -198,7 +204,7 @@ export const selectHeightLabel = (state: RootState): string | null => {
   const { goalsHeight, goalsHeightUnit } = state.weight;
   if (goalsHeight === null || goalsHeight <= 0) return null;
   if (goalsHeightUnit === "cm") return `${Math.round(goalsHeight)} cm`;
-  const totalInches = Math.round(goalsHeight);
+  const totalInches = Math.round(goalsHeight * 12);
   const ft = Math.floor(totalInches / 12);
   const inches = totalInches - ft * 12;
   return `${ft}ft ${inches}in`;

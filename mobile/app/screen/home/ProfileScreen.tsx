@@ -10,12 +10,19 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
+import {
+  selectCurrentStreak,
+  selectRewardStatus,
+  selectTotalPoints,
+} from "@/app/stores/selectors/rewardSelectors";
 import { signOutThunk } from "@/app/stores/slice/authSlice";
+import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
 import { RootState, useAppDispatch } from "@/app/stores/store";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import { verticalScale } from "@/app/utils/responsive";
 import {
   InfoCircleGold,
+  MedalBadge,
   ProfileBackChevron,
   SettingChevronRight,
   SettingChevronRightDanger,
@@ -28,7 +35,7 @@ import {
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -61,6 +68,19 @@ const ProfileScreen = () => {
   );
   const overview = useSelector((state: RootState) => state.workout.overview);
   const goalData = useSelector((state: RootState) => state.onboarding.goalData);
+  const totalPoints = useSelector(selectTotalPoints);
+  const currentStreak = useSelector(selectCurrentStreak);
+  const rewardStatus = useSelector(selectRewardStatus);
+  const completedWorkouts = useSelector(
+    (state: RootState) => state.workout.completedDayIds.length,
+  );
+
+  // Safety-net: ensure reward data is loaded even if user opens Profile before Progress.
+  useEffect(() => {
+    if (user?.id && rewardStatus === "idle") {
+      dispatch(loadRewardBootstrap(user.id));
+    }
+  }, [dispatch, user?.id, rewardStatus]);
 
   const isNorwegian = i18n.language === "nb";
   const isLoggingOut = authStatus === "loading";
@@ -116,9 +136,9 @@ const ProfileScreen = () => {
         />
 
         <View style={styles.statsRow}>
-          <StatCard value="2840" label={t("profile.eraPoints")} />
-          <StatCard value="18" label={t("profile.dayStreak")} />
-          <StatCard value="42" label={t("profile.workouts")} />
+          <StatCard value={String(totalPoints)} label={t("profile.eraPoints")} />
+          <StatCard value={String(currentStreak)} label={t("profile.dayStreak")} />
+          <StatCard value={String(completedWorkouts)} label={t("profile.workouts")} />
         </View>
 
         <SectionTitle>{t("profile.sections.appSettings")}</SectionTitle>
@@ -162,6 +182,12 @@ const ProfileScreen = () => {
             label={t("profile.privacyPolicy")}
             right={<Chevron />}
             onPress={() => navigation.navigate("PrivacyPolicy")}
+          />
+          <SettingsRow
+            icon={<MedalBadge width={24} height={24} />}
+            label={t("twelveWeekCompletion.devTestButton")}
+            right={<Chevron />}
+            onPress={() => navigation.navigate("TwelveWeekCompletion")}
           />
         </SettingsCard>
 

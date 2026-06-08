@@ -158,6 +158,9 @@ export type HomeStackParamList = {
     previousBest: string;
     points: number;
   };
+  TwelveWeekCompletion: undefined;
+  WhatComesNow: undefined;
+  Cycle2Begins: undefined;
 };
 
 export type RootStackParamList = {

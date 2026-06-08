@@ -7,6 +7,8 @@ const PrTrophy = require("./pr-trophy.png");
 const ProgressStatsBg = require("./progress-stats-bg.png");
 const DemoMedia = require("./demo.png");
 const TrophyGold = require("./trophy.png");
+const TwelveWeekDiamond = require("./twelve-week-diamond.png");
+const TwelveWeekCompletion = require("./twelve-week-completion.png");
 
 
-export { IntroBackground, OnboardingBackground, WorkoutCard, GetIcon, WorkoutCountdownBg, PrTrophy, ProgressStatsBg, DemoMedia, TrophyGold };
+export { IntroBackground, OnboardingBackground, WorkoutCard, GetIcon, WorkoutCountdownBg, PrTrophy, ProgressStatsBg, DemoMedia, TrophyGold, TwelveWeekDiamond, TwelveWeekCompletion };

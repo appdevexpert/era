@@ -39,12 +39,23 @@ interface LogHeightBottomSheetProps {
   initialCm?: number;
   /** Optional starting unit. When omitted, defaults to "cm". */
   initialUnit?: HeightUnit;
-  /** Initial value expressed in `initialUnit` (cm or total inches for ft). */
+  /**
+   * Initial value expressed in the app's storage convention:
+   *   - cm → centimeters
+   *   - ft → decimal feet (e.g. 5.9166 for 5'11")
+   * Matches what `goals.height` carries in Supabase / Redux.
+   */
   initialValue?: number;
+  /**
+   * Called with the value in the app's storage convention:
+   *   - cm → centimeters (integer)
+   *   - ft → decimal feet
+   */
   onLog?: (value: number, unit: HeightUnit) => void;
 }
 
 const CM_PER_INCH = 2.54;
+const INCHES_PER_FOOT = 12;
 
 const formatToday = () => {
   const d = new Date();
@@ -85,10 +96,15 @@ const LogHeightBottomSheet = forwardRef<
   const dateLabel = useMemo(formatToday, []);
 
   const [unit, setUnit] = useState<HeightUnit>(initialUnit ?? "cm");
-  // Value is stored in the active unit (cm or total inches).
-  const [value, setValue] = useState<number>(
-    initialValue !== undefined ? Math.round(initialValue) : initialCm,
-  );
+  // The slider/display works in cm or total inches. Storage convention is
+  // cm or decimal feet, so convert ft → inches on the way in.
+  const [value, setValue] = useState<number>(() => {
+    if (initialValue === undefined) return initialCm;
+    if ((initialUnit ?? "cm") === "ft") {
+      return Math.round(initialValue * INCHES_PER_FOOT);
+    }
+    return Math.round(initialValue);
+  });
 
   const togglePos = useSharedValue<number>(0);
   useEffect(() => {
@@ -128,7 +144,9 @@ const LogHeightBottomSheet = forwardRef<
   };
 
   const handleLog = () => {
-    onLog?.(value, unit);
+    // Convert back to storage convention: ft → decimal feet, cm stays cm.
+    const out = unit === "ft" ? value / INCHES_PER_FOOT : value;
+    onLog?.(out, unit);
     sheetRef.current?.dismiss();
   };
 

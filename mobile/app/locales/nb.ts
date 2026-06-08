@@ -233,6 +233,55 @@ const nb = {
     profile: "Profil",
     notifications: "Varsler",
   },
+  twelveWeekCompletion: {
+    title: "Du er ferdig.\nNå er du sterkere!",
+    weekComplete: "Uke 12 fullført",
+    statSessions: "Økter",
+    statPrs: "PR-er oppnådd",
+    statPoints: "ERA-poeng",
+    recap: "12 uker. 72 økter.\nHver repetisjon bygde den ekte deg.",
+    cta: "Hva er neste?",
+    devTestButton: "12-ukers fullføring",
+  },
+  cycle2Begins: {
+    title: "Syklus 2 starter",
+    subtitle: "De nye startvektene dine er beregnet fra Uke 12-prestasjonen din. Uke 1 starter nå, tyngre.",
+    colExercises: "Øvelser",
+    colOld: "Gammel",
+    colNew: "Ny",
+    footnote: "Din forrige 12-ukers syklus er lagret permanent i historikken.",
+    cta: "Start Syklus 2, Uke 1",
+  },
+  whatComesNow: {
+    title: "Hva kommer nå?",
+    subtitle: "Velg hvordan du vil fortsette reisen. Det finnes ingen feil svar.",
+    cta: "Bekreft og start",
+    restart: {
+      title: "Start tyngre",
+      badge: "Mest populær",
+      bullets: [
+        "Programmet starter på nytt fra Uke 1.",
+        "Det starter med nye vekter beregnet fra Uke 12-prestasjonen din.",
+        "Progressiv overbelastning fortsetter fra et sterkere grunnlag.",
+      ],
+    },
+    deload: {
+      title: "Avlastningsuke",
+      badge: "Anbefalt",
+      bullets: [
+        "Én uke på 55 % av Uke 12-vektene dine.",
+        "Full restitusjon for muskler, ledd og nervesystem — så start tyngre.",
+      ],
+    },
+    next: {
+      title: "Neste program",
+      badge: "ERA Pro",
+      bullets: [
+        "Du har vokst forbi dette programmet.",
+        "ERA foreslår ditt neste nivå — Mellomliggende eller Avansert — for en ny utfordring.",
+      ],
+    },
+  },
   profile: {
     fallbackName: "Bruker",
     sections: {

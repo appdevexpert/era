@@ -15,6 +15,9 @@ import LeaderboardScreen from "@/app/screen/home/LeaderboardScreen";
 import PointsScreen from "@/app/screen/home/PointsScreen";
 import SessionCompleteScreen from "@/app/screen/home/SessionCompleteScreen";
 import PRScreen from "@/app/screen/home/PRScreen";
+import TwelveWeekCompletionScreen from "@/app/screen/home/TwelveWeekCompletionScreen";
+import WhatComesNowScreen from "@/app/screen/home/WhatComesNowScreen";
+import Cycle2BeginsScreen from "@/app/screen/home/Cycle2BeginsScreen";
 import TimerLogScreen from "@/app/screen/home/TimerLogScreen";
 import RestTimerScreen from "@/app/screen/home/RestTimerScreen";
 import WorkoutCountdownScreen from "@/app/screen/home/WorkoutCountdownScreen";
@@ -142,6 +145,18 @@ const HomeNavigator = () => (
       name="PRScreen"
       component={PRScreen}
       options={{ presentation: "modal", animation: "slide_from_bottom" }}
+    />
+    <Stack.Screen
+      name="TwelveWeekCompletion"
+      component={TwelveWeekCompletionScreen}
+    />
+    <Stack.Screen
+      name="WhatComesNow"
+      component={WhatComesNowScreen}
+    />
+    <Stack.Screen
+      name="Cycle2Begins"
+      component={Cycle2BeginsScreen}
     />
   </Stack.Navigator>
 );
