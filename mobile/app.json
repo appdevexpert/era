@@ -1,18 +1,22 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "ERA Fit",
+    "slug": "era-fit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "erafit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.appeneure-tech.mobile",
-      "appleTeamId": "34MJDM3T45",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "usesAppleSignIn": true,
+      "bundleIdentifier": "com.erafit",
+      "appleTeamId": "Z86PV9ZWWV",
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +27,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.era.app",
+      "package": "com.erafit",
       "googleServicesFile": "./google-services.json"
     },
     "web": {

@@ -7,6 +7,9 @@
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "build:ios": "npx eas-cli build --platform ios --profile production",
+    "submit:ios": "npx eas-cli submit --platform ios --profile production",
+    "release:ios": "npx eas-cli build --platform ios --profile production --auto-submit",
     "web": "expo start --web",
     "lint": "expo lint"
   },

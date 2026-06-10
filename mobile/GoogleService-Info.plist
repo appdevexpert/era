@@ -15,7 +15,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.era.app</string>
+	<string>com.erafit</string>
 	<key>PROJECT_ID</key>
 	<string>erafit-495604</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +31,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:184813130596:ios:5ae4b786f830c6b1b12071</string>
+	<string>1:184813130596:ios:1a04e2b5a6713b75b12071</string>
 </dict>
 </plist>

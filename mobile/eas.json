@@ -1,0 +1,20 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6778367108",
+        "appleTeamId": "Z86PV9ZWWV",
+        "bundleIdentifier": "com.erafit"
+      }
+    }
+  }
+}
