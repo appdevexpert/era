@@ -34,12 +34,16 @@ export type ExerciseRow = {
   updated_at: string;
 };
 
+import type { UserGender, ExperienceLevel } from "@/lib/admin/constants";
+
 export type ProgramRow = {
   id: string;
   title: string;
   title_translations: TranslationMap;
   duration_weeks: number;
   days_per_week: number;
+  gender: UserGender | null;
+  level: ExperienceLevel | null;
   created_at: string;
   updated_at: string;
   weekCount?: number;

@@ -7,6 +7,7 @@ import {
   getProgramDayDetail,
   getProgramVersion,
   getWorkoutOverview,
+  resolveUserProgramId,
 } from "@/app/services/workoutService";
 import {
   fetchProgramStartDate,
@@ -89,7 +90,18 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       }
     }
 
-    const overview = await getWorkoutOverview(args?.programId);
+    // Pick the program tailored to this user (gender + level). Admin override
+    // via args.programId still wins for ad-hoc testing.
+    const targetProgramId =
+      args?.programId ?? (userId ? await resolveUserProgramId() : null);
+
+    if (!targetProgramId) {
+      return rejectWithValue(
+        "No workout program assigned. Complete onboarding (gender + level) or contact support.",
+      );
+    }
+
+    const overview = await getWorkoutOverview(targetProgramId);
 
     // Fetch completed day IDs from workout_sessions
     const completedDayIds = userId

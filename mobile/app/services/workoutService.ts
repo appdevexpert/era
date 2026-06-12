@@ -11,8 +11,25 @@ import type {
 } from "@/app/types/workout";
 import { supabase } from "@/app/utils/auth";
 
-export const RAMI_TEMPLATE_PROGRAM_ID = "2a87094c-260a-4a1b-95f6-7de8d5300001";
-export const RAMI_TEMPLATE_DAY_ID = "2a87094c-260a-4a1b-95f6-7de8d5300201";
+/**
+ * Resolve which `workout_programs.id` the user should be reading.
+ *
+ * Delegates to the `ensure_my_program_assignment` Postgres function (security
+ * definer) which:
+ *   1. Returns the existing active assignment if one exists.
+ *   2. Otherwise matches `goals.gender` + `goals.level` to one of the 6
+ *      launch programs and inserts a new assignment row.
+ *   3. Returns NULL when the user has no goals or no matching program —
+ *      the caller surfaces this as "complete onboarding first".
+ */
+export async function resolveUserProgramId(): Promise<string | null> {
+  const { data, error } = await supabase.rpc("ensure_my_program_assignment");
+  if (error) {
+    console.warn("[resolveUserProgramId]", error.message);
+    return null;
+  }
+  return (data as string | null) ?? null;
+}
 
 type SupabaseError = {
   message?: string;
@@ -51,7 +68,7 @@ const requireList = <T>(
 };
 
 export async function getWorkoutOverview(
-  programId = RAMI_TEMPLATE_PROGRAM_ID,
+  programId: string,
 ): Promise<WorkoutOverviewData> {
   const programResult = await supabase
     .from("workout_programs")
@@ -128,7 +145,7 @@ export async function getWorkoutOverview(
 }
 
 export async function getProgramDayDetail(
-  programDayId = RAMI_TEMPLATE_DAY_ID,
+  programDayId: string,
 ): Promise<ProgramDayDetailData> {
   const dayResult = await supabase
     .from("program_days")

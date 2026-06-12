@@ -91,11 +91,16 @@ export async function saveProgram(formData: FormData) {
     throw new Error("Program title is required.");
   }
 
+  const gender = value(formData, "gender");
+  const level = value(formData, "level");
+
   const payload = {
     title,
     title_translations: translations(titleEn || title, titleNb || title),
     duration_weeks: intValue(formData, "duration_weeks", 12),
     days_per_week: intValue(formData, "days_per_week", 6),
+    gender: gender || null,
+    level: level || null,
   };
 
   const result = id

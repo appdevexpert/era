@@ -399,15 +399,10 @@ export async function getProgramDetail(
     };
   }
 
-  const [
-    programResult,
-    weeksResult,
-    daysResult,
-    sectionsResult,
-    dayExercisesResult,
-    setsResult,
-    exercisesResult,
-  ] = await Promise.all([
+  // Pass 1: program shell + days + library. Sections / exercises / sets must
+  // be filtered server-side by ID — fetching them unfiltered hits Supabase's
+  // default row cap and silently drops most data once multiple programs exist.
+  const [programResult, weeksResult, daysResult, exercisesResult] = await Promise.all([
     supabase
       .from("workout_programs")
       .select("*")
@@ -424,45 +419,65 @@ export async function getProgramDetail(
       .eq("program_id", programId)
       .order("sort_order"),
     supabase
-      .from("program_day_sections")
-      .select("*")
-      .order("sort_order"),
-    supabase
-      .from("program_day_exercises")
-      .select("*, exercise_library(name, name_translations)")
-      .order("sort_order"),
-    supabase
-      .from("planned_exercise_sets")
-      .select("*")
-      .order("set_number"),
-    supabase
       .from("exercise_library")
       .select("*")
       .eq("is_active", true)
       .order("name"),
   ]);
 
-  const dayIds = new Set(((daysResult.data ?? []) as ProgramDayRow[]).map((day) => day.id));
-  const dayExerciseIds = new Set(
-    ((dayExercisesResult.data ?? []) as DayExerciseRow[])
-      .filter((row) => dayIds.has(row.program_day_id))
-      .map((row) => row.id),
-  );
+  const days = (daysResult.data ?? []) as ProgramDayRow[];
+  const dayIds = days.map((day) => day.id);
+
+  // Pass 2: sections + dayExercises filtered by this program's day IDs.
+  const [sectionsResult, dayExercisesResult] =
+    dayIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("program_day_sections")
+            .select("*")
+            .in("program_day_id", dayIds)
+            .order("sort_order"),
+          supabase
+            .from("program_day_exercises")
+            .select("*, exercise_library(name, name_translations)")
+            .in("program_day_id", dayIds)
+            .order("sort_order"),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+
+  const dayExercises = (dayExercisesResult.data ?? []) as DayExerciseRow[];
+  const dayExerciseIds = dayExercises.map((row) => row.id);
+
+  // Pass 3: sets filtered by this program's day-exercise IDs. Two limits in
+  // play here: Supabase REST URLs cap around 8 KB (500 UUIDs ≈ 18 KB ⇒ "fetch
+  // failed"), and the server defaults to 1000 rows per response. Chunking the
+  // IN-clause by 100 keeps the URL well under the URL cap, and 100 exercises
+  // × ~3 sets = ~300 rows safely under the row cap.
+  let sets: PlannedSetRow[] = [];
+  let setsError: string | null = null;
+  const SET_CHUNK = 100;
+  for (let i = 0; i < dayExerciseIds.length; i += SET_CHUNK) {
+    const chunk = dayExerciseIds.slice(i, i + SET_CHUNK);
+    const result = await supabase
+      .from("planned_exercise_sets")
+      .select("*")
+      .in("program_day_exercise_id", chunk)
+      .order("set_number");
+    if (result.error) {
+      setsError = result.error.message;
+      break;
+    }
+    sets = sets.concat((result.data ?? []) as PlannedSetRow[]);
+  }
 
   return {
     data: {
       program: programResult.error ? null : (programResult.data as ProgramRow | null),
       weeks: (weeksResult.data ?? []) as ProgramWeekRow[],
-      days: (daysResult.data ?? []) as ProgramDayRow[],
-      sections: ((sectionsResult.data ?? []) as DaySectionRow[]).filter((section) =>
-        dayIds.has(section.program_day_id),
-      ),
-      dayExercises: ((dayExercisesResult.data ?? []) as DayExerciseRow[]).filter((row) =>
-        dayIds.has(row.program_day_id),
-      ),
-      sets: ((setsResult.data ?? []) as PlannedSetRow[]).filter((set) =>
-        dayExerciseIds.has(set.program_day_exercise_id),
-      ),
+      days,
+      sections: (sectionsResult.data ?? []) as DaySectionRow[],
+      dayExercises,
+      sets,
       exercises: (exercisesResult.data ?? []) as ExerciseRow[],
     },
     configError:
@@ -471,7 +486,7 @@ export async function getProgramDetail(
       daysResult.error?.message ??
       sectionsResult.error?.message ??
       dayExercisesResult.error?.message ??
-      setsResult.error?.message ??
+      setsError ??
       exercisesResult.error?.message ??
       null,
   };

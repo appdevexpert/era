@@ -2,7 +2,7 @@
 
 import type { ReactElement } from "react";
 
-import { FormField } from "@/components/admin/form-field";
+import { FormField, OptionSelectField } from "@/components/admin/form-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,23 @@ import {
 import { saveProgram } from "@/lib/admin/actions";
 import { useFormAction } from "@/lib/admin/use-form-action";
 import { translation } from "@/lib/admin/format";
+import {
+  EXPERIENCE_LEVELS,
+  GENDER_LABELS,
+  LEVEL_LABELS,
+  USER_GENDERS,
+} from "@/lib/admin/constants";
 import type { ProgramRow } from "@/lib/admin/types";
+
+const GENDER_OPTIONS = [
+  { label: "— None —", value: "" },
+  ...USER_GENDERS.map((g) => ({ label: GENDER_LABELS[g], value: g })),
+];
+
+const LEVEL_OPTIONS = [
+  { label: "— None —", value: "" },
+  ...EXPERIENCE_LEVELS.map((l) => ({ label: LEVEL_LABELS[l], value: l })),
+];
 
 export function ProgramFormDialog({
   program,
@@ -72,6 +88,18 @@ export function ProgramFormDialog({
               name="days_per_week"
               type="number"
               defaultValue={program?.days_per_week ?? 6}
+            />
+            <OptionSelectField
+              label="Gender"
+              name="gender"
+              defaultValue={program?.gender ?? ""}
+              options={GENDER_OPTIONS}
+            />
+            <OptionSelectField
+              label="Experience level"
+              name="level"
+              defaultValue={program?.level ?? ""}
+              options={LEVEL_OPTIONS}
             />
           </div>
 

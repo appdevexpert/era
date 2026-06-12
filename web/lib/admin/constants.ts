@@ -11,6 +11,23 @@ export const EXERCISE_CATEGORIES = [
 
 export const PROGRAM_STATUSES = ["draft", "active", "archived"] as const;
 
+export const USER_GENDERS = ["male", "female"] as const;
+export type UserGender = (typeof USER_GENDERS)[number];
+
+export const EXPERIENCE_LEVELS = ["beginner", "intermediate", "advanced"] as const;
+export type ExperienceLevel = (typeof EXPERIENCE_LEVELS)[number];
+
+export const GENDER_LABELS: Record<UserGender, string> = {
+  male: "Male",
+  female: "Female",
+};
+
+export const LEVEL_LABELS: Record<ExperienceLevel, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
+
 export const WORKOUT_PHASES = ["Hypertrophy", "Strength", "Peak"] as const;
 
 export const WORKOUT_DAY_KINDS = [
