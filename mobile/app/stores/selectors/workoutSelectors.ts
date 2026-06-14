@@ -15,7 +15,12 @@ export const selectCurrentDayDetail = (state: RootState) =>
   state.workout.currentDayDetail;
 
 export const selectHasWorkoutBootstrap = (state: RootState) =>
-  Boolean(state.workout.overview && state.workout.currentDayDetail);
+  Boolean(
+    state.auth.user?.id &&
+      state.workout.userId === state.auth.user.id &&
+      state.workout.overview &&
+      state.workout.currentDayDetail,
+  );
 
 /** Returns a flat, screen-ready workout with ordered exercises. Memoize with useMemo in components. */
 export const selectSessionWorkoutData = (state: RootState) =>

@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 import {
   type AuthUser,
@@ -6,9 +7,12 @@ import {
   signIn,
   resetPassword,
   signOut,
+  signOutLocal,
 } from "@/app/utils/auth";
+import { deleteAccount } from "@/app/services/accountService";
 import { saveProgramStartDate } from "@/app/services/profileService";
 import type { LoadingState } from "@/app/types";
+import { RESET_ALL } from "@/app/stores/resetAction";
 import type { RootState } from "@/app/stores/store";
 
 export type { AuthUser };
@@ -35,6 +39,14 @@ const initialState: AuthState = {
   loadingStatus: "idle",
   error: null,
 };
+
+const PERSISTED_REDUX_KEYS = [
+  "persist:auth",
+  "persist:onboarding",
+  "persist:workout",
+  "persist:nutrition",
+  "persist:preferences",
+] as const;
 
 // --- Async thunks ---
 
@@ -77,6 +89,36 @@ export const signOutThunk = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     const { error } = await signOut();
     if (error) return rejectWithValue(error.message);
+  },
+);
+
+/** Deletes the Supabase Auth user through the server-side Edge Function,
+ * signs out, then wipes the entire Redux tree. The RESET_ALL action sends
+ * every slice back to initialState; redux-persist's middleware auto-writes
+ * that empty state to AsyncStorage on the next tick. After this resolves,
+ * Navigation routes to OnboardingStack → GetStarted. */
+export const deleteAccountThunk = createAsyncThunk(
+  "auth/deleteAccount",
+  async (_, { getState, dispatch, rejectWithValue }) => {
+    const userId = (getState() as RootState).auth.user?.id;
+    if (!userId) return rejectWithValue("Not signed in.");
+
+    try {
+      await deleteAccount();
+      const { error: signOutError } = await signOutLocal();
+      if (signOutError) {
+        console.warn(
+          "[auth] local signOut after account deletion failed",
+          signOutError,
+        );
+      }
+      dispatch({ type: RESET_ALL });
+      await AsyncStorage.multiRemove(PERSISTED_REDUX_KEYS);
+    } catch (err) {
+      return rejectWithValue(
+        err instanceof Error ? err.message : "Account deletion failed.",
+      );
+    }
   },
 );
 
@@ -206,6 +248,17 @@ const authSlice = createSlice({
       state.user = null;
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
+    });
+
+    // Delete Account — fulfilled is a no-op because RESET_ALL has already
+    // wiped the slice back to initialState before the action dispatches.
+    builder.addCase(deleteAccountThunk.pending, (state) => {
+      state.loadingStatus = "loading";
+      state.error = null;
+    });
+    builder.addCase(deleteAccountThunk.rejected, (state, action) => {
+      state.loadingStatus = "failed";
+      state.error = (action.payload as string) ?? "Account deletion failed.";
     });
   },
 });

@@ -434,7 +434,7 @@ export const useWorkoutSession = () => {
         sessionService.upsertUserExerciseStat(statParams),
       );
 
-      // PR detection — locked to max_weight only (see PR_FEATURE.md).
+      // PR detection — locked to max_weight only (see doc/PR_FEATURE.md).
       // Attribute to the actual best set, not lastSetId — otherwise the
       // Exercise History badge lands on the wrong row.
       let prDetail: CompletedExercisePRDetail | null = null;

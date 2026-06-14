@@ -60,18 +60,21 @@ export const PLANNED_SET_KINDS = [
   "cardio",
 ] as const;
 
-export const MEAL_CATEGORIES = [
-  "breakfast",
-  "lunch",
-  "snack",
-  "evening_snack",
-  "dinner",
-  "pre_workout",
-  "post_workout",
-  "cheat_meal",
+// The four launch programs (Male/Female × Beginner/Advanced). Intermediate
+// users share the Beginner program — ensure_my_program_assignment maps
+// `level = 'intermediate'` to the Beginner row of the user's gender.
+// IDs are locked seed UUIDs from supabase/workout_schema.sql and are
+// referenced from admin guards (no delete, no gender/level edit).
+export const MAIN_PROGRAM_IDS = [
+  "11111111-1111-1111-1111-111111111111", // Male Beginner
+  "33333333-3333-3333-3333-333333333333", // Male Advanced
+  "44444444-4444-4444-4444-444444444444", // Female Beginner
+  "66666666-6666-6666-6666-666666666666", // Female Advanced
 ] as const;
 
-export const MEAL_PHASE_KEYS = ["hypertrophy", "strength", "peak"] as const;
+export function isMainProgramId(id: string | null | undefined): boolean {
+  return !!id && (MAIN_PROGRAM_IDS as readonly string[]).includes(id);
+}
 
 export const MUSCLE_GROUPS = [
   "chest",

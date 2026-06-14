@@ -7,10 +7,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Monorepo with two independent projects sharing a Supabase backend:
 
 - **`mobile/`** — Expo React Native fitness app (user-facing)
+- **`mobile/doc/`** — All mobile feature/reference markdown docs (PR_FEATURE, WORKOUT_SCHEMA_EXPLAINED, PAYMENT_FEATURE, etc.)
 - **`web/`** — Next.js 16 admin dashboard (owner-only)
 - **`mobile/supabase/`** — Shared database schema and seed SQL
 
 Each sub-project has its own `node_modules`, `package.json`, and build tooling. Run `npm install` inside the respective directory. See `mobile/CLAUDE.md` for detailed mobile architecture and `web/AGENTS.md` for Next.js 16 caveats.
+
+## Documentation Rule
+
+All new feature/reference markdown docs (schema walkthroughs, feature specs, integration notes) MUST be created inside `mobile/doc/`. Do NOT create new `*.md` docs at the `mobile/` root or repo root. The only allowed root-level `.md` files are `CLAUDE.md`, `claude.local.md`, and `README.md`. When you add a new doc, also link it in `mobile/CLAUDE.md` under the Feature Docs list so future sessions can discover it.
 
 ## Commands
 

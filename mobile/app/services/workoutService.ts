@@ -17,8 +17,10 @@ import { supabase } from "@/app/utils/auth";
  * Delegates to the `ensure_my_program_assignment` Postgres function (security
  * definer) which:
  *   1. Returns the existing active assignment if one exists.
- *   2. Otherwise matches `goals.gender` + `goals.level` to one of the 6
- *      launch programs and inserts a new assignment row.
+ *   2. Otherwise matches `goals.gender` + `goals.level` to one of the 4
+ *      launch programs (Male/Female × Beginner/Advanced). Intermediate users
+ *      are mapped to the Beginner program of their gender — the mapping
+ *      lives inside the RPC, not here. See web/doc/PROGRAMS.md.
  *   3. Returns NULL when the user has no goals or no matching program —
  *      the caller surfaces this as "complete onboarding first".
  */

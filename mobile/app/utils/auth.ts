@@ -64,6 +64,8 @@ export const updatePassword = (newPassword: string) =>
 
 export const signOut = () => supabase.auth.signOut();
 
+export const signOutLocal = () => supabase.auth.signOut({ scope: "local" });
+
 // --- Validation ---
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

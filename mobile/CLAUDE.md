@@ -21,9 +21,15 @@ Admin panel is planned later.
 
 Each major feature has a dedicated MD with schema, services, slices, screens, and flow. Read the relevant doc before changing that area — saves a lot of rediscovery time.
 
-- `PR_FEATURE.md` — Personal Records: locked to `max_weight` only. PR detection logic, read services, prSlice, ProgressScreen / PrHistory / ExercisePrHistory wiring.
-- `WORKOUT_SCHEMA_EXPLAINED.md` — Supabase workout schema walkthrough.
-- `WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.
+All feature/reference docs live in `doc/`:
+
+- `doc/PR_FEATURE.md` — Personal Records: locked to `max_weight` only. PR detection logic, read services, prSlice, ProgressScreen / PrHistory / ExercisePrHistory wiring.
+- `doc/WORKOUT_SCHEMA_EXPLAINED.md` — Supabase workout schema walkthrough.
+- `doc/WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.
+- `doc/PAYMENT_FEATURE.md` — Subscription tiers (Free / Standard 99 NOK / Pro 199 NOK), RevenueCat integration, 12-week completion flow. Locked by Rami 2026-06-12.
+- `doc/12_WEEK_PROGRAM.md`, `doc/12_WEEK_PROGRAM_CLIENT.md` — 12-week program structure references.
+
+**Rule:** Every new feature/reference markdown doc MUST be created inside `mobile/doc/`. Do NOT create new `*.md` docs at the `mobile/` root. The only `.md` files allowed at `mobile/` root are `CLAUDE.md`, `claude.local.md`, and `README.md`. When you add a new doc, also add a one-line entry for it under this list so future sessions can find it.
 
 ## Core Rule
 
@@ -309,7 +315,7 @@ Keep components specialized by context — match the **visual**, not the **API**
 
 Some product rules are explicit decisions that should NOT be undone by future refactors. Each lives in the user's memory store (`memory/*.md`) and may also have a feature doc.
 
-- **PR detection** — `max_weight` only. No reps/e1RM PRs. (See `PR_FEATURE.md` and `memory/project_pr_calculation_spec.md`.)
+- **PR detection** — `max_weight` only. No reps/e1RM PRs. (See `doc/PR_FEATURE.md` and `memory/project_pr_calculation_spec.md`.)
 - **ERA points + streak** — Locked point values (50/15/100/150/25/200) and streak rules (workout-only, rest preserves, missed breaks). (See `memory/project_era_points_streak_spec.md`.)
 - **Week progression** — Calendar-driven auto-shift, NOT completion-gated. (See `memory/project_week_progression_model.md`.)
 - **Local-first writes** — Redux first, Supabase sync with retry queue. Never block UI on network. Never silently drop writes. (See `memory/feedback_local_first.md` and Data Write Pattern in `claude.local.md`.)

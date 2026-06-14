@@ -6,7 +6,11 @@ import {
   OnboardingNavigator,
   PlanGenerationNavigator,
 } from "@/app/navigation";
-import { login, clearSession } from "@/app/stores/slice/authSlice";
+import {
+  completePlanGeneration,
+  login,
+  clearSession,
+} from "@/app/stores/slice/authSlice";
 import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
 import {
   loadGoalDataFromSupabase,
@@ -180,6 +184,12 @@ const Navigation = () => {
     if (userId) dispatch(loadGoalDataFromSupabase());
   }, [dispatch, userId]);
 
+  useEffect(() => {
+    if (isLoggedIn && hasWorkoutBootstrap && !isPlanGenerated) {
+      dispatch(completePlanGeneration());
+    }
+  }, [dispatch, hasWorkoutBootstrap, isLoggedIn, isPlanGenerated]);
+
   const clearRecovery = useCallback(() => {
     setIsRecovery(false);
     // After recovery, check if there's a valid session and log the user in
@@ -200,7 +210,7 @@ const Navigation = () => {
             <Stack.Screen name="AuthStack" component={AuthNavigator} />
           ) : !isLoggedIn && !isOnboarded ? (
             <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
-          ) : !isPlanGenerated || !hasWorkoutBootstrap ? (
+          ) : !hasWorkoutBootstrap ? (
             <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
           ) : (
             <Stack.Screen name="HomeStack" component={HomeNavigator} />

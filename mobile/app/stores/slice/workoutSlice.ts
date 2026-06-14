@@ -19,6 +19,7 @@ import type { LoadingState } from "@/app/types";
 import type { RootState } from "@/app/stores/store";
 
 export type WorkoutBootstrapData = {
+  userId: string | null;
   programId: string;
   overview: WorkoutOverviewData;
   currentDayDetail: ProgramDayDetailData;
@@ -30,6 +31,7 @@ export type WorkoutBootstrapData = {
 interface WorkoutState {
   status: LoadingState;
   error: string | null;
+  userId: string | null;
   programId: string | null;
   overview: WorkoutOverviewData | null;
   currentDayDetail: ProgramDayDetailData | null;
@@ -48,6 +50,7 @@ interface WorkoutState {
 const initialState: WorkoutState = {
   status: "idle",
   error: null,
+  userId: null,
   programId: null,
   overview: null,
   currentDayDetail: null,
@@ -67,7 +70,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
   { rejectValue: string; state: RootState }
 >("workout/loadBootstrap", async (args, { rejectWithValue, getState, dispatch }) => {
   try {
-    const userId = getState().auth.user?.id;
+    const userId = getState().auth.user?.id ?? null;
 
     // Sync programStartDate with Supabase before any date math runs.
     // Supabase is the source of truth across devices; Redux is the local cache.
@@ -102,6 +105,16 @@ export const loadWorkoutBootstrap = createAsyncThunk<
     }
 
     const overview = await getWorkoutOverview(targetProgramId);
+
+    if (userId && !getState().auth.programStartDate) {
+      const startDate = new Date().toISOString().split("T")[0];
+      dispatch(setProgramStartDate(startDate));
+      try {
+        await saveProgramStartDate(userId, startDate);
+      } catch (error) {
+        console.warn("[workout] failed to save initial programStartDate", error);
+      }
+    }
 
     // Fetch completed day IDs from workout_sessions
     const completedDayIds = userId
@@ -144,6 +157,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
     const versionSignature = await getProgramVersion();
 
     return {
+      userId,
       programId: overview.program.id,
       overview,
       currentDayDetail,
@@ -204,6 +218,7 @@ const workoutSlice = createSlice({
     builder.addCase(loadWorkoutBootstrap.fulfilled, (state, action) => {
       state.status = "succeeded";
       state.error = null;
+      state.userId = action.payload.userId;
       state.programId = action.payload.programId;
       state.overview = action.payload.overview;
       state.currentDayDetail = action.payload.currentDayDetail;

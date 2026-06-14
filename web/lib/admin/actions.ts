@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdminClient } from "@/lib/admin/supabase";
+import { isMainProgramId } from "@/lib/admin/constants";
 
 function value(formData: FormData, key: string) {
   const raw = formData.get(key);
@@ -91,16 +92,30 @@ export async function saveProgram(formData: FormData) {
     throw new Error("Program title is required.");
   }
 
-  const gender = value(formData, "gender");
-  const level = value(formData, "level");
+  const gender = value(formData, "gender") || null;
+  const level = value(formData, "level") || null;
+
+  // The six launch programs have locked gender/level — those identify which
+  // user cohort gets each program, and changing them silently re-routes users.
+  if (id && isMainProgramId(id)) {
+    const { data: current, error: fetchErr } = await supabase
+      .from("workout_programs")
+      .select("gender, level")
+      .eq("id", id)
+      .maybeSingle();
+    if (fetchErr) throw new Error(fetchErr.message);
+    if (current && (current.gender !== gender || current.level !== level)) {
+      throw new Error("Gender and level are locked on the six main launch programs.");
+    }
+  }
 
   const payload = {
     title,
     title_translations: translations(titleEn || title, titleNb || title),
     duration_weeks: intValue(formData, "duration_weeks", 12),
     days_per_week: intValue(formData, "days_per_week", 6),
-    gender: gender || null,
-    level: level || null,
+    gender,
+    level,
   };
 
   const result = id
@@ -429,6 +444,10 @@ export async function deleteExercise(formData: FormData) {
 export async function deleteProgram(formData: FormData) {
   const supabase = requireAdminClient();
   const id = value(formData, "id");
+
+  if (isMainProgramId(id)) {
+    throw new Error("The six main launch programs cannot be deleted.");
+  }
 
   const { error } = await supabase.from("workout_programs").delete().eq("id", id);
   if (error) throw new Error(error.message);

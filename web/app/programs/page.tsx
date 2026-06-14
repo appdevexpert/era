@@ -9,15 +9,22 @@ import { ProgramGrid } from "@/components/programs/program-grid";
 import { ProgramTable } from "@/components/programs/program-table";
 import { getProgram, getPrograms } from "@/lib/admin/data";
 
+import type { UserGender } from "@/lib/admin/constants";
+
 type ProgramsPageProps = {
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; gender?: string }>;
 };
 
+function parseGender(value: string | undefined): UserGender | undefined {
+  return value === "male" || value === "female" ? value : undefined;
+}
+
 export default async function ProgramsPage({ searchParams }: ProgramsPageProps) {
-  const { edit } = await searchParams;
+  const params = await searchParams;
+  const gender = parseGender(params.gender);
   const [programsState, selectedProgramState] = await Promise.all([
     getPrograms(),
-    getProgram(edit),
+    getProgram(params.edit),
   ]);
 
   const configError = programsState.configError ?? selectedProgramState.configError;
@@ -33,7 +40,7 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       <PageHeader
         eyebrow="Program Manager"
         title="Programs"
-        description="Six launch programs — Male and Female × Beginner / Intermediate / Advanced. Each tier owns its content so weights and exercises can diverge as Rami's spec evolves."
+        description="Four launch programs — Male and Female × Beginner / Advanced. Intermediate users share the Beginner program. Pick a gender to manage."
         action={
           <ProgramFormDialog
             program={null}
@@ -49,9 +56,9 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
 
       <ConfigWarning message={configError} />
 
-      <ProgramGrid programs={programsState.data} />
+      <ProgramGrid programs={programsState.data} gender={gender} />
 
-      {otherPrograms.length > 0 ? (
+      {!gender && otherPrograms.length > 0 ? (
         <section className="mt-10 grid gap-3">
           <div>
             <h2 className="font-display text-xl text-foreground">Other programs</h2>
@@ -64,7 +71,7 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
       ) : null}
 
       {selectedProgramState.data ? (
-        <ProgramFormDialog key={edit} program={selectedProgramState.data} defaultOpen />
+        <ProgramFormDialog key={params.edit} program={selectedProgramState.data} defaultOpen />
       ) : null}
     </>
   );

@@ -295,6 +295,12 @@ const nb = {
     privacyPolicy: "Personvern",
     signOut: "Logg ut",
     deleteAccount: "Slett konto",
+    deleteAccountConfirmTitle: "Slette konto?",
+    deleteAccountConfirmBody:
+      "Dette sletter alle dine data permanent — treninger, PRs, streaks, bilder og mål. Du blir logget ut og må starte på nytt. Dette kan ikke angres.",
+    deleteAccountCancel: "Avbryt",
+    deleteAccountConfirm: "Slett",
+    deleteAccountFailedTitle: "Kunne ikke slette konto",
     version: "ERA v1.0.0",
     freeTrial: "ERA Gratis prøveperiode",
     manageSubscription: "Administrer abonnement",

@@ -295,6 +295,12 @@ const en = {
     privacyPolicy: "Privacy Policy",
     signOut: "Sign Out",
     deleteAccount: "Delete Account",
+    deleteAccountConfirmTitle: "Delete account?",
+    deleteAccountConfirmBody:
+      "This will permanently delete all your data — workouts, PRs, streaks, photos, and goals. You'll be signed out and need to start fresh. This cannot be undone.",
+    deleteAccountCancel: "Cancel",
+    deleteAccountConfirm: "Delete",
+    deleteAccountFailedTitle: "Couldn't delete account",
     version: "ERA v1.0.0",
     freeTrial: "ERA Free Trial",
     manageSubscription: "Manage Subscription",

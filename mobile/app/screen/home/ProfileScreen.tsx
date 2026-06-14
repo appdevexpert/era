@@ -15,7 +15,7 @@ import {
   selectRewardStatus,
   selectTotalPoints,
 } from "@/app/stores/selectors/rewardSelectors";
-import { signOutThunk } from "@/app/stores/slice/authSlice";
+import { deleteAccountThunk, signOutThunk } from "@/app/stores/slice/authSlice";
 import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
 import { RootState, useAppDispatch } from "@/app/stores/store";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
@@ -35,9 +35,10 @@ import {
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -82,8 +83,10 @@ const ProfileScreen = () => {
     }
   }, [dispatch, user?.id, rewardStatus]);
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const isNorwegian = i18n.language === "nb";
-  const isLoggingOut = authStatus === "loading";
+  const isLoggingOut = authStatus === "loading" && !isDeleting;
 
   const displayName =
     user?.name || user?.email?.split("@")[0] || t("profile.fallbackName");
@@ -109,7 +112,35 @@ const ProfileScreen = () => {
   ].join(t("profile.metaSeparator"));
 
   const handleLogout = () => {
-    if (!isLoggingOut) dispatch(signOutThunk());
+    if (!isLoggingOut && !isDeleting) dispatch(signOutThunk());
+  };
+
+  const handleDeleteAccount = () => {
+    if (isLoggingOut || isDeleting) return;
+    Alert.alert(
+      t("profile.deleteAccountConfirmTitle"),
+      t("profile.deleteAccountConfirmBody"),
+      [
+        { text: t("profile.deleteAccountCancel"), style: "cancel" },
+        {
+          text: t("profile.deleteAccountConfirm"),
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await dispatch(deleteAccountThunk()).unwrap();
+              // Navigation auto-redirects to OnboardingStack once Redux resets.
+            } catch (err) {
+              setIsDeleting(false);
+              Alert.alert(
+                t("profile.deleteAccountFailedTitle"),
+                err instanceof Error ? err.message : String(err),
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -210,8 +241,15 @@ const ProfileScreen = () => {
             icon={<SettingTrashBin width={24} height={24} />}
             label={t("profile.deleteAccount")}
             labelColor={COLORS.semantic.danger}
-            right={<ChevronDanger />}
-            onPress={() => {}}
+            right={
+              isDeleting ? (
+                <ActivityIndicator size="small" color={COLORS.semantic.danger} />
+              ) : (
+                <ChevronDanger />
+              )
+            }
+            onPress={handleDeleteAccount}
+            disabled={isDeleting || isLoggingOut}
           />
         </SettingsCard>
 

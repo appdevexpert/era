@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
@@ -25,6 +25,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { PlanGenerationStackParamList } from "@/app/navigation/types";
 import { completePlanGeneration } from "@/app/stores/slice/authSlice";
+import { submitGoalData } from "@/app/stores/slice/onboardingSlice";
 import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
 import {
   selectHasWorkoutBootstrap,
@@ -261,6 +262,15 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   const isFailed = workoutStatus === "failed";
   const isReady = completed && hasWorkoutBootstrap;
 
+  const startWorkoutBootstrap = useCallback(async () => {
+    try {
+      await dispatch(submitGoalData()).unwrap();
+    } catch (error) {
+      console.warn("[planGeneration] failed to submit onboarding data", error);
+    }
+    dispatch(loadWorkoutBootstrap());
+  }, [dispatch]);
+
   const remainingSeconds = useMemo(
     () => Math.max(0, TOTAL_ESTIMATED_SECONDS * (1 - progress / 100)),
     [progress],
@@ -269,9 +279,9 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   // Fetch workout data
   useEffect(() => {
     if (!hasWorkoutBootstrap && workoutStatus === "idle") {
-      dispatch(loadWorkoutBootstrap());
+      startWorkoutBootstrap();
     }
-  }, [dispatch, hasWorkoutBootstrap, workoutStatus]);
+  }, [hasWorkoutBootstrap, startWorkoutBootstrap, workoutStatus]);
 
   // Kick off the single 0 → 100 animation. The counter and the progress bar
   // both ride the same long easing — no per-tick stepping.
@@ -302,7 +312,7 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
     setProgressTarget(0);
     progressAnim.setValue(0);
     setCompleted(false);
-    dispatch(loadWorkoutBootstrap());
+    startWorkoutBootstrap();
   };
 
   const progressBarWidth = progressAnim.interpolate({

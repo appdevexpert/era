@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { configureStore } from "@reduxjs/toolkit";
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
+import type { AnyAction, Reducer } from "@reduxjs/toolkit";
 import { useDispatch } from "react-redux";
 import { persistReducer, persistStore } from "redux-persist";
+import { RESET_ALL } from "./resetAction";
 import authReducer from "./slice/authSlice";
 import nutritionReducer from "./slice/nutritionSlice";
 import onboardingReducer from "./slice/onboardingSlice";
@@ -21,6 +23,7 @@ const workoutPersistConfig = {
   key: "workout",
   storage: AsyncStorage,
   whitelist: [
+    "userId",
     "programId",
     "overview",
     "currentDayDetail",
@@ -41,20 +44,32 @@ const persistedPreferencesReducer = persistReducer(preferencesPersistConfig, pre
 const persistedWorkoutReducer = persistReducer(workoutPersistConfig, workoutReducer);
 const persistedNutritionReducer = persistReducer(nutritionPersistConfig, nutritionReducer);
 
+const combinedReducer = combineReducers({
+  auth: persistedAuthReducer,
+  onboarding: persistedOnboardingReducer,
+  workout: persistedWorkoutReducer,
+  nutrition: persistedNutritionReducer,
+  session: sessionReducer,
+  sync: syncReducer,
+  reward: rewardReducer,
+  weight: weightReducer,
+  photo: photoReducer,
+  pr: prReducer,
+  preferences: persistedPreferencesReducer,
+});
+
+const rootReducer: Reducer<ReturnType<typeof combinedReducer>, AnyAction> = (
+  state,
+  action,
+) => {
+  if (action.type === RESET_ALL) {
+    return combinedReducer(undefined, action);
+  }
+  return combinedReducer(state, action);
+};
+
 export const store = configureStore({
-  reducer: {
-    auth: persistedAuthReducer,
-    onboarding: persistedOnboardingReducer,
-    workout: persistedWorkoutReducer,
-    nutrition: persistedNutritionReducer,
-    session: sessionReducer,
-    sync: syncReducer,
-    reward: rewardReducer,
-    weight: weightReducer,
-    photo: photoReducer,
-    pr: prReducer,
-    preferences: persistedPreferencesReducer,
-  },
+  reducer: rootReducer,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {

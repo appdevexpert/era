@@ -470,9 +470,11 @@ export async function getProgramDetail(
     sets = sets.concat((result.data ?? []) as PlannedSetRow[]);
   }
 
+  const program = programResult.error ? null : (programResult.data as ProgramRow | null);
+
   return {
     data: {
-      program: programResult.error ? null : (programResult.data as ProgramRow | null),
+      program,
       weeks: (weeksResult.data ?? []) as ProgramWeekRow[],
       days,
       sections: (sectionsResult.data ?? []) as DaySectionRow[],
