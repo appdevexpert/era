@@ -145,6 +145,7 @@ const PhotoPreviewBottomSheet = forwardRef<
                 identity was passed (Delete needs id + storagePath). */}
             {canDelete ? (
               <PressableScale onPress={handleDelete} style={styles.deleteBtn}>
+                <GlassFill style={styles.deleteGlass} />
                 <View style={styles.deleteTint} pointerEvents="none" />
                 <SettingTrashBin width={24} height={24} />
                 <Text style={styles.actionText}>
@@ -277,6 +278,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 138,
     overflow: "hidden",
+  },
+  deleteGlass: {
+    borderRadius: 138,
   },
   deleteTint: {
     ...StyleSheet.absoluteFillObject,
