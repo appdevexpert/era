@@ -584,6 +584,8 @@ const styles = StyleSheet.create({
     marginTop: -18,
     width: 36,
     height: 36,
+    borderRadius: 18,
+    overflow: "hidden",
   },
   // Body sits flush against the cap. Laurel + ordinal share the same wrapper
   // so the rank text sits in the empty middle of the wreath.
