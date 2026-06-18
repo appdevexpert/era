@@ -79,10 +79,16 @@ export const useWorkoutSession = () => {
   const weightUnitPref = useSelector(
     (state: RootState) => state.preferences.weightUnit,
   );
+  const isDeloadWeek = useSelector(
+    (state: RootState) => state.workout.assignment?.is_deload_week === true,
+  );
 
   const sessionWorkout: SessionWorkout | null = useMemo(
-    () => (currentDayDetail ? mapSessionWorkout(currentDayDetail, i18n.language) : null),
-    [currentDayDetail, i18n.language],
+    () =>
+      currentDayDetail
+        ? mapSessionWorkout(currentDayDetail, i18n.language, { isDeloadWeek })
+        : null,
+    [currentDayDetail, i18n.language, isDeloadWeek],
   );
 
   const totalExercises = sessionWorkout?.exercises.length ?? 0;

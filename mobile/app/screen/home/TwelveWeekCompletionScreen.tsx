@@ -4,6 +4,7 @@ import PrimaryButton from "@/app/components/common/PrimaryButton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
+import type { RootState } from "@/app/stores/store";
 import { TwelveWeekCompletion, TwelveWeekDiamond } from "@/assets/images";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -11,6 +12,7 @@ import { useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 
 const StatCard = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.statCard}>
@@ -24,6 +26,14 @@ const TwelveWeekCompletionScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
   const [screenSize, setScreenSize] = useState({ width: 0, height: 0 });
+
+  // Stats sourced from the slices loaded during the cycle:
+  //   - sessions: workout.completedDayIds (program_day_ids of completed sessions)
+  //   - PRs:      pr.latestPRs (server-side latest 50, sufficient for a 12-week cycle)
+  //   - points:   reward.totalPoints (lifetime ERA points)
+  const sessionCount = useSelector((s: RootState) => s.workout.completedDayIds.length);
+  const prCount = useSelector((s: RootState) => s.pr.latestPRs.length);
+  const points = useSelector((s: RootState) => s.reward.totalPoints);
 
   const handleNext = () => {
     navigation.navigate("WhatComesNow");
@@ -66,9 +76,9 @@ const TwelveWeekCompletionScreen = () => {
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard value="72" label={t("twelveWeekCompletion.statSessions")} />
-          <StatCard value="18" label={t("twelveWeekCompletion.statPrs")} />
-          <StatCard value="6240" label={t("twelveWeekCompletion.statPoints")} />
+          <StatCard value={String(sessionCount)} label={t("twelveWeekCompletion.statSessions")} />
+          <StatCard value={String(prCount)} label={t("twelveWeekCompletion.statPrs")} />
+          <StatCard value={String(points)} label={t("twelveWeekCompletion.statPoints")} />
         </View>
 
         <View style={styles.footer}>

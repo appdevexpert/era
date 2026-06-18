@@ -5,30 +5,79 @@ import PressableScale from "@/app/components/common/PressableScale";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
+import {
+  type CycleChoice,
+  startNextCycle,
+} from "@/app/services/assignmentService";
+import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import { useAppDispatch } from "@/app/stores/store";
 import { AltArrowLeft } from "@/assets/icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
+import Toast from "react-native-toast-message";
+import type { RootState } from "@/app/stores/store";
 
 type ChoiceKey = "restart" | "deload" | "next";
+
+const CHOICE_TO_RPC: Record<ChoiceKey, CycleChoice> = {
+  restart: "heavier",
+  deload: "deload",
+  next: "bro_split",
+};
 
 const WhatComesNowScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
+  const dispatch = useAppDispatch();
+  const gender = useSelector((s: RootState) => s.onboarding.goalData.gender);
+
   const [selected, setSelected] = useState<ChoiceKey>("restart");
+  const [submitting, setSubmitting] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(0);
 
-  const choices: { key: ChoiceKey; titleKey: string; badgeKey: string; bulletsKey: string }[] = [
-    { key: "restart", titleKey: "whatComesNow.restart.title", badgeKey: "whatComesNow.restart.badge", bulletsKey: "whatComesNow.restart.bullets" },
-    { key: "deload", titleKey: "whatComesNow.deload.title", badgeKey: "whatComesNow.deload.badge", bulletsKey: "whatComesNow.deload.bullets" },
-    { key: "next", titleKey: "whatComesNow.next.title", badgeKey: "whatComesNow.next.badge", bulletsKey: "whatComesNow.next.bullets" },
-  ];
+  // Female users at launch get only Heavier + Deload — Bro Split is male-only.
+  const choices = useMemo(() => {
+    const base: { key: ChoiceKey; titleKey: string; badgeKey: string; bulletsKey: string }[] = [
+      { key: "restart", titleKey: "whatComesNow.restart.title", badgeKey: "whatComesNow.restart.badge", bulletsKey: "whatComesNow.restart.bullets" },
+      { key: "deload", titleKey: "whatComesNow.deload.title", badgeKey: "whatComesNow.deload.badge", bulletsKey: "whatComesNow.deload.bullets" },
+    ];
+    if (gender === "male") {
+      base.push({
+        key: "next",
+        titleKey: "whatComesNow.next.title",
+        badgeKey: "whatComesNow.next.badge",
+        bulletsKey: "whatComesNow.next.bullets",
+      });
+    }
+    return base;
+  }, [gender]);
+
+  const handleConfirm = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await startNextCycle(CHOICE_TO_RPC[selected]);
+      // Force-reload workout cache so the next cycle's program + assignment land in Redux
+      await dispatch(loadWorkoutBootstrap({})).unwrap();
+      navigation.navigate("Cycle2Begins");
+    } catch (err) {
+      Toast.show({
+        type: "error",
+        text1: t("whatComesNow.errorTitle", { defaultValue: "Couldn't start next cycle" }),
+        text2: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -76,7 +125,8 @@ const WhatComesNowScreen = () => {
       <View style={[styles.ctaWrap, { bottom: insets.bottom + 24 }]}>
         <PrimaryButton
           label={t("whatComesNow.cta")}
-          onPress={() => navigation.navigate("Cycle2Begins")}
+          onPress={handleConfirm}
+          loading={submitting}
         />
       </View>
     </View>

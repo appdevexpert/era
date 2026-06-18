@@ -182,10 +182,19 @@ export function ProgramGrid({
 
   const byLevel = new Map<string, ProgramRow>();
   for (const program of programs) {
-    if (program.gender === gender && program.level) {
+    if (
+      program.gender === gender &&
+      program.level &&
+      (program.kind ?? "standard") === "standard"
+    ) {
       byLevel.set(program.level, program);
     }
   }
+
+  // Cycle 2 alternative — currently only Bro Split for male users.
+  const cycle2Programs = programs.filter(
+    (program) => program.gender === gender && program.kind === "bro_split",
+  );
 
   return (
     <div className="grid gap-5">
@@ -213,6 +222,24 @@ export function ProgramGrid({
           />
         ))}
       </div>
+
+      {cycle2Programs.length > 0 ? (
+        <div className="grid gap-3 pt-2">
+          <h3 className="font-display text-base text-muted-foreground">
+            Cycle 2 alternatives
+          </h3>
+          <div className="grid gap-4 md:grid-cols-2">
+            {cycle2Programs.map((program) => (
+              <ProgramCard
+                key={program.id}
+                program={program}
+                gender={gender}
+                level="advanced"
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

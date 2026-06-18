@@ -214,12 +214,15 @@ const ProfileScreen = () => {
             right={<Chevron />}
             onPress={() => navigation.navigate("PrivacyPolicy")}
           />
-          <SettingsRow
-            icon={<MedalBadge width={24} height={24} />}
-            label={t("twelveWeekCompletion.devTestButton")}
-            right={<Chevron />}
-            onPress={() => navigation.navigate("TwelveWeekCompletion")}
-          />
+          {/* Dev-only shortcut to test the cycle 1 → cycle 2 celebration flow. */}
+          {__DEV__ && (
+            <SettingsRow
+              icon={<MedalBadge width={24} height={24} />}
+              label={t("twelveWeekCompletion.devTestButton")}
+              right={<Chevron />}
+              onPress={() => navigation.navigate("TwelveWeekCompletion")}
+            />
+          )}
         </SettingsCard>
 
         <SectionTitle>{t("profile.sections.sessionManagement")}</SectionTitle>

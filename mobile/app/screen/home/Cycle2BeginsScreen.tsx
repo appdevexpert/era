@@ -3,27 +3,51 @@ import PrimaryButton from "@/app/components/common/PrimaryButton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
+import { getUserBestWeightsBySlug } from "@/app/services/assignmentService";
+import type { RootState } from "@/app/stores/store";
+import {
+  BRO_SPLIT_WEIGHT_RATIOS,
+  calculateHeavierStartingWeight,
+} from "@/app/utils/cycleStartingWeights";
 import { TwelveWeekDiamond } from "@/assets/images";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useEffect, useMemo, useState } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import { useTranslation } from "react-i18next";
+import { useSelector } from "react-redux";
 
 interface ExerciseRow {
+  /** Localized display name */
   name: string;
-  old: string;
-  next: string;
+  /** Cycle 1 best weight in kg, or null when no data */
+  oldKg: number | null;
+  /** Cycle 2 starting weight in kg */
+  newKg: number;
 }
 
-const ROWS: ExerciseRow[] = [
-  { name: "Bench Press", old: "80kg", next: "105kg" },
-  { name: "Squat", old: "80kg", next: "95kg" },
-  { name: "Military Press", old: "50kg", next: "65kg" },
-  { name: "Incline Press", old: "100kg", next: "125kg" },
-  { name: "Barbell Row", old: "120kg", next: "135kg" },
+// 5 lifts shown on the celebration table — same shape as Rami's example.
+// Display order is fixed; mapping target depends on whether the new cycle
+// is Heavier (same lift) or Bro Split (cycle 1 lift → bro-split lift).
+const HEAVIER_LIFTS: { slug: string; labelKey: string }[] = [
+  { slug: "bench-press",     labelKey: "cycle2Begins.lifts.benchPress" },
+  { slug: "squat",           labelKey: "cycle2Begins.lifts.squat" },
+  { slug: "overhead_press",  labelKey: "cycle2Begins.lifts.militaryPress" },
+  { slug: "incline_dumbbell_press", labelKey: "cycle2Begins.lifts.inclinePress" },
+  { slug: "barbell_row",     labelKey: "cycle2Begins.lifts.barbellRow" },
 ];
+
+const BRO_SPLIT_LIFTS: { slug: string; labelKey: string }[] = [
+  { slug: "incline_barbell_press",  labelKey: "cycle2Begins.lifts.inclineBarbellPress" },
+  { slug: "t_bar_row",              labelKey: "cycle2Begins.lifts.tBarRow" },
+  { slug: "front_squat",            labelKey: "cycle2Begins.lifts.frontSquat" },
+  { slug: "behind_neck_press",      labelKey: "cycle2Begins.lifts.behindNeckPress" },
+  { slug: "close_grip_bench_press", labelKey: "cycle2Begins.lifts.closeGripBenchPress" },
+];
+
+const formatKg = (kg: number | null): string => (kg == null ? "—" : `${kg}kg`);
 
 const ArrowUp = () => (
   <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
@@ -41,6 +65,46 @@ const Cycle2BeginsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const { t } = useTranslation();
+  const userId = useSelector((s: RootState) => s.auth.user?.id);
+  const assignment = useSelector((s: RootState) => s.workout.assignment);
+  const [cycle1Best, setCycle1Best] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    getUserBestWeightsBySlug(userId)
+      .then((map) => {
+        if (!cancelled) setCycle1Best(map);
+      })
+      .catch((err) => console.warn("[Cycle2Begins] best weights fetch failed", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const isBroSplit = assignment?.program_id === "88888888-8888-8888-8888-888888888888";
+
+  const rows: ExerciseRow[] = useMemo(() => {
+    if (isBroSplit) {
+      return BRO_SPLIT_LIFTS.map(({ slug, labelKey }) => {
+        const ratio = BRO_SPLIT_WEIGHT_RATIOS[slug];
+        const oldKg = ratio ? (cycle1Best[ratio.sourceExerciseSlug] ?? null) : null;
+        const newKg = ratio && oldKg != null ? Math.round((oldKg * ratio.ratio) / 2.5) * 2.5 : 0;
+        return { name: t(labelKey), oldKg, newKg };
+      }).filter((r) => r.oldKg != null);
+    }
+    return HEAVIER_LIFTS.map(({ slug, labelKey }) => {
+      const oldKg = cycle1Best[slug] ?? null;
+      const newKg =
+        calculateHeavierStartingWeight({
+          week12TopSetKg: oldKg,
+          week12Rating: "correct",
+          week11WeightKg: null,
+          attemptedWeightKg: null,
+        }) ?? 0;
+      return { name: t(labelKey), oldKg, newKg };
+    }).filter((r) => r.oldKg != null);
+  }, [cycle1Best, isBroSplit, t]);
 
   const handleStart = () => {
     navigation.popToTop();
@@ -62,16 +126,22 @@ const Cycle2BeginsScreen = () => {
             <Text style={[styles.colNew, styles.headerCell, styles.headerCellNew]}>{t("cycle2Begins.colNew")}</Text>
           </View>
 
-          {ROWS.map((row) => (
-            <View key={row.name} style={styles.tableRow}>
-              <Text style={[styles.colName, styles.rowName]}>{row.name}</Text>
-              <Text style={[styles.colOld, styles.rowOld]}>{row.old}</Text>
-              <View style={[styles.colNew, styles.rowNewWrap]}>
-                <Text style={styles.rowNew}>{row.next}</Text>
-                <ArrowUp />
-              </View>
+          {rows.length === 0 ? (
+            <View style={styles.tableRow}>
+              <Text style={[styles.colName, styles.rowName]}>{t("cycle2Begins.empty", { defaultValue: "Not enough cycle 1 data yet" })}</Text>
             </View>
-          ))}
+          ) : (
+            rows.map((row) => (
+              <View key={row.name} style={styles.tableRow}>
+                <Text style={[styles.colName, styles.rowName]}>{row.name}</Text>
+                <Text style={[styles.colOld, styles.rowOld]}>{formatKg(row.oldKg)}</Text>
+                <View style={[styles.colNew, styles.rowNewWrap]}>
+                  <Text style={styles.rowNew}>{formatKg(row.newKg)}</Text>
+                  <ArrowUp />
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
         <View style={styles.footer}>

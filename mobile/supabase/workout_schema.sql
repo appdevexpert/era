@@ -200,9 +200,11 @@ create table if not exists public.workout_programs (
   title_translations jsonb not null default '{}'::jsonb,
   gender public.user_gender,
   level public.experience_level,
+  kind text not null default 'standard',
   constraint workout_programs_pkey primary key (id),
   constraint workout_programs_days_per_week_check check (((days_per_week >= 1) and (days_per_week <= 7))),
-  constraint workout_programs_duration_weeks_check check ((duration_weeks > 0))
+  constraint workout_programs_duration_weeks_check check ((duration_weeks > 0)),
+  constraint workout_programs_kind_check check ((kind = ANY (ARRAY['standard'::text,'bro_split'::text])))
 );
 
 -- ------------------------------------------------------------
@@ -352,13 +354,18 @@ create table if not exists public.user_program_assignments (
   completed_at timestamptz,
   current_week_number integer not null default 1,
   current_day_number integer not null default 1,
+  cycle_number integer not null default 1,
+  previous_assignment_id uuid,
+  is_deload_week boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint user_program_assignments_pkey primary key (id),
   constraint user_program_assignments_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade,
   constraint user_program_assignments_program_id_fkey foreign key (program_id) references public.workout_programs(id) on delete cascade,
+  constraint user_program_assignments_previous_assignment_fkey foreign key (previous_assignment_id) references public.user_program_assignments(id) on delete set null,
   constraint user_program_assignments_current_day_number_check check ((current_day_number > 0)),
-  constraint user_program_assignments_current_week_number_check check ((current_week_number > 0))
+  constraint user_program_assignments_current_week_number_check check ((current_week_number > 0)),
+  constraint user_program_assignments_cycle_number_check check ((cycle_number > 0))
 );
 
 -- ------------------------------------------------------------
@@ -825,6 +832,7 @@ create index user_meal_plan_items_plan_idx ON public.user_meal_plan_items USING 
 create unique index user_meal_plans_user_id_week_number_key ON public.user_meal_plans USING btree (user_id, week_number);
 
 create index idx_assignments_user_status ON public.user_program_assignments USING btree (user_id, status);
+create index idx_assignments_user_cycle ON public.user_program_assignments USING btree (user_id, cycle_number DESC);
 create unique index user_program_assignments_one_active_per_user_idx ON public.user_program_assignments USING btree (user_id) WHERE (status = 'active'::program_assignment_status);
 
 create index idx_streak_days_user_date ON public.user_streak_days USING btree (user_id, streak_date DESC);
@@ -1129,20 +1137,118 @@ begin
   from   public.workout_programs p
   where  p.gender::text = v_gender
     and  p.level::text  = v_target_level
+    and  p.kind = 'standard'
   limit  1;
   if v_program_id is null then
     return null;
   end if;
 
   insert into public.user_program_assignments
-    (user_id, program_id, status, current_week_number, current_day_number)
+    (user_id, program_id, status, started_at, current_week_number, current_day_number, cycle_number)
   values
-    (v_user_id, v_program_id, 'active', 1, 1)
+    (v_user_id, v_program_id, 'active', now(), 1, 1, 1)
   on conflict do nothing;
 
   return v_program_id;
 end;
 $function$;
+
+-- ------------------------------------------------------------
+-- start_next_cycle (cycle 1 → cycle 2 transition RPC)
+-- ------------------------------------------------------------
+create or replace function public.start_next_cycle(p_choice text)
+ returns jsonb
+ language plpgsql
+ security definer
+ set search_path to 'public'
+as $function$
+declare
+  v_user_id        uuid := auth.uid();
+  v_old_assignment public.user_program_assignments;
+  v_user_gender    text;
+  v_new_program_id uuid;
+  v_new_id         uuid;
+  v_is_deload      boolean := false;
+begin
+  if v_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if p_choice not in ('heavier','deload','bro_split') then
+    raise exception 'Invalid p_choice: %. Must be heavier|deload|bro_split', p_choice;
+  end if;
+
+  select g.gender::text into v_user_gender
+  from   public.goals g
+  where  g.user_id = v_user_id
+  order  by g.created_at desc
+  limit  1;
+
+  if v_user_gender is null then
+    raise exception 'User gender unknown — onboarding goals row missing';
+  end if;
+
+  if p_choice = 'bro_split' and v_user_gender <> 'male' then
+    raise exception 'bro_split is not available for non-male users';
+  end if;
+
+  select * into v_old_assignment
+  from   public.user_program_assignments
+  where  user_id = v_user_id and status = 'active'
+  order  by assigned_at desc
+  limit  1;
+
+  if v_old_assignment.id is null then
+    raise exception 'No active program assignment found for user';
+  end if;
+
+  if p_choice = 'bro_split' then
+    select id into v_new_program_id
+    from   public.workout_programs
+    where  gender::text = 'male' and kind = 'bro_split'
+    limit  1;
+    if v_new_program_id is null then
+      raise exception 'Bro Split program not seeded';
+    end if;
+  else
+    v_new_program_id := v_old_assignment.program_id;
+    if p_choice = 'deload' then
+      v_is_deload := true;
+    end if;
+  end if;
+
+  update public.user_program_assignments
+     set status              = 'completed',
+         completed_at        = now(),
+         current_week_number = 12,
+         current_day_number  = 7,
+         updated_at          = now()
+   where id = v_old_assignment.id;
+
+  insert into public.user_program_assignments
+    (user_id, program_id, status, started_at, current_week_number, current_day_number,
+     cycle_number, previous_assignment_id, is_deload_week)
+  values
+    (v_user_id, v_new_program_id, 'active', now(), 1, 1,
+     v_old_assignment.cycle_number + 1, v_old_assignment.id, v_is_deload)
+  returning id into v_new_id;
+
+  update public.profiles
+     set program_start_date = current_date
+   where id = v_user_id;
+
+  return jsonb_build_object(
+    'assignment_id', v_new_id,
+    'program_id',    v_new_program_id,
+    'choice',        p_choice,
+    'is_deload',     v_is_deload,
+    'cycle_number',  v_old_assignment.cycle_number + 1,
+    'previous_assignment_id', v_old_assignment.id
+  );
+end;
+$function$;
+
+grant execute on function public.start_next_cycle(text) to authenticated, service_role;
 
 grant execute on function public.ensure_my_program_assignment() to authenticated, service_role;
 

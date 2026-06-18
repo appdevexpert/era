@@ -180,7 +180,7 @@ const ExerciseSection = ({
   mode: DayStatus;
 }) => (
   <View style={styles.section}>
-    <SectionHeader title={section.title} showEdit={mode === "active" && section.showEdit} />
+    <SectionHeader title={section.title} />
     <View style={styles.exerciseList}>
       {section.exercises.map((exercise, index) => (
         <View key={exercise.id}>

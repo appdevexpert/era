@@ -36,6 +36,8 @@ export type ExerciseRow = {
 
 import type { UserGender, ExperienceLevel } from "@/lib/admin/constants";
 
+export type ProgramKind = "standard" | "bro_split";
+
 export type ProgramRow = {
   id: string;
   title: string;
@@ -44,6 +46,7 @@ export type ProgramRow = {
   days_per_week: number;
   gender: UserGender | null;
   level: ExperienceLevel | null;
+  kind: ProgramKind;
   created_at: string;
   updated_at: string;
   weekCount?: number;

@@ -70,6 +70,7 @@ export const MAIN_PROGRAM_IDS = [
   "33333333-3333-3333-3333-333333333333", // Male Advanced
   "44444444-4444-4444-4444-444444444444", // Female Beginner
   "66666666-6666-6666-6666-666666666666", // Female Advanced
+  "88888888-8888-8888-8888-888888888888", // Bro Split (Cycle 2, male-only)
 ] as const;
 
 export function isMainProgramId(id: string | null | undefined): boolean {

@@ -33,6 +33,11 @@ const LEVEL_OPTIONS = [
   ...EXPERIENCE_LEVELS.map((l) => ({ label: LEVEL_LABELS[l], value: l })),
 ];
 
+const KIND_OPTIONS = [
+  { label: "Standard (Cycle 1)", value: "standard" },
+  { label: "Bro Split (Cycle 2)", value: "bro_split" },
+];
+
 export function ProgramFormDialog({
   program,
   trigger,
@@ -100,6 +105,12 @@ export function ProgramFormDialog({
               name="level"
               defaultValue={program?.level ?? ""}
               options={LEVEL_OPTIONS}
+            />
+            <OptionSelectField
+              label="Program kind"
+              name="kind"
+              defaultValue={program?.kind ?? "standard"}
+              options={KIND_OPTIONS}
             />
           </div>
 

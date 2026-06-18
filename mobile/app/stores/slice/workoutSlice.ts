@@ -13,6 +13,10 @@ import {
   fetchProgramStartDate,
   saveProgramStartDate,
 } from "@/app/services/profileService";
+import {
+  getActiveAssignment,
+  type AssignmentRow,
+} from "@/app/services/assignmentService";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import type { ProgramDayDetailData, WorkoutOverviewData } from "@/app/types/workout";
 import type { LoadingState } from "@/app/types";
@@ -26,6 +30,7 @@ export type WorkoutBootstrapData = {
   completedDayIds: string[];
   loadedAt: string;
   versionSignature: string | null;
+  assignment: AssignmentRow | null;
 };
 
 interface WorkoutState {
@@ -45,6 +50,8 @@ interface WorkoutState {
    * whole plan.
    */
   versionSignature: string | null;
+  /** Active user_program_assignments row — drives cycle 2 + deload UI. */
+  assignment: AssignmentRow | null;
 }
 
 const initialState: WorkoutState = {
@@ -57,6 +64,7 @@ const initialState: WorkoutState = {
   completedDayIds: [],
   loadedAt: null,
   versionSignature: null,
+  assignment: null,
 };
 
 type LoadWorkoutBootstrapArgs = {
@@ -156,6 +164,10 @@ export const loadWorkoutBootstrap = createAsyncThunk<
     // checkAndRefreshIfStale will see the mismatch and trigger a refetch.
     const versionSignature = await getProgramVersion();
 
+    // Fetch active assignment (cycle_number, is_deload_week, etc.) so
+    // downstream UI (mappers, completion detection) can read it.
+    const assignment = userId ? await getActiveAssignment(userId) : null;
+
     return {
       userId,
       programId: overview.program.id,
@@ -164,6 +176,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       completedDayIds,
       loadedAt: new Date().toISOString(),
       versionSignature,
+      assignment,
     };
   } catch (error) {
     return rejectWithValue(
@@ -225,6 +238,7 @@ const workoutSlice = createSlice({
       state.completedDayIds = action.payload.completedDayIds;
       state.loadedAt = action.payload.loadedAt;
       state.versionSignature = action.payload.versionSignature;
+      state.assignment = action.payload.assignment;
     });
     builder.addCase(loadWorkoutBootstrap.rejected, (state, action) => {
       state.status = "failed";

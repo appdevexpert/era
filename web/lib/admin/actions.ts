@@ -94,18 +94,24 @@ export async function saveProgram(formData: FormData) {
 
   const gender = value(formData, "gender") || null;
   const level = value(formData, "level") || null;
+  const rawKind = value(formData, "kind") || "standard";
+  const kind = rawKind === "bro_split" ? "bro_split" : "standard";
 
-  // The six launch programs have locked gender/level — those identify which
-  // user cohort gets each program, and changing them silently re-routes users.
+  // The six launch programs have locked gender/level/kind — those identify
+  // which user cohort gets each program, and changing them silently re-routes
+  // users.
   if (id && isMainProgramId(id)) {
     const { data: current, error: fetchErr } = await supabase
       .from("workout_programs")
-      .select("gender, level")
+      .select("gender, level, kind")
       .eq("id", id)
       .maybeSingle();
     if (fetchErr) throw new Error(fetchErr.message);
-    if (current && (current.gender !== gender || current.level !== level)) {
-      throw new Error("Gender and level are locked on the six main launch programs.");
+    if (
+      current &&
+      (current.gender !== gender || current.level !== level || current.kind !== kind)
+    ) {
+      throw new Error("Gender, level, and kind are locked on the launch programs.");
     }
   }
 
@@ -116,6 +122,7 @@ export async function saveProgram(formData: FormData) {
     days_per_week: intValue(formData, "days_per_week", 6),
     gender,
     level,
+    kind,
   };
 
   const result = id

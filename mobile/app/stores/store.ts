@@ -30,6 +30,7 @@ const workoutPersistConfig = {
     "completedDayIds",
     "loadedAt",
     "versionSignature",
+    "assignment",
   ],
 };
 const nutritionPersistConfig = {

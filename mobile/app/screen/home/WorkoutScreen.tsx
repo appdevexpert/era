@@ -32,6 +32,7 @@ import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCycleCompletionTrigger } from "@/app/hooks/useCycleCompletionTrigger";
 
 const WorkoutScreen = () => {
   const insets = useSafeAreaInsets();
@@ -111,6 +112,12 @@ const WorkoutScreen = () => {
       dispatch(loadRewardBootstrap(user.id));
     }
   }, [dispatch, hasWorkoutBootstrap, workoutStatus, user?.id, rewardStatus]);
+
+  // Cycle 1 → Cycle 2 completion detection.
+  // Calendar-driven: once today is past Week 12 / Day 7, fire the celebration
+  // screen once per cycle. The "shown" flag is reset whenever programStartDate
+  // changes (i.e. a new cycle starts), so this re-arms naturally for cycle 3+.
+  useCycleCompletionTrigger();
 
   const openWorkoutPlan = () => {
     navigation.navigate("WorkoutPlan", {

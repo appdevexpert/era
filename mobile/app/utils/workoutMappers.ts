@@ -16,6 +16,7 @@ import type {
   WorkoutPlanWeekView,
   WorkoutOverviewData,
 } from "@/app/types/workout";
+import { DELOAD_MAX_SETS, DELOAD_WEIGHT_MULTIPLIER } from "@/app/utils/deloadTransform";
 import { getLocalizedText, normalizeLanguage, type AppLanguage } from "@/app/utils/localization";
 import {
   formatDayLabel,
@@ -565,7 +566,9 @@ function formatTimeDuration(seconds: number): string {
 export function mapSessionWorkout(
   data: ProgramDayDetailData,
   language: string,
+  options: { isDeloadWeek?: boolean } = {},
 ): SessionWorkout {
+  const isDeload = options.isDeloadWeek === true;
   const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
     (acc, set) => {
       const current = acc[set.program_day_exercise_id] ?? [];
@@ -622,19 +625,34 @@ export function mapSessionWorkout(
           ? "treadmill"
           : getLocalizedText(section.title_translations, language, section.title);
 
-      const sets: SessionExerciseSet[] = rawSets.map((s) => ({
-        id: s.id,
-        setNumber: s.set_number,
-        setKind: s.set_kind ?? "working",
-        targetWeight: s.target_weight_value != null ? Number(s.target_weight_value) : null,
-        targetWeightUnit: s.target_weight_unit ?? exercise.initial_weight_unit ?? "kg",
-        targetReps: s.target_reps_exact ?? s.target_reps_min ?? null,
-        targetRepsMin: s.target_reps_min ?? null,
-        targetRepsMax: s.target_reps_max ?? null,
-        targetDuration: s.target_duration_seconds ?? null,
-        restSeconds: s.rest_seconds ?? null,
-        displayLabel: null,
-      }));
+      // Deload week: drop top_set / backoff rows, cap to 2 working sets,
+      // and apply 50% weight to remaining sets. Rules live in deloadTransform.ts.
+      const deloadFiltered = isDeload
+        ? rawSets.filter((s) => {
+            const kind = s.set_kind ?? "working";
+            return kind !== "top_set" && kind !== "backoff";
+          }).slice(0, DELOAD_MAX_SETS)
+        : rawSets;
+
+      const sets: SessionExerciseSet[] = deloadFiltered.map((s) => {
+        const baseWeight = s.target_weight_value != null ? Number(s.target_weight_value) : null;
+        const weight = isDeload && baseWeight != null
+          ? Math.round((baseWeight * DELOAD_WEIGHT_MULTIPLIER) / 2.5) * 2.5
+          : baseWeight;
+        return {
+          id: s.id,
+          setNumber: s.set_number,
+          setKind: s.set_kind ?? "working",
+          targetWeight: weight,
+          targetWeightUnit: s.target_weight_unit ?? exercise.initial_weight_unit ?? "kg",
+          targetReps: s.target_reps_exact ?? s.target_reps_min ?? null,
+          targetRepsMin: s.target_reps_min ?? null,
+          targetRepsMax: s.target_reps_max ?? null,
+          targetDuration: s.target_duration_seconds ?? null,
+          restSeconds: s.rest_seconds ?? null,
+          displayLabel: null,
+        };
+      });
 
       const topSet = rawSets.find((s) => s.set_kind === "top_set");
       const restSeconds =
