@@ -129,6 +129,31 @@ export async function uploadProgressPhoto(
   };
 }
 
+export interface DeleteProgressPhotoArgs {
+  mediaId: string;
+  storagePath: string;
+}
+
+export async function deleteProgressPhoto(
+  args: DeleteProgressPhotoArgs,
+): Promise<void> {
+  // Remove the storage object first (best-effort — a stranded DB row is worse
+  // than a stranded file, since the row is what the UI reads).
+  const { error: storageError } = await supabase.storage
+    .from(BUCKET)
+    .remove([args.storagePath]);
+  if (storageError) {
+    console.warn("[progressPhoto] storage delete failed", storageError.message);
+  }
+
+  // Delete the DB row — RLS (session_media_own_all) scopes to auth.uid().
+  const { error } = await supabase
+    .from("session_media")
+    .delete()
+    .eq("id", args.mediaId);
+  throwIfError(error, "Failed to delete progress photo");
+}
+
 export async function fetchMyProgressPhotos(
   limit = 50,
 ): Promise<ProgressPhotoRow[]> {

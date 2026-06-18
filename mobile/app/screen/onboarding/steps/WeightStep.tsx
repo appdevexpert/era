@@ -40,8 +40,8 @@ const UNIT_CONFIG: Record<
   kg: {
     min: 30,
     max: 200,
-    label: 'Kgs',
-    displayLabel: 'Kgs',
+    label: 'Kg',
+    displayLabel: 'Kg',
   },
   lb: {
     min: 66,

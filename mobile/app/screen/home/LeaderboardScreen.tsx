@@ -10,12 +10,13 @@ import {
   fetchMyLeaderboardRank,
   type LeaderboardEntry,
 } from "@/app/services/leaderboardService";
+import { LaurelWreath, ProfileBackChevron } from "@/assets/icons";
 import {
-  MedalBronze,
-  MedalGold,
-  MedalSilver,
-  ProfileBackChevron,
-} from "@/assets/icons";
+  TrophyBadgeBronze,
+  TrophyBadgeGold,
+  TrophyBadgeSilver,
+} from "@/assets/images";
+import Svg, { Path } from "react-native-svg";
 import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
@@ -96,7 +97,14 @@ const Avatar = ({
   </View>
 );
 
-const PODIUM_GRADIENT = ["#FCF3C0", "#F7E06F", "#C9A84C"] as const;
+/* ───── Podium (Figma 6611:4828) ─────
+ *
+ * Three blocks, gold/silver/bronze. Each block has a 3D top "cap" (trapezoid)
+ * + a tall gradient body. A laurel wreath sits behind the ordinal text on the
+ * body. Cap shapes differ per position — 1st has both edges sloped (viewed
+ * head-on), 2nd has its left edge sloped (right-of-center perspective),
+ * 3rd has its right edge sloped (left-of-center perspective).
+ */
 
 const PODIUM_BORDER: Record<1 | 2 | 3, string> = {
   1: COLORS.primary.dark,
@@ -110,29 +118,88 @@ const PODIUM_PTS_COLOR: Record<1 | 2 | 3, string> = {
   3: "#DB6F6F",
 };
 
-const PODIUM_BLOCK: Record<
-  1 | 2 | 3,
-  { height: number; numberSize: number; numberTop: number; opacity?: number }
-> = {
-  1: { height: 200, numberSize: 100, numberTop: 75 },
-  2: { height: 149, numberSize: 80, numberTop: 60, opacity: 0.9 },
-  3: { height: 115, numberSize: 70, numberTop: 45, opacity: 0.8 },
+interface PodiumStyle {
+  width: number;
+  bodyHeight: number;
+  bodyGradient: readonly [string, string];
+  capColor: string;
+  laurelColor: string;
+  laurelWidth: number;
+  laurelHeight: number;
+  numberSize: number;
+  ordinalSize: number;
+  capPath: string;
+  capWidth: number;
+}
+
+const PODIUM_STYLE: Record<1 | 2 | 3, PodiumStyle> = {
+  1: {
+    width: 140,
+    bodyHeight: 204,
+    bodyGradient: ["#C9A84C", "#5E4B15"],
+    capColor: "#876B1D",
+    laurelColor: "#E6C97A",
+    laurelWidth: 116,
+    laurelHeight: 95,
+    numberSize: 40,
+    ordinalSize: 22,
+    capWidth: 140,
+    capPath:
+      "M14.101 3.35041C15.111 1.29921 17.198 0 19.484 0H121.298C123.632 0 125.754 1.35397 126.738 3.47083L140 32H0L14.101 3.35041Z",
+  },
+  2: {
+    width: 115,
+    bodyHeight: 163,
+    bodyGradient: ["#979797", "#3F3F3F"],
+    capColor: "#525252",
+    laurelColor: "#9E9E9E",
+    laurelWidth: 99,
+    laurelHeight: 82,
+    numberSize: 28,
+    ordinalSize: 17,
+    capWidth: 115,
+    capPath:
+      "M25.516 2.1048C26.656 0.7692 28.3238 0 30.0797 0H115V32H0L25.516 2.1048Z",
+  },
+  3: {
+    width: 115,
+    bodyHeight: 139,
+    bodyGradient: ["rgba(173,88,30,0.8)", "rgba(89,43,12,0.8)"],
+    capColor: "#43210B",
+    laurelColor: "#9E5A38",
+    laurelWidth: 91,
+    laurelHeight: 75,
+    numberSize: 24,
+    ordinalSize: 14,
+    capWidth: 115,
+    capPath:
+      "M0 0H86.928C88.769 0 90.508 0.8448 91.645 2.2919L115 32H0V0Z",
+  },
+};
+
+const ORDINAL: Record<1 | 2 | 3, string> = { 1: "st", 2: "nd", 3: "rd" };
+
+const PodiumCap = ({ rank }: { rank: 1 | 2 | 3 }) => {
+  const s = PODIUM_STYLE[rank];
+  return (
+    <Svg width={s.capWidth} height={32} viewBox={`0 0 ${s.capWidth} 32`}>
+      <Path d={s.capPath} fill={s.capColor} />
+    </Svg>
+  );
 };
 
 const PodiumColumn = ({
   entry,
   rank,
-  isFirst = false,
   fallbackName,
 }: {
   entry?: LeaderboardEntry;
   rank: 1 | 2 | 3;
-  isFirst?: boolean;
   fallbackName: string;
 }) => {
-  const block = PODIUM_BLOCK[rank];
+  const s = PODIUM_STYLE[rank];
   return (
-    <View style={[styles.podiumCol, isFirst && { flex: 1 }]}>
+    <View style={[styles.podiumCol, { width: s.width }]}>
       <View style={styles.podiumPersonWrap}>
         <Avatar
           size={80}
@@ -147,39 +214,62 @@ const PodiumColumn = ({
         <Text style={[styles.podiumPts, { color: PODIUM_PTS_COLOR[rank] }]}>
           {entry?.totalPoints ?? 0} pts
         </Text>
-        <View style={styles.awardBadge}>
-          {rank === 1 ? (
-            <MedalGold width={29} height={40} />
-          ) : rank === 2 ? (
-            <MedalSilver width={29} height={40} />
-          ) : (
-            <MedalBronze width={29} height={40} />
-          )}
-        </View>
-      </View>
-      <View
-        style={[
-          styles.podiumBlock,
-          { opacity: block.opacity ?? 1 },
-          isFirst && { width: "100%" },
-        ]}
-      >
-        <View style={styles.podiumCap} />
-        <LinearGradient
-          colors={PODIUM_GRADIENT}
-          start={{ x: 0.5, y: 1 }}
-          end={{ x: 0.5, y: 0 }}
-          style={[styles.podiumStem, { height: block.height }]}
+        <Image
+          source={
+            rank === 1
+              ? TrophyBadgeGold
+              : rank === 2
+                ? TrophyBadgeSilver
+                : TrophyBadgeBronze
+          }
+          style={styles.awardBadge}
+          resizeMode="contain"
         />
-        <Text
+      </View>
+
+      {/* 3D top cap — trapezoid with sloped edges depending on position */}
+      <PodiumCap rank={rank} />
+
+      {/* Body — gradient block with laurel wreath behind the ordinal */}
+      <LinearGradient
+        colors={s.bodyGradient}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={[styles.podiumBody, { height: s.bodyHeight, width: s.width }]}
+      >
+        <View
           style={[
-            styles.podiumNumber,
-            { fontSize: block.numberSize, top: block.numberTop },
+            styles.podiumLaurelStack,
+            { width: s.laurelWidth, height: s.laurelHeight },
           ]}
         >
-          {rank}
-        </Text>
-      </View>
+          <LaurelWreath
+            width={s.laurelWidth}
+            height={s.laurelHeight}
+            color={s.laurelColor}
+          />
+          <View style={styles.podiumOrdinalAbs} pointerEvents="none">
+            <View style={styles.podiumOrdinalRow}>
+              <Text
+                style={[
+                  styles.podiumOrdinalNumber,
+                  { fontSize: s.numberSize, lineHeight: s.numberSize },
+                ]}
+              >
+                {rank}
+              </Text>
+              <Text
+                style={[
+                  styles.podiumOrdinalSuffix,
+                  { fontSize: s.ordinalSize, lineHeight: s.ordinalSize },
+                ]}
+              >
+                {ORDINAL[rank]}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </LinearGradient>
     </View>
   );
 };
@@ -363,7 +453,7 @@ const LeaderboardScreen = () => {
       >
         <View style={styles.podiumRow}>
           <PodiumColumn entry={podiumEntries[1]} rank={2} fallbackName="—" />
-          <PodiumColumn entry={podiumEntries[0]} rank={1} isFirst fallbackName="—" />
+          <PodiumColumn entry={podiumEntries[0]} rank={1} fallbackName="—" />
           <PodiumColumn entry={podiumEntries[2]} rank={3} fallbackName="—" />
         </View>
       </View>
@@ -457,7 +547,7 @@ const styles = StyleSheet.create({
     lineHeight: 33.6,
   },
 
-  // Podium
+  // Podium — Figma 6611:4828
   podiumRow: {
     flexDirection: "row",
     alignItems: "flex-end",
@@ -467,13 +557,12 @@ const styles = StyleSheet.create({
   },
   podiumCol: {
     alignItems: "center",
-    gap: 16,
-    width: 115,
   },
   podiumPersonWrap: {
     alignItems: "center",
     gap: 4,
     position: "relative",
+    marginBottom: 16,
   },
   podiumName: {
     fontFamily: FONTS.display,
@@ -490,34 +579,47 @@ const styles = StyleSheet.create({
   },
   awardBadge: {
     position: "absolute",
-    right: -6,
+    right: -8,
     top: "50%",
-    marginTop: -20,
-    width: 29,
-    height: 40,
+    marginTop: -18,
+    width: 36,
+    height: 36,
   },
-
-  podiumBlock: {
-    width: "100%",
+  // Body sits flush against the cap. Laurel + ordinal share the same wrapper
+  // so the rank text sits in the empty middle of the wreath.
+  podiumBody: {
     alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 20,
+  },
+  podiumLaurelStack: {
     position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  podiumCap: {
-    width: "100%",
-    height: 35,
-    backgroundColor: "rgba(201, 168, 76, 0.55)",
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+  // Outer wrap centers the row both axes inside the laurel; inner row
+  // baseline-aligns the big number with the smaller ordinal suffix.
+  podiumOrdinalAbs: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  podiumStem: {
-    width: "100%",
+  podiumOrdinalRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
-  podiumNumber: {
-    position: "absolute",
+  podiumOrdinalNumber: {
     fontFamily: FONTS.medium,
     fontWeight: "500",
     color: COLORS.neutral.white,
-    textAlign: "center",
+    includeFontPadding: false,
+  },
+  podiumOrdinalSuffix: {
+    fontFamily: FONTS.medium,
+    fontWeight: "500",
+    color: COLORS.neutral.white,
+    marginLeft: 2,
+    includeFontPadding: false,
   },
 
   // Podium container — sits behind the sheet, padded under the pinned header.

@@ -17,6 +17,7 @@
 
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import {
+  deleteProgressPhoto,
   fetchMyProgressPhotos,
   uploadProgressPhoto,
   type ProgressPhotoRow,
@@ -32,6 +33,8 @@ export interface PhotoState {
   uploadError: string | null;
   /** True when the most recent upload was a paid one (25 pts awarded). */
   lastUploadAwardedPoints: boolean;
+  /** Rows held aside during optimistic delete so we can restore on failure. */
+  pendingDeletes: Record<string, { row: ProgressPhotoRow; index: number }>;
 }
 
 const initialState: PhotoState = {
@@ -40,6 +43,7 @@ const initialState: PhotoState = {
   uploadStatus: "idle",
   uploadError: null,
   lastUploadAwardedPoints: false,
+  pendingDeletes: {},
 };
 
 export const loadProgressPhotos = createAsyncThunk<
@@ -52,6 +56,30 @@ export const loadProgressPhotos = createAsyncThunk<
   } catch (e) {
     return rejectWithValue(
       e instanceof Error ? e.message : "Unable to load photos.",
+    );
+  }
+});
+
+/**
+ * Local-first delete:
+ *   pending → splice the row out of state.photos (UI updates instantly).
+ *   rejected → restore the row at its original index + surface error.
+ *   fulfilled → no-op (already removed).
+ */
+export const deleteProgressPhotoThunk = createAsyncThunk<
+  string,
+  { mediaId: string; storagePath: string },
+  { rejectValue: string }
+>("photo/delete", async (args, { rejectWithValue }) => {
+  try {
+    await deleteProgressPhoto({
+      mediaId: args.mediaId,
+      storagePath: args.storagePath,
+    });
+    return args.mediaId;
+  } catch (e) {
+    return rejectWithValue(
+      e instanceof Error ? e.message : "Delete failed.",
     );
   }
 });
@@ -140,6 +168,27 @@ const photoSlice = createSlice({
     builder.addCase(uploadProgressPhotoThunk.rejected, (state, action) => {
       state.uploadStatus = "failed";
       state.uploadError = action.payload ?? "Upload failed.";
+    });
+
+    // Optimistic delete — splice now, restore if the network call fails.
+    builder.addCase(deleteProgressPhotoThunk.pending, (state, action) => {
+      const { mediaId } = action.meta.arg;
+      const index = state.photos.findIndex((p) => p.id === mediaId);
+      if (index < 0) return;
+      state.pendingDeletes[mediaId] = { row: state.photos[index], index };
+      state.photos.splice(index, 1);
+    });
+    builder.addCase(deleteProgressPhotoThunk.fulfilled, (state, action) => {
+      delete state.pendingDeletes[action.payload];
+    });
+    builder.addCase(deleteProgressPhotoThunk.rejected, (state, action) => {
+      const { mediaId } = action.meta.arg;
+      const pending = state.pendingDeletes[mediaId];
+      if (pending) {
+        const restoreIndex = Math.min(pending.index, state.photos.length);
+        state.photos.splice(restoreIndex, 0, pending.row);
+        delete state.pendingDeletes[mediaId];
+      }
     });
 
     builder.addCase(signOutThunk.fulfilled, () => initialState);

@@ -77,7 +77,7 @@ const getWeekForDay = (weeks: ProgramWeekRow[], day: ProgramDayRow) =>
 
 const padDayNumber = (value: number) => String(value).padStart(2, "0");
 
-const getWeekdayLabel = (weekday: number | null, language: string) => {
+export const getWeekdayLabel = (weekday: number | null, language: string) => {
   const labels = WEEKDAY_LABELS[normalizeLanguage(language)];
   const index = typeof weekday === "number" ? weekday - 1 : 0;
   return labels[index] ?? labels[0];

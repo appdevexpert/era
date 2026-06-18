@@ -9,6 +9,9 @@ const DemoMedia = require("./demo.png");
 const TrophyGold = require("./trophy.png");
 const TwelveWeekDiamond = require("./twelve-week-diamond.png");
 const TwelveWeekCompletion = require("./twelve-week-completion.png");
+const TrophyBadgeGold = require("./trophy-gold.png");
+const TrophyBadgeSilver = require("./trophy-silver.png");
+const TrophyBadgeBronze = require("./trophy-bronze.png");
 
 
-export { IntroBackground, OnboardingBackground, WorkoutCard, GetIcon, WorkoutCountdownBg, PrTrophy, ProgressStatsBg, DemoMedia, TrophyGold, TwelveWeekDiamond, TwelveWeekCompletion };
+export { IntroBackground, OnboardingBackground, WorkoutCard, GetIcon, WorkoutCountdownBg, PrTrophy, ProgressStatsBg, DemoMedia, TrophyGold, TwelveWeekDiamond, TwelveWeekCompletion, TrophyBadgeGold, TrophyBadgeSilver, TrophyBadgeBronze };

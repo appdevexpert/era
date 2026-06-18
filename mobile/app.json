@@ -35,6 +35,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/withRemoveAndroidSplashIcon",
       [
         "expo-splash-screen",
         {

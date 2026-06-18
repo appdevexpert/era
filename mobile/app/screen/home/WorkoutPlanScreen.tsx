@@ -192,7 +192,7 @@ const WeekSection = ({ week, isLast, hasAdjustment, onDayPress, onInfoPress }: {
                   <DayPillItem
                     key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
                     pill={pill}
-                    onPress={week.isLocked || pill.isRestDay ? undefined : () => onDayPress(pill)}
+                    onPress={week.isLocked ? undefined : () => onDayPress(pill)}
                   />
                 ))}
                 {isLastRow && <WeekBadge weekNumber={week.weekNumber} />}

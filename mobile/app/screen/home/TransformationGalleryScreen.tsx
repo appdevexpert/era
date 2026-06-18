@@ -9,6 +9,7 @@ import ScreenFades from "@/app/components/common/ScreenFades";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import {
+  deleteProgressPhotoThunk,
   loadProgressPhotos,
   uploadProgressPhotoThunk,
 } from "@/app/stores/slice/photoSlice";
@@ -111,11 +112,15 @@ const TransformationGalleryScreen = () => {
     [photoRows],
   );
 
-  const openPhoto = (photo: TransformPhoto) =>
+  const openPhoto = (photo: TransformPhoto) => {
+    const row = photoRows.find((p) => p.id === photo.id);
     photoPreviewSheetRef.current?.show({
       source: photo.imageUri ? { uri: photo.imageUri } : undefined,
       dateLabel: photo.date,
+      photoId: row?.id,
+      storagePath: row?.storagePath,
     });
+  };
 
   // First cell of row 0 is the "Add New" tile, followed by the photos.
   const rows = useMemo(() => {
@@ -201,7 +206,27 @@ const TransformationGalleryScreen = () => {
           }
         }}
       />
-      <PhotoPreviewBottomSheet ref={photoPreviewSheetRef} />
+      <PhotoPreviewBottomSheet
+        ref={photoPreviewSheetRef}
+        onDelete={async ({ photoId, storagePath }) => {
+          const action = await dispatch(
+            deleteProgressPhotoThunk({ mediaId: photoId, storagePath }),
+          );
+          if (deleteProgressPhotoThunk.fulfilled.match(action)) {
+            Toast.show({
+              type: "success",
+              text2: t("progress.photoPreview.deleted"),
+              visibilityTime: 2000,
+            });
+          } else {
+            Toast.show({
+              type: "error",
+              text2: t("progress.photoPreview.deleteFailed"),
+              visibilityTime: 3000,
+            });
+          }
+        }}
+      />
     </View>
   );
 };

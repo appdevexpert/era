@@ -602,7 +602,7 @@ const en = {
     logWeightSheet: {
       title: "Log Weight",
       cta: "Log Weight",
-      unitKg: "Kgs",
+      unitKg: "Kg",
       unitLbs: "Lbs",
     },
     logHeightSheet: {
@@ -630,6 +630,9 @@ const en = {
     photoPreview: {
       uploaded: "Uploaded ",
       download: "Download",
+      delete: "Delete",
+      deleted: "Photo deleted",
+      deleteFailed: "Couldn't delete photo. Please try again.",
     },
   },
   weights: {
@@ -660,7 +663,7 @@ const en = {
     weekLabel: "Week {{number}}",
     chartWeekTick: "W{{number}}",
     chartSetTick: "S{{number}}",
-    chartUnitKg: "KGS",
+    chartUnitKg: "KG",
     chartUnitSec: "SECS",
     entryDateLabel: "Week {{week}} • {{date}}",
     loading: "Loading history...",

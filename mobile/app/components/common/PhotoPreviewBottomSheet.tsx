@@ -1,6 +1,6 @@
 import GlassFill from "@/app/components/common/GlassFill";
 import { FONTS } from "@/app/constants/fonts";
-import { DownloadGallery } from "@/assets/icons";
+import { DownloadGallery, SettingTrashBin } from "@/assets/icons";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -25,29 +25,47 @@ import {
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
+export interface PhotoPreviewBottomSheetShowArgs {
+  source?: ImageSourcePropType;
+  dateLabel: string;
+  /** Required to enable the Delete button. */
+  photoId?: string;
+  /** Required to enable the Delete button (used to remove the storage object). */
+  storagePath?: string;
+}
+
 export interface PhotoPreviewBottomSheetRef {
   /** Open the sheet with the photo + upload date. */
-  show: (args: { source?: ImageSourcePropType; dateLabel: string }) => void;
+  show: (args: PhotoPreviewBottomSheetShowArgs) => void;
   close: () => void;
 }
 
 interface PhotoPreviewBottomSheetProps {
   onDownload?: (dateLabel: string) => void;
+  onDelete?: (args: {
+    photoId: string;
+    storagePath: string;
+    dateLabel: string;
+  }) => void;
 }
 
 const PhotoPreviewBottomSheet = forwardRef<
   PhotoPreviewBottomSheetRef,
   PhotoPreviewBottomSheetProps
->(function PhotoPreviewBottomSheet({ onDownload }, ref) {
+>(function PhotoPreviewBottomSheet({ onDownload, onDelete }, ref) {
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
   const [source, setSource] = useState<ImageSourcePropType | undefined>();
   const [dateLabel, setDateLabel] = useState("");
+  const [photoId, setPhotoId] = useState<string | undefined>();
+  const [storagePath, setStoragePath] = useState<string | undefined>();
 
   useImperativeHandle(ref, () => ({
-    show: ({ source: src, dateLabel: date }) => {
+    show: ({ source: src, dateLabel: date, photoId: id, storagePath: path }) => {
       setSource(src);
       setDateLabel(date);
+      setPhotoId(id);
+      setStoragePath(path);
       sheetRef.current?.present();
     },
     close: () => sheetRef.current?.dismiss(),
@@ -68,6 +86,14 @@ const PhotoPreviewBottomSheet = forwardRef<
 
   const handleDownload = () => {
     onDownload?.(dateLabel);
+    sheetRef.current?.dismiss();
+  };
+
+  const canDelete = Boolean(onDelete && photoId && storagePath);
+
+  const handleDelete = () => {
+    if (!photoId || !storagePath) return;
+    onDelete?.({ photoId, storagePath, dateLabel });
     sheetRef.current?.dismiss();
   };
 
@@ -113,24 +139,36 @@ const PhotoPreviewBottomSheet = forwardRef<
             <Text style={styles.dateValue}>{dateLabel}</Text>
           </Text>
 
-          {/* Download CTA — glass pill tinted with gold gradient */}
-          <PressableScale
-            onPress={handleDownload}
-            style={styles.downloadBtn}
-          >
-            <GlassFill style={styles.downloadGlass} />
-            <LinearGradient
-              pointerEvents="none"
-              colors={["rgba(201,168,76,0.25)", "rgba(241,203,48,0.25)"]}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={[StyleSheet.absoluteFill, styles.downloadGlass]}
-            />
-            <DownloadGallery width={24} height={24} />
-            <Text style={styles.downloadText}>
-              {t("progress.photoPreview.download")}
-            </Text>
-          </PressableScale>
+          {/* Action row — Delete + Download */}
+          <View style={styles.actionRow}>
+            {/* Delete CTA — translucent red pill. Hidden when no photo
+                identity was passed (Delete needs id + storagePath). */}
+            {canDelete ? (
+              <PressableScale onPress={handleDelete} style={styles.deleteBtn}>
+                <View style={styles.deleteTint} pointerEvents="none" />
+                <SettingTrashBin width={24} height={24} />
+                <Text style={styles.actionText}>
+                  {t("progress.photoPreview.delete")}
+                </Text>
+              </PressableScale>
+            ) : null}
+
+            {/* Download CTA — glass pill tinted with gold gradient */}
+            <PressableScale onPress={handleDownload} style={styles.downloadBtn}>
+              <GlassFill style={styles.downloadGlass} />
+              <LinearGradient
+                pointerEvents="none"
+                colors={["rgba(201,168,76,0.25)", "rgba(241,203,48,0.25)"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={[StyleSheet.absoluteFill, styles.downloadGlass]}
+              />
+              <DownloadGallery width={24} height={24} />
+              <Text style={styles.actionText}>
+                {t("progress.photoPreview.download")}
+              </Text>
+            </PressableScale>
+          </View>
         </View>
       </BottomSheetView>
     </BottomSheetModal>
@@ -220,9 +258,34 @@ const styles = StyleSheet.create({
   dateValue: {
     color: "#DEDEDE",
   },
-  // Download CTA
+  // Action row
+  actionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+  },
+  // Delete CTA — translucent red pill, fixed 145×52
+  deleteBtn: {
+    width: 145,
+    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 138,
+    overflow: "hidden",
+  },
+  deleteTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(230,119,119,0.36)",
+    borderRadius: 138,
+  },
+  // Download CTA — content-sized glass pill with gold gradient
   downloadBtn: {
-    width: 257,
+    height: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -235,7 +298,8 @@ const styles = StyleSheet.create({
   downloadGlass: {
     borderRadius: 30,
   },
-  downloadText: {
+  // Shared button label
+  actionText: {
     fontFamily: FONTS.medium,
     fontSize: 16,
     fontWeight: "500",

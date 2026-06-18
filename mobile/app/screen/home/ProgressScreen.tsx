@@ -25,6 +25,7 @@ import WeightStatsCard from "@/app/components/progress/WeightStatsCard";
 import { type PlanPhase } from "@/app/components/workout/PlanProgressBar";
 import { type HomeStackParamList } from "@/app/navigation/types";
 import {
+  deleteProgressPhotoThunk,
   loadProgressPhotos,
   uploadProgressPhotoThunk,
 } from "@/app/stores/slice/photoSlice";
@@ -369,12 +370,15 @@ const ProgressScreen = () => {
               imageUri: p.signedUrl,
             }))}
             onAddPhoto={() => addPhotoSheetRef.current?.show()}
-            onPhotoPress={(photo) =>
+            onPhotoPress={(photo) => {
+              const row = photos.find((p) => p.id === photo.id);
               photoPreviewSheetRef.current?.show({
                 source: photo.imageUri ? { uri: photo.imageUri } : undefined,
                 dateLabel: photo.date,
-              })
-            }
+                photoId: row?.id,
+                storagePath: row?.storagePath,
+              });
+            }}
           />
         </View>
       </ScrollView>
@@ -413,7 +417,27 @@ const ProgressScreen = () => {
           }
         }}
       />
-      <PhotoPreviewBottomSheet ref={photoPreviewSheetRef} />
+      <PhotoPreviewBottomSheet
+        ref={photoPreviewSheetRef}
+        onDelete={async ({ photoId, storagePath }) => {
+          const action = await dispatch(
+            deleteProgressPhotoThunk({ mediaId: photoId, storagePath }),
+          );
+          if (deleteProgressPhotoThunk.fulfilled.match(action)) {
+            Toast.show({
+              type: "success",
+              text2: t("progress.photoPreview.deleted"),
+              visibilityTime: 2000,
+            });
+          } else {
+            Toast.show({
+              type: "error",
+              text2: t("progress.photoPreview.deleteFailed"),
+              visibilityTime: 3000,
+            });
+          }
+        }}
+      />
       <LogWeightBottomSheet
         ref={logWeightSheetRef}
         initialKg={currentWeightKg ?? goalsWeightKg ?? 70}

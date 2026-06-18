@@ -630,6 +630,9 @@ const nb = {
     photoPreview: {
       uploaded: "Lastet opp ",
       download: "Last ned",
+      delete: "Slett",
+      deleted: "Bilde slettet",
+      deleteFailed: "Kunne ikke slette bildet. Prøv igjen.",
     },
   },
   weights: {

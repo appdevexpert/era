@@ -22,7 +22,7 @@ import type {
   ExerciseListSectionView,
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import { mapExerciseList } from "@/app/utils/workoutMappers";
+import { getWeekdayLabel, mapExerciseList } from "@/app/utils/workoutMappers";
 import { getCompletedSessionDetail } from "@/app/services/sessionService";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -223,11 +223,11 @@ const ExerciseListScreen = () => {
     const firstExercise = workout.sections
       .flatMap((s) => s.exercises)
       .find((e) => e.name);
-    const subtitle = route.params?.subtitle ?? "";
-    const parts = subtitle.split("\u2022").map((s) => s.trim());
     navigation.navigate("WorkoutCountdown", {
-      weekLabel: parts[0] ?? "",
-      dayLabel: parts[1] ?? "",
+      weekLabel: t("workout.ui.weekLabel", {
+        number: currentDayDetail?.week.week_number ?? 1,
+      }),
+      dayLabel: getWeekdayLabel(currentDayDetail?.day.weekday ?? null, i18n.language),
       dayTitle: workout.title,
       firstExerciseName: firstExercise?.name ?? "",
     });

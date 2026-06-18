@@ -16,20 +16,107 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, {
+  Circle,
+  Defs,
+  LinearGradient as SvgGradient,
+  Stop,
+} from "react-native-svg";
+import Reanimated, {
+  Easing,
+  useAnimatedProps,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 
 const COUNTDOWN_SECONDS = 3;
 
-const CountdownNumber = ({
-  value,
-  isActive,
-}: {
-  value: number;
-  isActive: boolean;
-}) => (
-  <Text style={[styles.countNumber, !isActive && styles.countNumberDimmed]}>
-    {value}
-  </Text>
-);
+const RING_SIZE = 92;
+const RING_STROKE = 3;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const AnimatedCircle = Reanimated.createAnimatedComponent(Circle);
+
+const CountdownRing = ({ value }: { value: number }) => {
+  const progress = useSharedValue(1);
+
+  useEffect(() => {
+    progress.value = withTiming(0, {
+      duration: COUNTDOWN_SECONDS * 1000,
+      easing: Easing.linear,
+    });
+  }, [progress]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: RING_CIRCUMFERENCE * (1 - progress.value),
+  }));
+
+  return (
+    <View style={ringStyles.container}>
+      <Svg width={RING_SIZE} height={RING_SIZE}>
+        <Defs>
+          <SvgGradient id="countdownRingTrack" x1="0.5" y1="0" x2="0.5" y2="1">
+            <Stop offset="0" stopColor={COLORS.primary.dark} stopOpacity={0.25} />
+            <Stop offset="0.5" stopColor={COLORS.primary.base} stopOpacity={0.15} />
+            <Stop offset="1" stopColor={COLORS.primary.dark} stopOpacity={0.25} />
+          </SvgGradient>
+          <SvgGradient id="countdownRingProgress" x1="0" y1="1" x2="1" y2="0">
+            <Stop offset="0" stopColor={COLORS.primary.light} />
+            <Stop offset="0.35" stopColor={COLORS.primary.base} />
+            <Stop offset="0.7" stopColor={COLORS.primary.dark} />
+            <Stop offset="1" stopColor="#8B7332" />
+          </SvgGradient>
+        </Defs>
+        <Circle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={RING_RADIUS}
+          stroke="url(#countdownRingTrack)"
+          strokeWidth={RING_STROKE}
+          fill="none"
+        />
+        <AnimatedCircle
+          cx={RING_SIZE / 2}
+          cy={RING_SIZE / 2}
+          r={RING_RADIUS}
+          stroke="url(#countdownRingProgress)"
+          strokeWidth={RING_STROKE}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={RING_CIRCUMFERENCE}
+          animatedProps={animatedProps}
+          rotation={-90}
+          origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+        />
+      </Svg>
+      <View style={ringStyles.center} pointerEvents="none">
+        <Text style={ringStyles.number}>{value}</Text>
+      </View>
+    </View>
+  );
+};
+
+const ringStyles = StyleSheet.create({
+  container: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  center: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  number: {
+    fontFamily: FONTS.medium,
+    fontSize: 36,
+    fontWeight: "500",
+    color: COLORS.neutral.white,
+    lineHeight: 43,
+  },
+});
 
 const WorkoutCountdownScreen = () => {
   const insets = useSafeAreaInsets();
@@ -60,7 +147,6 @@ const WorkoutCountdownScreen = () => {
       const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
       return () => clearTimeout(timer);
     }
-    // Countdown finished — start session and navigate to first exercise (once)
     if (ready && !hasStarted.current) {
       hasStarted.current = true;
       void (async () => {
@@ -69,6 +155,8 @@ const WorkoutCountdownScreen = () => {
       })();
     }
   }, [countdown, ready, startSession, navigateToExercise]);
+
+  const displayNumber = countdown > 0 ? countdown : 1;
 
   return (
     <View style={styles.root}>
@@ -91,24 +179,16 @@ const WorkoutCountdownScreen = () => {
           { paddingBottom: insets.bottom + verticalScale(24), opacity: fadeAnim },
         ]}
       >
-        <Text style={styles.eyebrow}>
-          {weekLabel} {"\u2022"} {dayLabel}
-        </Text>
-
-        <Text style={styles.title}>{dayTitle}</Text>
-
-        <View style={styles.countdownRow}>
+        <View style={styles.textColumn}>
+          <Text style={styles.eyebrow}>
+            {weekLabel} {"•"} {dayLabel}
+          </Text>
+          <Text style={styles.title}>{dayTitle}</Text>
           <Text style={styles.startingIn}>
             {t("workout.ui.startingIn", { exercise: firstExerciseName })}
           </Text>
-          {[3, 2, 1].map((num) => (
-            <CountdownNumber
-              key={num}
-              value={num}
-              isActive={countdown >= num}
-            />
-          ))}
         </View>
+        <CountdownRing value={displayNumber} />
       </Animated.View>
     </View>
   );
@@ -140,6 +220,12 @@ const styles = StyleSheet.create({
     left: horizontalScale(24),
     right: horizontalScale(24),
     bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 18,
+  },
+  textColumn: {
+    flex: 1,
     gap: 8,
   },
   eyebrow: {
@@ -158,26 +244,11 @@ const styles = StyleSheet.create({
     lineHeight: 38.4,
     color: COLORS.neutral.white,
   },
-  countdownRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
   startingIn: {
     fontFamily: FONTS.medium,
     fontSize: 20,
     fontWeight: "500",
     lineHeight: 24,
     color: COLORS.neutral.white,
-  },
-  countNumber: {
-    fontFamily: FONTS.medium,
-    fontSize: 18,
-    fontWeight: "500",
-    lineHeight: 21.6,
-    color: COLORS.neutral.white,
-  },
-  countNumberDimmed: {
-    color: "rgba(240, 240, 240, 0.2)",
   },
 });
