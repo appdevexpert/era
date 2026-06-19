@@ -16,6 +16,9 @@ import Animated, {
 } from "react-native-reanimated";
 
 const COLLAPSE_DISTANCE = 60;
+// 1 line of exerciseName (fontSize 28 → lineHeight 33.6) + category label +
+// 6px gap. Long names truncate with ellipsis (numberOfLines={1}) rather than
+// wrap — 2-line wrap was misaligning with the timer column.
 const INFO_HEIGHT = 68;
 
 /* ─── Set progress segment ─── */
@@ -180,7 +183,9 @@ const WorkoutLogHeader = ({
         <View style={styles.infoRow}>
           <View style={styles.infoLeft}>
             <Text style={styles.category}>{exerciseCategory}</Text>
-            <Text style={styles.exerciseName}>{exerciseName}</Text>
+            <Text style={styles.exerciseName} numberOfLines={1}>
+              {exerciseName}
+            </Text>
           </View>
           <View style={styles.infoRight}>
             <Text style={styles.timerLarge}>{timer}</Text>

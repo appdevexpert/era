@@ -2,8 +2,15 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useRef } from "react";
-import { Dimensions, Platform, StyleSheet, Text, View } from "react-native";
+import { useCallback, useRef, useState } from "react";
+import {
+  Dimensions,
+  type LayoutChangeEvent,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Svg, {
   Defs,
   LinearGradient as SvgGradient,
@@ -52,9 +59,19 @@ const WeightRuler = ({
   headerless = false,
 }: WeightRulerProps) => {
   const tickCount = Math.floor((max - min) / step);
-  const halfScreen = SCREEN_WIDTH / 2;
+  // The ruler is sometimes rendered inside a parent that's narrower (or via
+  // negative margins, wider) than the screen. We measure the actual ScrollView
+  // width on layout so the leading/trailing padding centers a tick under the
+  // indicator instead of using the (often wrong) screen halfWidth.
+  const [rulerWidth, setRulerWidth] = useState(SCREEN_WIDTH);
+  const halfRuler = rulerWidth / 2;
   const scrollRef = useRef<Animated.ScrollView>(null);
   const lastReported = useSharedValue(value);
+
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) setRulerWidth(w);
+  }, []);
 
   const report = useCallback(
     (v: number) => {
@@ -130,8 +147,9 @@ const WeightRuler = ({
           onScroll={scrollHandler}
           scrollEventThrottle={16}
           contentOffset={{ x: initialOffset, y: 0 }}
+          onLayout={handleLayout}
           contentContainerStyle={{
-            paddingHorizontal: halfScreen,
+            paddingHorizontal: halfRuler,
             alignItems: "flex-end",
           }}
         >
