@@ -13,7 +13,7 @@ import {
 } from "@/app/stores/selectors/workoutSelectors";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
-import { useAppDispatch } from "@/app/stores/store";
+import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
   CompletedExerciseView,
   CompletedSessionDetail,
@@ -22,9 +22,14 @@ import type {
   ExerciseListSectionView,
 } from "@/app/types/workout";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
+import { computeDateForDay, getToday } from "@/app/utils/programSchedule";
 import { getWeekdayLabel, mapExerciseList } from "@/app/utils/workoutMappers";
-import { getCompletedSessionDetail } from "@/app/services/sessionService";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import {
+  getCompletedSessionDetail,
+  getDaySessionSummary,
+  type DaySessionSummary,
+} from "@/app/services/sessionService";
+import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -200,6 +205,9 @@ const ExerciseListScreen = () => {
   const { t, i18n } = useTranslation();
   const user = useSelector(selectUser);
   const currentDayDetail = useSelector(selectCurrentDayDetail);
+  const programStartDate = useSelector(
+    (state: RootState) => state.auth.programStartDate,
+  );
   const workout = useMemo(
     () => (currentDayDetail ? mapExerciseList(currentDayDetail, i18n.language) : null),
     [currentDayDetail, i18n.language],
@@ -218,20 +226,105 @@ const ExerciseListScreen = () => {
   const [completedLoading, setCompletedLoading] = useState(dayStatus === "completed");
   const completedFetchedRef = useRef(false);
 
-  const handleStartNow = () => {
-    if (!workout) return;
+  // Session progress summary — drives the bottom button's label & behavior
+  // (Start Now → Resume Workout → Start Again). `null` until the first fetch
+  // resolves; the loaded flag distinguishes "no session" from "still loading".
+  const [sessionSummary, setSessionSummary] = useState<DaySessionSummary | null>(null);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
+
+  // Today's day allows Start Again even after the day flips to "completed";
+  // past completed days stay locked (no restart). Compute the day's calendar
+  // date from the program-start anchor and compare with today.
+  const isTodayDay = useMemo(() => {
+    if (!currentDayDetail || !programStartDate) return false;
+    const date = computeDateForDay(
+      { programStartDate, totalWeeks: 12 },
+      currentDayDetail.week.week_number,
+      currentDayDetail.day.day_number,
+      false,
+    );
+    return date === getToday();
+  }, [currentDayDetail, programStartDate]);
+
+  // Derive the button mode from the summary + planned exercise count.
+  // "all complete" is gated on the count of exercises whose session_exercises
+  // row is status='completed' — workout_sessions.status being 'completed' is
+  // NOT enough, because the user can End Workout with exercises still skipped.
+  // In that case we want Resume so they can finish the skipped ones.
+  const totalPlanned = workout?.sections.reduce(
+    (acc, s) => acc + s.exercises.length,
+    0,
+  ) ?? 0;
+  const allComplete =
+    sessionSummary != null &&
+    totalPlanned > 0 &&
+    sessionSummary.completedExercises >= totalPlanned;
+  const buttonMode: "start" | "resume" | "again" = !sessionSummary
+    ? "start"
+    : allComplete
+      ? "again"
+      : "resume";
+  const buttonLabel =
+    buttonMode === "start"
+      ? t("workout.ui.startNow")
+      : buttonMode === "resume"
+        ? t("workout.ui.resumeWorkout")
+        : t("workout.ui.startAgain");
+
+  const findExerciseIndexByDayExerciseId = useCallback(
+    (programDayExerciseId: string): number => {
+      if (!workout) return 0;
+      let idx = 0;
+      for (const section of workout.sections) {
+        for (const ex of section.exercises) {
+          if (ex.id === programDayExerciseId) return idx;
+          idx += 1;
+        }
+      }
+      return 0;
+    },
+    [workout],
+  );
+
+  const handlePrimaryAction = useCallback(() => {
+    if (!workout || !currentDayDetail) return;
+
     const firstExercise = workout.sections
       .flatMap((s) => s.exercises)
       .find((e) => e.name);
+    const weekLabel = t("workout.ui.weekLabel", {
+      number: currentDayDetail.week.week_number ?? 1,
+    });
+    const dayLabel = getWeekdayLabel(currentDayDetail.day.weekday ?? null, i18n.language);
+
+    const startIdx =
+      buttonMode === "resume" && sessionSummary?.firstIncompleteProgramDayExerciseId
+        ? findExerciseIndexByDayExerciseId(
+            sessionSummary.firstIncompleteProgramDayExerciseId,
+          )
+        : 0;
+
+    const mode: "fresh" | "resume" | "edit" =
+      buttonMode === "start" ? "fresh" : buttonMode === "resume" ? "resume" : "edit";
+
     navigation.navigate("WorkoutCountdown", {
-      weekLabel: t("workout.ui.weekLabel", {
-        number: currentDayDetail?.week.week_number ?? 1,
-      }),
-      dayLabel: getWeekdayLabel(currentDayDetail?.day.weekday ?? null, i18n.language),
+      weekLabel,
+      dayLabel,
       dayTitle: workout.title,
       firstExerciseName: firstExercise?.name ?? "",
+      mode,
+      startExerciseIndex: startIdx,
     });
-  };
+  }, [
+    buttonMode,
+    sessionSummary,
+    workout,
+    currentDayDetail,
+    findExerciseIndexByDayExerciseId,
+    navigation,
+    t,
+    i18n.language,
+  ]);
 
   const handleExercisePress = useCallback(
     (exercise: CompletedExerciseView) => {
@@ -272,6 +365,36 @@ const ExerciseListScreen = () => {
     workoutStatus,
   ]);
 
+  // Refetch the session summary every time this screen comes into focus
+  // (covers: cold start, return from WorkoutLog gesture-back, return from
+  // SessionComplete). Only relevant for the active/in-progress flow — when
+  // the route was opened explicitly with dayStatus="completed" or "missed",
+  // the summary doesn't change the button rendering.
+  const summaryProgramDayId = currentDayDetail?.day.id ?? requestedDayId;
+  const summaryEnabled =
+    dayStatus === "active" || (dayStatus === "completed" && isTodayDay);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id || !summaryProgramDayId || !summaryEnabled) return;
+      let cancelled = false;
+      setSummaryLoaded(false);
+      getDaySessionSummary({ userId: user.id, programDayId: summaryProgramDayId })
+        .then((summary) => {
+          if (cancelled) return;
+          setSessionSummary(summary);
+        })
+        .catch((err) => {
+          console.warn("[ExerciseList] getDaySessionSummary failed", err);
+        })
+        .finally(() => {
+          if (!cancelled) setSummaryLoaded(true);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [user?.id, summaryProgramDayId, summaryEnabled]),
+  );
+
   // Fetch completed session data when in completed mode
   useEffect(() => {
     if (dayStatus === "completed" && requestedDayId && user?.id && !completedFetchedRef.current) {
@@ -291,7 +414,8 @@ const ExerciseListScreen = () => {
     }
   }, [dayStatus, requestedDayId, user?.id]);
 
-  const showStartButton = dayStatus === "active";
+  const showStartButton =
+    dayStatus === "active" || (dayStatus === "completed" && isTodayDay);
   const showStatsRow = dayStatus !== "missed";
   const dataReady = workout && !shouldLoadRequestedDay;
 
@@ -403,7 +527,7 @@ const ExerciseListScreen = () => {
         )}
       </ScrollView>
 
-      {showStartButton && dataReady ? (
+      {showStartButton && dataReady && summaryLoaded ? (
         <>
           <LinearGradient
             pointerEvents="none"
@@ -412,7 +536,7 @@ const ExerciseListScreen = () => {
             style={styles.bottomFade}
           />
           <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
-            <PrimaryButton label={t("workout.ui.startNow")} onPress={handleStartNow} />
+            <PrimaryButton label={buttonLabel} onPress={handlePrimaryAction} />
           </View>
         </>
       ) : null}

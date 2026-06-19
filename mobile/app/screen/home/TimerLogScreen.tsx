@@ -1,4 +1,5 @@
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
+import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
@@ -6,11 +7,12 @@ import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
+import { useWallClockStopwatch } from "@/app/hooks/useWallClockStopwatch";
 import BottomSheet from "@gorhom/bottom-sheet";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,6 +32,7 @@ const formatStopwatch = (ms: number) => {
 const TimerLogScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "TimerLog">>();
+  const navigation = useNavigation();
   const { t } = useTranslation();
   const {
     sessionWorkout,
@@ -41,7 +44,25 @@ const TimerLogScreen = () => {
     addSet,
     getSetCount,
     getCompletedSetsForSheet,
+    getExerciseComment,
   } = useWorkoutSession();
+
+  const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
+  const allowLeaveRef = useRef(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (allowLeaveRef.current) return;
+      e.preventDefault();
+      endWorkoutSheetRef.current?.show();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleEndWorkout = useCallback(async () => {
+    allowLeaveRef.current = true;
+    await navigateToSessionComplete();
+  }, [navigateToSessionComplete]);
 
   const {
     exerciseName,
@@ -74,34 +95,18 @@ const TimerLogScreen = () => {
     await addSet(exIdx);
   }, [canAddSet, addSet, exIdx]);
 
-  // Stopwatch
-  const [stopwatchMs, setStopwatchMs] = useState(0);
+  // Stopwatch — wall-clock backed via useWallClockStopwatch. The hook handles
+  // background suspension (iOS pauses JS), AppState resume, and pause/banking.
   const [running, setRunning] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { elapsedMs: stopwatchMs, reset: resetStopwatchInternal } =
+    useWallClockStopwatch({ running });
 
-  const startStopwatch = useCallback(() => {
-    setRunning(true);
-    intervalRef.current = setInterval(() => {
-      setStopwatchMs((ms) => ms + 10);
-    }, 10);
-  }, []);
-
-  const stopStopwatch = useCallback(() => {
-    setRunning(false);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-  }, []);
-
+  const startStopwatch = useCallback(() => setRunning(true), []);
+  const stopStopwatch = useCallback(() => setRunning(false), []);
   const resetStopwatch = useCallback(() => {
     setRunning(false);
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    setStopwatchMs(0);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
+    resetStopwatchInternal();
+  }, [resetStopwatchInternal]);
 
   // Exercise completed bottom sheet
   const sheetRef = useRef<BottomSheet>(null);
@@ -112,6 +117,7 @@ const TimerLogScreen = () => {
     const durationSec = Math.floor(stopwatchMs / 1000);
     logSetResult(exIdx, activeSet, null, null, null, durationSec);
     resetStopwatch();
+    allowLeaveRef.current = true;
     navigateToRest(exIdx, activeSet + 2);
     setActiveSet((s) => s + 1);
   }, [stopwatchMs, activeSet, exIdx, logSetResult, resetStopwatch, navigateToRest]);
@@ -136,6 +142,7 @@ const TimerLogScreen = () => {
       completeExerciseResult(exIdx, _comment);
 
       const nextIdx = exIdx + 1;
+      allowLeaveRef.current = true;
       if (nextIdx >= total) {
         navigateToSessionComplete();
         return;
@@ -147,7 +154,10 @@ const TimerLogScreen = () => {
 
   /** Navigate to a specific exercise by 0-based index */
   const goToExercise = useCallback(
-    (idx: number, direction: "forward" | "back" = "forward") => navigateToExercise(idx, 0, direction),
+    (idx: number, direction: "forward" | "back" = "forward") => {
+      allowLeaveRef.current = true;
+      navigateToExercise(idx, 0, direction);
+    },
     [navigateToExercise],
   );
 
@@ -171,22 +181,7 @@ const TimerLogScreen = () => {
         sets={sets}
         canAddSet={canAddSet}
         onAddSet={handleAddSet}
-        onBack={() => {
-          Alert.alert(
-            t("workout.ui.quitTitle"),
-            t("workout.ui.quitMessage"),
-            [
-              { text: t("common.cancel"), style: "cancel" },
-              {
-                text: t("workout.ui.quitConfirm"),
-                style: "destructive",
-                onPress: () => {
-                  navigateToSessionComplete();
-                },
-              },
-            ],
-          );
-        }}
+        onBack={() => endWorkoutSheetRef.current?.show()}
         scrollY={scrollY}
         topInset={insets.top}
       />
@@ -269,7 +264,12 @@ const TimerLogScreen = () => {
       <ExerciseCompletedBottomSheet
         ref={sheetRef}
         sets={getCompletedSetsForSheet(exIdx)}
+        initialComment={getExerciseComment(exIdx)}
         onContinue={handleSheetContinue}
+      />
+      <EndWorkoutBottomSheet
+        ref={endWorkoutSheetRef}
+        onEnd={handleEndWorkout}
       />
     </View>
   );

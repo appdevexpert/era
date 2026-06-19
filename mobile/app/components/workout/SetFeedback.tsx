@@ -11,6 +11,8 @@ type FeedbackOption = "light" | "correct" | "heavy";
 
 type SetFeedbackProps = {
   onSelect?: (option: FeedbackOption) => void;
+  /** Initial selected chip — used when revisiting a logged set to prefill the UI. */
+  initialValue?: FeedbackOption | null;
 };
 
 const OPTIONS: { key: FeedbackOption; labelKey: string; Icon: React.FC<SvgProps> }[] = [
@@ -19,9 +21,9 @@ const OPTIONS: { key: FeedbackOption; labelKey: string; Icon: React.FC<SvgProps>
   { key: "heavy", labelKey: "workout.ui.feedbackHeavy", Icon: FeedbackHeavy },
 ];
 
-const SetFeedback = ({ onSelect }: SetFeedbackProps) => {
+const SetFeedback = ({ onSelect, initialValue = null }: SetFeedbackProps) => {
   const { t } = useTranslation();
-  const [selected, setSelected] = useState<FeedbackOption | null>(null);
+  const [selected, setSelected] = useState<FeedbackOption | null>(initialValue);
 
   const handlePress = (option: FeedbackOption) => {
     setSelected(option);

@@ -3,13 +3,15 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
+import { useWallClockCountdown } from "@/app/hooks/useWallClockCountdown";
+import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import IconButton from "@/app/components/common/IconButton";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import Svg, {
   Circle,
   Defs,
@@ -127,6 +129,7 @@ const ringStyles = StyleSheet.create({
 const RestTimerScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "RestTimer">>();
+  const navigation = useNavigation();
   const { t } = useTranslation();
 
   const {
@@ -139,27 +142,42 @@ const RestTimerScreen = () => {
   } = route.params;
 
   const exIdx = exerciseIndex - 1; // 0-based
-  const { navigateToExercise } = useWorkoutSession();
+  const { navigateToExercise, navigateToSessionComplete } = useWorkoutSession();
+
+  const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
+  const allowLeaveRef = useRef(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (allowLeaveRef.current) return;
+      e.preventDefault();
+      endWorkoutSheetRef.current?.show();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleEndWorkout = useCallback(async () => {
+    allowLeaveRef.current = true;
+    await navigateToSessionComplete();
+  }, [navigateToSessionComplete]);
 
   /** Skip rest / navigate to the exercise at the correct set */
   const goToExercise = useCallback(() => {
+    allowLeaveRef.current = true;
     navigateToExercise(exIdx, currentSet - 1); // currentSet is 1-based, convert to 0-based
   }, [exIdx, currentSet, navigateToExercise]);
 
+  // `totalTime` tracks the maximum the ring should normalise against. It
+  // grows in step with the +30s button so the visual progress stays sensible.
   const [totalTime, setTotalTime] = useState(restDuration);
-  const [remaining, setRemaining] = useState(restDuration);
+  const { remaining, addSeconds } = useWallClockCountdown({
+    totalSeconds: restDuration,
+    running: true,
+    onComplete: goToExercise,
+  });
 
   // Smooth animated progress via Reanimated
   const animatedProgress = useSharedValue(1);
-
-  useEffect(() => {
-    if (remaining <= 0) {
-      goToExercise();
-      return;
-    }
-    const id = setTimeout(() => setRemaining((r) => r - 1), 1000);
-    return () => clearTimeout(id);
-  }, [remaining]);
 
   // Animate the ring smoothly between ticks
   useEffect(() => {
@@ -172,8 +190,8 @@ const RestTimerScreen = () => {
 
   const handleAdd30 = useCallback(() => {
     setTotalTime((t) => t + 30);
-    setRemaining((r) => r + 30);
-  }, []);
+    addSeconds(30);
+  }, [addSeconds]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -231,6 +249,11 @@ const RestTimerScreen = () => {
           />
         </IconButton>
       </View>
+
+      <EndWorkoutBottomSheet
+        ref={endWorkoutSheetRef}
+        onEnd={handleEndWorkout}
+      />
     </View>
   );
 };

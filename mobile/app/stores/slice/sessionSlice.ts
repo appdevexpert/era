@@ -12,6 +12,8 @@ export interface LoggedSetResult {
   weightUnit: string;
   reps: number | null;
   duration: number | null;
+  feedback: "light_weight" | "correct_weight" | "felt_heavy" | null;
+  comment: string | null;
 }
 
 /** Historical stats from user_exercise_stats table */
@@ -39,6 +41,16 @@ interface SessionState {
   completedSets: Record<string, Record<number, LoggedSetResult>>;
   /** sessionSetId → suggested kg for that upcoming set (smart weight adjustment). */
   suggestedWeightBySetId: Record<string, number>;
+  /** sessionExerciseId set — exercises already marked complete in DB (or this session) */
+  completedExerciseIds: string[];
+  /** exerciseLibraryId → session_exercises.comment (per-exercise note) */
+  exerciseComments: Record<string, string>;
+  /**
+   * True when the user re-opens an already-completed session via "Start Again".
+   * In edit mode: set/PR/workout points are NOT re-awarded, exercise counters
+   * don't re-increment, and finishing doesn't navigate to SessionComplete.
+   */
+  isEditMode: boolean;
 }
 
 const initialState: SessionState = {
@@ -51,6 +63,9 @@ const initialState: SessionState = {
   exerciseStats: {},
   completedSets: {},
   suggestedWeightBySetId: {},
+  completedExerciseIds: [],
+  exerciseComments: {},
+  isEditMode: false,
 };
 
 const sessionSlice = createSlice({
@@ -70,6 +85,52 @@ const sessionSlice = createSlice({
       state.setMap = action.payload.setMap;
       state.setsLogged = 0;
       state.exercisesCompleted = 0;
+      state.completedSets = {};
+      state.completedExerciseIds = [];
+      state.exerciseComments = {};
+      state.isEditMode = false;
+    },
+    /**
+     * Bulk-restore logged set values when resuming an existing session.
+     * Keyed by exerciseLibraryId → setIndex (0-based).
+     */
+    hydrateCompletedSets(
+      state,
+      action: PayloadAction<Record<string, Record<number, LoggedSetResult>>>,
+    ) {
+      state.completedSets = action.payload;
+    },
+    /**
+     * Restore the list of session_exercise ids that are already marked complete
+     * in the database. Used so we don't double-count or re-award points on
+     * re-visit / Start Again.
+     */
+    hydrateCompletedExerciseIds(
+      state,
+      action: PayloadAction<string[]>,
+    ) {
+      state.completedExerciseIds = action.payload;
+      state.exercisesCompleted = action.payload.length;
+    },
+    markExerciseCompleted(state, action: PayloadAction<string>) {
+      if (!state.completedExerciseIds.includes(action.payload)) {
+        state.completedExerciseIds.push(action.payload);
+      }
+    },
+    hydrateExerciseComments(
+      state,
+      action: PayloadAction<Record<string, string>>,
+    ) {
+      state.exerciseComments = action.payload;
+    },
+    setExerciseComment(
+      state,
+      action: PayloadAction<{ exerciseLibraryId: string; comment: string }>,
+    ) {
+      state.exerciseComments[action.payload.exerciseLibraryId] = action.payload.comment;
+    },
+    setEditMode(state, action: PayloadAction<boolean>) {
+      state.isEditMode = action.payload;
     },
     addSessionSet(
       state,
@@ -143,6 +204,12 @@ export const {
   setSuggestedWeights,
   clearSuggestedWeights,
   clearSession,
+  hydrateCompletedSets,
+  hydrateCompletedExerciseIds,
+  markExerciseCompleted,
+  hydrateExerciseComments,
+  setExerciseComment,
+  setEditMode,
 } = sessionSlice.actions;
 
 export default sessionSlice.reducer;

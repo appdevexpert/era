@@ -3,7 +3,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { forwardRef, useCallback, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,8 @@ type SetSummary = {
 
 type ExerciseCompletedBottomSheetProps = {
   sets: SetSummary[];
+  /** Previously-saved per-exercise comment, used to prefill the textarea on revisit. */
+  initialComment?: string;
   onContinue: (comment: string) => void;
 };
 
@@ -45,9 +47,15 @@ const SetCard = ({ set }: { set: SetSummary }) => {
 };
 
 const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBottomSheetProps>(
-  function ExerciseCompletedBottomSheet({ sets, onContinue }, ref) {
+  function ExerciseCompletedBottomSheet({ sets, initialComment = "", onContinue }, ref) {
     const { t } = useTranslation();
-    const [comment, setComment] = useState("");
+    const [comment, setComment] = useState(initialComment);
+
+    // Keep the textarea in sync with the latest prefill when the user navigates
+    // between exercises (this component is mounted continuously on the parent).
+    useEffect(() => {
+      setComment(initialComment);
+    }, [initialComment]);
 
     const handleContinue = useCallback(() => {
       onContinue(comment);

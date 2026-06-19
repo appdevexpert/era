@@ -683,6 +683,8 @@ const nb = {
       todaysWorkout: "Dagens økt",
       start: "Start",
       startNow: "Start nå",
+      resumeWorkout: "Fortsett økt",
+      startAgain: "Start på nytt",
       exercisesLabel: "øvelser",
       minutesLabel: "minutter",
       edit: "Rediger",

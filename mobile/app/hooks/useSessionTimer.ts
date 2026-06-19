@@ -4,7 +4,8 @@
  * Works across all workout screens without resetting on navigation.
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/app/stores/store";
 
@@ -19,13 +20,13 @@ export const useSessionTimer = () => {
     (state: RootState) => state.session.sessionStartedAt,
   );
 
-  const getElapsed = () => {
+  const getElapsed = useCallback(() => {
     if (!sessionStartedAt) return 0;
     return Math.max(
       0,
       Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000),
     );
-  };
+  }, [sessionStartedAt]);
 
   const [elapsed, setElapsed] = useState(getElapsed);
 
@@ -39,7 +40,18 @@ export const useSessionTimer = () => {
 
     const id = setInterval(() => setElapsed(getElapsed()), 1000);
     return () => clearInterval(id);
-  }, [sessionStartedAt]);
+  }, [sessionStartedAt, getElapsed]);
+
+  // AppState snap — when the app comes back to foreground, the next interval
+  // tick is still up to a second away. Recompute immediately so the header
+  // doesn't briefly show a stale value.
+  useEffect(() => {
+    if (!sessionStartedAt) return;
+    const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
+      if (state === "active") setElapsed(getElapsed());
+    });
+    return () => sub.remove();
+  }, [sessionStartedAt, getElapsed]);
 
   return { elapsed, formatted: formatTime(elapsed) };
 };

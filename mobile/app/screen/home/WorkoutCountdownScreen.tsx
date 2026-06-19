@@ -3,10 +3,12 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
+import { useWallClockCountdown } from "@/app/hooks/useWallClockCountdown";
+import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
   ImageBackground,
@@ -121,14 +123,48 @@ const ringStyles = StyleSheet.create({
 const WorkoutCountdownScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutCountdown">>();
+  const navigation = useNavigation();
   const { t } = useTranslation();
-  const { ready, startSession, navigateToExercise } = useWorkoutSession();
+  const { ready, startSession, navigateToExercise, navigateToSessionComplete } = useWorkoutSession();
 
-  const { weekLabel, dayLabel, dayTitle, firstExerciseName } = route.params;
+  const {
+    weekLabel,
+    dayLabel,
+    dayTitle,
+    firstExerciseName,
+    mode = "fresh",
+    startExerciseIndex = 0,
+  } = route.params;
 
-  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const { remaining: countdown } = useWallClockCountdown({
+    totalSeconds: COUNTDOWN_SECONDS,
+    running: true,
+  });
   const hasStarted = useRef(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
+  const allowLeaveRef = useRef(false);
+
+  // Once the user is past the 3-2-1 ramp, a session exists (fresh insert or
+  // resumed/edit-mode load). Backing out now should trigger the End Workout
+  // sheet so the user can decide whether to wrap up or keep going.
+  // During the ramp itself (no session yet) we just let the back-press
+  // pop the screen — nothing to "end" yet.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (allowLeaveRef.current) return;
+      if (!hasStarted.current) return;
+      e.preventDefault();
+      endWorkoutSheetRef.current?.show();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleEndWorkout = useCallback(async () => {
+    allowLeaveRef.current = true;
+    await navigateToSessionComplete();
+  }, [navigateToSessionComplete]);
 
   const startFadeIn = useCallback(() => {
     Animated.timing(fadeAnim, {
@@ -142,19 +178,21 @@ const WorkoutCountdownScreen = () => {
     startFadeIn();
   }, [startFadeIn]);
 
+  // After the 3-2-1 ramp finishes AND the bootstrap is ready, kick off the
+  // real session start. Both gates have to be true — if the user has a slow
+  // network we hold here until `ready` flips, instead of racing it.
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown((prev) => prev - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-    if (ready && !hasStarted.current) {
-      hasStarted.current = true;
-      void (async () => {
-        await startSession();
-        navigateToExercise(0);
-      })();
-    }
-  }, [countdown, ready, startSession, navigateToExercise]);
+    if (countdown > 0) return;
+    if (!ready || hasStarted.current) return;
+    hasStarted.current = true;
+    void (async () => {
+      await startSession({ editMode: mode === "edit" });
+      // The replace below would otherwise be intercepted by the beforeRemove
+      // listener that was just armed by hasStarted=true.
+      allowLeaveRef.current = true;
+      navigateToExercise(startExerciseIndex);
+    })();
+  }, [countdown, ready, startSession, navigateToExercise, mode, startExerciseIndex]);
 
   const displayNumber = countdown > 0 ? countdown : 1;
 
@@ -190,6 +228,11 @@ const WorkoutCountdownScreen = () => {
         </View>
         <CountdownRing value={displayNumber} />
       </Animated.View>
+
+      <EndWorkoutBottomSheet
+        ref={endWorkoutSheetRef}
+        onEnd={handleEndWorkout}
+      />
     </View>
   );
 };

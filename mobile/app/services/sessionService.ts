@@ -66,18 +66,33 @@ export async function findExistingSession(params: {
   return { id: data.id as string, status: data.status as "in_progress" | "completed" | "abandoned" };
 }
 
+/** A previously-logged set value, keyed by exerciseLibraryId → setIndex (0-based). */
+export interface RestoredSetValue {
+  weight: number | null;
+  weightUnit: string;
+  reps: number | null;
+  duration: number | null;
+  feedback: "light_weight" | "correct_weight" | "felt_heavy" | null;
+  comment: string | null;
+}
+
 /**
- * Re-hydrate an in_progress session: read existing session_exercises + session_sets
- * and rebuild the exerciseMap / setMap that Redux needs.
+ * Re-hydrate an in_progress (or completed) session: read existing
+ * session_exercises + session_sets and rebuild the maps that Redux needs,
+ * plus the actual logged values so screens can prefill on revisit.
  * Returns null when no children exist (corrupt session — caller should self-heal).
  */
 export async function loadSessionState(sessionId: string): Promise<{
   exerciseMap: Record<string, string>;
   setMap: Record<string, string[]>;
+  completedSets: Record<string, Record<number, RestoredSetValue>>;
+  completedExerciseIds: string[];
+  /** Per-exercise note. Keyed by exerciseLibraryId so screens can look it up by ex.exerciseLibraryId. */
+  exerciseComments: Record<string, string>;
 } | null> {
   const { data: exRows, error: exError } = await supabase
     .from("session_exercises")
-    .select("id, program_day_exercise_id")
+    .select("id, program_day_exercise_id, exercise_id, status, comment")
     .eq("session_id", sessionId);
 
   if (exError) throw new Error(exError.message ?? "Failed to load session exercises");
@@ -86,27 +101,123 @@ export async function loadSessionState(sessionId: string): Promise<{
   const sessionExerciseIds = exRows.map((r) => r.id as string);
   const { data: setRows, error: setError } = await supabase
     .from("session_sets")
-    .select("id, set_number, session_exercise_id")
+    .select(
+      "id, set_number, session_exercise_id, status, logged_weight_value, logged_weight_unit, logged_reps, logged_duration_seconds, perceived_feedback, comment",
+    )
     .in("session_exercise_id", sessionExerciseIds)
     .order("set_number", { ascending: true });
 
   if (setError) throw new Error(setError.message ?? "Failed to load session sets");
 
   const exerciseMap: Record<string, string> = {};
+  const exerciseLibIdBySeId: Record<string, string> = {};
+  const completedExerciseIds: string[] = [];
+  const exerciseComments: Record<string, string> = {};
   for (const row of exRows) {
     if (row.program_day_exercise_id) {
       exerciseMap[row.program_day_exercise_id as string] = row.id as string;
     }
+    if (row.exercise_id) {
+      exerciseLibIdBySeId[row.id as string] = row.exercise_id as string;
+    }
+    if (row.status === "completed") {
+      completedExerciseIds.push(row.id as string);
+    }
+    if (row.exercise_id && row.comment) {
+      exerciseComments[row.exercise_id as string] = row.comment as string;
+    }
   }
 
   const setMap: Record<string, string[]> = {};
+  const completedSets: Record<string, Record<number, RestoredSetValue>> = {};
+  // Group by session_exercise_id so we can index sets 0-based within their group.
+  const rowsBySeId: Record<string, typeof setRows> = {};
   for (const row of setRows ?? []) {
     const seId = row.session_exercise_id as string;
-    if (!setMap[seId]) setMap[seId] = [];
-    setMap[seId].push(row.id as string);
+    if (!rowsBySeId[seId]) rowsBySeId[seId] = [];
+    rowsBySeId[seId]!.push(row);
+  }
+  for (const [seId, rows] of Object.entries(rowsBySeId)) {
+    const sortedRows = (rows ?? []).slice().sort((a, b) =>
+      ((a?.set_number as number) ?? 0) - ((b?.set_number as number) ?? 0),
+    );
+    setMap[seId] = sortedRows.map((r) => r!.id as string);
+    const libId = exerciseLibIdBySeId[seId];
+    if (!libId) continue;
+    sortedRows.forEach((r, index) => {
+      if (!r) return;
+      if (r.status !== "completed") return;
+      if (!completedSets[libId]) completedSets[libId] = {};
+      completedSets[libId][index] = {
+        weight: (r.logged_weight_value as number | null) ?? null,
+        weightUnit: (r.logged_weight_unit as string | null) ?? "kg",
+        reps: (r.logged_reps as number | null) ?? null,
+        duration: (r.logged_duration_seconds as number | null) ?? null,
+        feedback: (r.perceived_feedback as
+          | "light_weight"
+          | "correct_weight"
+          | "felt_heavy"
+          | null) ?? null,
+        comment: (r.comment as string | null) ?? null,
+      };
+    });
   }
 
-  return { exerciseMap, setMap };
+  return { exerciseMap, setMap, completedSets, completedExerciseIds, exerciseComments };
+}
+
+/**
+ * Lightweight summary for ExerciseListScreen — answers "is there a session,
+ * how far along is it, and where would Resume jump to?" in a single round-trip.
+ */
+export interface DaySessionSummary {
+  sessionId: string;
+  status: "in_progress" | "completed" | "abandoned";
+  totalExercises: number;
+  completedExercises: number;
+  /**
+   * program_day_exercise_id of the first exercise whose session_exercises row
+   * is NOT yet completed (ordered by sort_order). Null when every exercise is done.
+   */
+  firstIncompleteProgramDayExerciseId: string | null;
+}
+
+export async function getDaySessionSummary(params: {
+  userId: string;
+  programDayId: string;
+}): Promise<DaySessionSummary | null> {
+  const session = await findExistingSession({
+    userId: params.userId,
+    programDayId: params.programDayId,
+  });
+  if (!session) return null;
+
+  const { data: exRows, error: exError } = await supabase
+    .from("session_exercises")
+    .select("program_day_exercise_id, status, sort_order")
+    .eq("session_id", session.id)
+    .order("sort_order", { ascending: true });
+
+  throwIfError(exError, "Failed to load session exercises for summary");
+
+  const rows = exRows ?? [];
+  let firstIncomplete: string | null = null;
+  let completed = 0;
+  for (const row of rows) {
+    if (row.status === "completed") {
+      completed += 1;
+    } else if (firstIncomplete == null && row.program_day_exercise_id) {
+      firstIncomplete = row.program_day_exercise_id as string;
+    }
+  }
+
+  return {
+    sessionId: session.id,
+    status: session.status,
+    totalExercises: rows.length,
+    completedExercises: completed,
+    firstIncompleteProgramDayExerciseId: firstIncomplete,
+  };
 }
 
 /** Hard-delete a session row (cascade removes children). Used to self-heal corrupt sessions. */
@@ -544,6 +655,73 @@ export async function checkAndCreateSetPRs(params: {
       points: PR_POINTS,
     },
   };
+}
+
+/**
+ * Edit-mode PR sync. Called instead of checkAndCreateSetPRs when the user is
+ * re-editing an already-completed session (Start Again). Behavior:
+ *  - If a PR row already exists for THIS session+exercise+max_weight:
+ *      and the new best weight is higher → UPDATE the existing row in place.
+ *      (Points were already awarded in the original completion; do not award again.)
+ *      Lower or equal → no-op.
+ *  - If no PR row exists for this session yet: do nothing. We intentionally don't
+ *    create brand-new PRs from edits to keep the points ledger immutable.
+ *
+ * Returns whether the PR row was updated (so callers can flip the is_personal_record
+ * flag on the new best set if needed).
+ */
+export async function updateSessionPRIfHigher(params: {
+  userId: string;
+  exerciseId: string;
+  sessionId: string;
+  newBestWeight: number;
+  newBestReps: number;
+  newBestSessionSetId: string;
+  weightUnit: string;
+}): Promise<{ updated: boolean; previousSessionSetId: string | null }> {
+  if (params.newBestWeight <= 0) return { updated: false, previousSessionSetId: null };
+
+  const { data: existing, error: findErr } = await supabase
+    .from("personal_records")
+    .select("id, value_numeric, session_set_id")
+    .eq("user_id", params.userId)
+    .eq("exercise_id", params.exerciseId)
+    .eq("session_id", params.sessionId)
+    .eq("metric", "max_weight")
+    .maybeSingle();
+
+  throwIfError(findErr, "Failed to look up existing session PR");
+  if (!existing) return { updated: false, previousSessionSetId: null };
+
+  const previousValue = Number(existing.value_numeric ?? 0);
+  if (params.newBestWeight <= previousValue) {
+    return { updated: false, previousSessionSetId: existing.session_set_id as string | null };
+  }
+
+  const { error: updErr } = await supabase
+    .from("personal_records")
+    .update({
+      value_numeric: params.newBestWeight,
+      value_unit: params.weightUnit,
+      weight_value: params.newBestWeight,
+      weight_unit: params.weightUnit,
+      reps: params.newBestReps,
+      session_set_id: params.newBestSessionSetId,
+      achieved_at: new Date().toISOString(),
+    })
+    .eq("id", existing.id);
+
+  throwIfError(updErr, "Failed to update session PR");
+  return { updated: true, previousSessionSetId: existing.session_set_id as string | null };
+}
+
+/** Clears the is_personal_record flag on a session_sets row (used when PR moves to a new set in edit mode). */
+export async function clearSetPersonalRecordFlag(sessionSetId: string): Promise<void> {
+  const { error } = await supabase
+    .from("session_sets")
+    .update({ is_personal_record: false })
+    .eq("id", sessionSetId);
+  throwIfError(error, "Failed to clear personal record flag");
 }
 
 /**

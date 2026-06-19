@@ -3,15 +3,17 @@ import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
+import { useWallClockCountdown } from "@/app/hooks/useWallClockCountdown";
+import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import Svg, {
   Circle,
   Defs,
@@ -124,6 +126,7 @@ const ringStyles = StyleSheet.create({
 const CardioTimerScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "CardioTimer">>();
+  const navigation = useNavigation();
   const { t } = useTranslation();
   const {
     sessionWorkout,
@@ -132,6 +135,23 @@ const CardioTimerScreen = () => {
     logCardioResult,
     completeExerciseResult,
   } = useWorkoutSession();
+
+  const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
+  const allowLeaveRef = useRef(false);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (allowLeaveRef.current) return;
+      e.preventDefault();
+      endWorkoutSheetRef.current?.show();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleEndWorkout = useCallback(async () => {
+    allowLeaveRef.current = true;
+    await navigateToSessionComplete();
+  }, [navigateToSessionComplete]);
 
   const {
     exerciseName,
@@ -146,17 +166,18 @@ const CardioTimerScreen = () => {
   // Session timer (shared across all workout screens)
   const { formatted: sessionTimerText } = useSessionTimer();
 
-  // Countdown
-  const [remaining, setRemaining] = useState(duration);
+  // Countdown — wall-clock backed so backgrounding the app doesn't freeze
+  // the visible remaining (see useWallClockCountdown for the why).
   const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const animatedProgress = useSharedValue(1);
-
-  useEffect(() => {
-    if (!running || remaining <= 0) return;
-    const id = setTimeout(() => setRemaining((r) => r - 1), 1000);
-    return () => clearTimeout(id);
-  }, [running, remaining]);
+  const { remaining, reset: resetCountdown } = useWallClockCountdown({
+    totalSeconds: duration,
+    running,
+    // When the 4-min run completes we just pause; the user still has to tap
+    // "Complete Session" to log the duration, so no auto-navigation here.
+    onComplete: () => setRunning(false),
+  });
 
   useEffect(() => {
     const target = duration > 0 ? remaining / duration : 0;
@@ -170,9 +191,9 @@ const CardioTimerScreen = () => {
   const handleStop = useCallback(() => setRunning(false), []);
   const handleCancel = useCallback(() => {
     setRunning(false);
-    setRemaining(duration);
+    resetCountdown();
     animatedProgress.value = withTiming(1, { duration: 300 });
-  }, [duration, animatedProgress]);
+  }, [resetCountdown, animatedProgress]);
 
   // Scroll (for header collapse)
   const scrollY = useSharedValue(0);
@@ -194,22 +215,7 @@ const CardioTimerScreen = () => {
         sets={1}
         canAddSet={false}
         onAddSet={() => undefined}
-        onBack={() => {
-          Alert.alert(
-            t("workout.ui.quitTitle"),
-            t("workout.ui.quitMessage"),
-            [
-              { text: t("common.cancel"), style: "cancel" },
-              {
-                text: t("workout.ui.quitConfirm"),
-                style: "destructive",
-                onPress: () => {
-                  navigateToSessionComplete();
-                },
-              },
-            ],
-          );
-        }}
+        onBack={() => endWorkoutSheetRef.current?.show()}
         scrollY={scrollY}
         topInset={insets.top}
         showSets={false}
@@ -297,6 +303,7 @@ const CardioTimerScreen = () => {
 
               const nextIdx = exIdx + 1;
               const total = sessionWorkout?.exercises.length ?? 0;
+              allowLeaveRef.current = true;
               if (nextIdx >= total) {
                 navigateToSessionComplete();
               } else {
@@ -329,6 +336,11 @@ const CardioTimerScreen = () => {
           )}
         </PressableScale>
       </View>
+
+      <EndWorkoutBottomSheet
+        ref={endWorkoutSheetRef}
+        onEnd={handleEndWorkout}
+      />
     </View>
   );
 };

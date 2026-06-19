@@ -68,6 +68,11 @@ export type WorkoutCountdownParams = {
   dayLabel: string;
   dayTitle: string;
   firstExerciseName: string;
+  /** Treated as a fresh start when omitted. Resume jumps to the first
+   * incomplete exercise; editMode opens an already-completed session for edits. */
+  mode?: "fresh" | "resume" | "edit";
+  /** 0-based exercise index to navigate to after the countdown. Defaults to 0. */
+  startExerciseIndex?: number;
 };
 
 export type RestTimerParams = {

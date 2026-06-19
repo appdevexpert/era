@@ -683,6 +683,8 @@ const en = {
       todaysWorkout: "Today's Workout",
       start: "Start",
       startNow: "Start Now",
+      resumeWorkout: "Resume Workout",
+      startAgain: "Start Again",
       exercisesLabel: "exercises",
       minutesLabel: "minutes",
       edit: "Edit",

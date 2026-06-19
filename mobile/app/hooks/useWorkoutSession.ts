@@ -34,6 +34,12 @@ import {
   logCompletedSet,
   startSessionTimer,
   setSuggestedWeights,
+  hydrateCompletedSets,
+  hydrateCompletedExerciseIds,
+  markExerciseCompleted,
+  hydrateExerciseComments,
+  setExerciseComment,
+  setEditMode,
 } from "@/app/stores/slice/sessionSlice";
 import { markDayCompleted } from "@/app/stores/slice/workoutSlice";
 import {
@@ -76,6 +82,10 @@ export const useWorkoutSession = () => {
   const sessionStartedAt = useSelector(selectSessionStartedAt);
   const exerciseStatsMap = useSelector(selectExerciseStats);
   const completedSetsMap = useSelector(selectCompletedSets);
+  const completedExerciseIds = useSelector(
+    (state: RootState) => state.session.completedExerciseIds,
+  );
+  const isEditMode = useSelector((state: RootState) => state.session.isEditMode);
   const weightUnitPref = useSelector(
     (state: RootState) => state.preferences.weightUnit,
   );
@@ -96,13 +106,18 @@ export const useWorkoutSession = () => {
   /**
    * Start (or resume) the session.
    * - If an in_progress row exists for (user, program_day) → resume it (load DB state into Redux).
-   * - If a completed row exists → block (do nothing; caller should route to a "view completed" screen).
+   * - If a completed row exists →
+   *     when `editMode` is true → also hydrate it for edit/replay.
+   *     otherwise → block (do nothing; caller should route to a "view completed" screen).
    * - Otherwise → insert fresh session + exercises + sets.
    * On race conditions, the unique index throws; we catch and re-query, then resume.
    */
-  const startSession = useCallback(async (): Promise<"started" | "resumed" | "already_completed" | "failed"> => {
+  const startSession = useCallback(async (
+    options?: { editMode?: boolean },
+  ): Promise<"started" | "resumed" | "edit_mode" | "already_completed" | "failed"> => {
     if (!sessionWorkout || !userId) return "failed";
 
+    const editMode = options?.editMode === true;
     const programDayId = sessionWorkout.programDayId;
 
     const hydrateStats = async () => {
@@ -148,11 +163,33 @@ export const useWorkoutSession = () => {
       return { sessionId: session.id, exerciseMap: exerciseMapObj, setMap: setMapObj };
     };
 
+    const hydrateFromState = (
+      id: string,
+      state: NonNullable<Awaited<ReturnType<typeof sessionService.loadSessionState>>>,
+      edit: boolean,
+    ) => {
+      dispatch(initSession({
+        sessionId: id,
+        exerciseMap: state.exerciseMap,
+        setMap: state.setMap,
+      }));
+      dispatch(hydrateCompletedSets(state.completedSets));
+      dispatch(hydrateCompletedExerciseIds(state.completedExerciseIds));
+      dispatch(hydrateExerciseComments(state.exerciseComments));
+      dispatch(setEditMode(edit));
+    };
+
     try {
       const existing = await sessionService.findExistingSession({ userId, programDayId });
 
       if (existing?.status === "completed") {
-        return "already_completed";
+        if (!editMode) return "already_completed";
+        const state = await sessionService.loadSessionState(existing.id);
+        if (!state) return "already_completed";
+        hydrateFromState(existing.id, state, true);
+        dispatch(setExerciseStats(await hydrateStats()));
+        dispatch(startSessionTimer());
+        return "edit_mode";
       }
 
       if (existing?.status === "in_progress") {
@@ -167,11 +204,7 @@ export const useWorkoutSession = () => {
           dispatch(startSessionTimer());
           return "started";
         }
-        dispatch(initSession({
-          sessionId: existing.id,
-          exerciseMap: state.exerciseMap,
-          setMap: state.setMap,
-        }));
+        hydrateFromState(existing.id, state, false);
         dispatch(setExerciseStats(await hydrateStats()));
         dispatch(startSessionTimer());
         return "resumed";
@@ -190,17 +223,23 @@ export const useWorkoutSession = () => {
           if (winner?.status === "in_progress") {
             const state = await sessionService.loadSessionState(winner.id);
             if (state) {
-              dispatch(initSession({
-                sessionId: winner.id,
-                exerciseMap: state.exerciseMap,
-                setMap: state.setMap,
-              }));
+              hydrateFromState(winner.id, state, false);
               dispatch(setExerciseStats(await hydrateStats()));
               dispatch(startSessionTimer());
               return "resumed";
             }
           }
-          if (winner?.status === "completed") return "already_completed";
+          if (winner?.status === "completed") {
+            if (!editMode) return "already_completed";
+            const state = await sessionService.loadSessionState(winner.id);
+            if (state) {
+              hydrateFromState(winner.id, state, true);
+              dispatch(setExerciseStats(await hydrateStats()));
+              dispatch(startSessionTimer());
+              return "edit_mode";
+            }
+            return "already_completed";
+          }
         }
         throw err;
       }
@@ -293,7 +332,14 @@ export const useWorkoutSession = () => {
       dispatch(logCompletedSet({
         exerciseLibraryId: ex.exerciseLibraryId,
         setNumber,
-        set: { weight, weightUnit: ex.weightUnit, reps, duration },
+        set: {
+          weight,
+          weightUnit: ex.weightUnit,
+          reps,
+          duration,
+          feedback,
+          comment,
+        },
       }));
 
       const logParams = {
@@ -340,7 +386,11 @@ export const useWorkoutSession = () => {
       // and running gets `+4 / minute`, both deferred until those data
       // sources exist. Until then, those exercises only earn the +50 for
       // completing the session (and +150 if it's the Cardio 4×4 day).
-      if (userId && (weight != null || reps != null)) {
+      //
+      // Skip the award when (a) we're re-editing an already-completed session
+      // or (b) this exact (exercise, setNumber) was already logged once
+      // before — both cases would otherwise double-pay the user.
+      if (!isEditMode && !alreadyLogged && userId && (weight != null || reps != null)) {
         const awardParams = {
           userId,
           sessionId: sessionId ?? null,
@@ -363,7 +413,7 @@ export const useWorkoutSession = () => {
         );
       }
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, isEditMode],
   );
 
   /** Complete an exercise. Returns PR detail when this exercise broke a max_weight PR. */
@@ -379,13 +429,33 @@ export const useWorkoutSession = () => {
       const seId = exerciseMap[ex.id];
       if (!seId) return { prDetail: null };
 
-      dispatch(incrementExercisesCompleted());
+      const alreadyCompleted = completedExerciseIds.includes(seId);
 
-      await syncWrite(
-        "completeExercise",
-        { id: seId, comment: comment ?? null },
-        () => sessionService.completeExercise(seId, comment),
-      );
+      // Mirror whatever comment we're about to persist so a return-visit reads
+      // the latest text from Redux without a DB round-trip.
+      if (comment !== undefined) {
+        dispatch(setExerciseComment({
+          exerciseLibraryId: ex.exerciseLibraryId,
+          comment: comment ?? "",
+        }));
+      }
+
+      if (!alreadyCompleted) {
+        dispatch(incrementExercisesCompleted());
+        dispatch(markExerciseCompleted(seId));
+        await syncWrite(
+          "completeExercise",
+          { id: seId, comment: comment ?? null },
+          () => sessionService.completeExercise(seId, comment),
+        );
+      } else if (comment) {
+        // Re-edit: still persist a refreshed comment so user's latest note wins.
+        await syncWrite(
+          "completeExercise",
+          { id: seId, comment },
+          () => sessionService.completeExercise(seId, comment),
+        );
+      }
 
       if (!userId || !sessionId) return { prDetail: null };
 
@@ -446,36 +516,66 @@ export const useWorkoutSession = () => {
       let prDetail: CompletedExercisePRDetail | null = null;
       if (bestLogged && bestSetId) {
         try {
-          const result = await sessionService.checkAndCreateSetPRs({
-            userId,
-            exerciseId: ex.exerciseLibraryId,
-            exerciseName: ex.name,
-            sessionId,
-            sessionExerciseId: seId,
-            sessionSetId: bestSetId,
-            loggedWeight: bestLogged.weight,
-            loggedReps: bestLogged.reps,
-            weightUnit: ex.weightUnit,
-          });
-
-          if (result.prDetail) {
-            // Flip is_personal_record so the History card renders the gold badge.
-            try {
-              await sessionService.markSetAsPersonalRecord(bestSetId);
-            } catch (err) {
-              console.warn("[useWorkoutSession] markSetAsPersonalRecord failed", err);
+          if (alreadyCompleted) {
+            // Edit / re-visit path: upgrade the existing session PR in place,
+            // never insert a new row and never award points again.
+            const upd = await sessionService.updateSessionPRIfHigher({
+              userId,
+              exerciseId: ex.exerciseLibraryId,
+              sessionId,
+              newBestWeight: bestLogged.weight,
+              newBestReps: bestLogged.reps,
+              newBestSessionSetId: bestSetId,
+              weightUnit: ex.weightUnit,
+            });
+            if (upd.updated) {
+              if (upd.previousSessionSetId && upd.previousSessionSetId !== bestSetId) {
+                try {
+                  await sessionService.clearSetPersonalRecordFlag(upd.previousSessionSetId);
+                } catch (err) {
+                  console.warn("[useWorkoutSession] clearSetPersonalRecordFlag failed", err);
+                }
+              }
+              try {
+                await sessionService.markSetAsPersonalRecord(bestSetId);
+              } catch (err) {
+                console.warn("[useWorkoutSession] markSetAsPersonalRecord (edit) failed", err);
+              }
             }
-
-            const { weightKg, reps, previousBestKg, weightUnit, points } = result.prDetail;
-            prDetail = {
+            // Edit-mode never returns prDetail — no PR celebration screen
+            // for an exercise that was already completed once.
+          } else {
+            const result = await sessionService.checkAndCreateSetPRs({
+              userId,
+              exerciseId: ex.exerciseLibraryId,
               exerciseName: ex.name,
-              exerciseCategory: ex.exerciseCategory || ex.category || "compound",
-              weightLabel: `${weightKg} ${weightUnit}`,
-              reps,
-              previousBestLabel:
-                previousBestKg > 0 ? `${previousBestKg} ${weightUnit}` : "—",
-              points,
-            };
+              sessionId,
+              sessionExerciseId: seId,
+              sessionSetId: bestSetId,
+              loggedWeight: bestLogged.weight,
+              loggedReps: bestLogged.reps,
+              weightUnit: ex.weightUnit,
+            });
+
+            if (result.prDetail) {
+              // Flip is_personal_record so the History card renders the gold badge.
+              try {
+                await sessionService.markSetAsPersonalRecord(bestSetId);
+              } catch (err) {
+                console.warn("[useWorkoutSession] markSetAsPersonalRecord failed", err);
+              }
+
+              const { weightKg, reps, previousBestKg, weightUnit, points } = result.prDetail;
+              prDetail = {
+                exerciseName: ex.name,
+                exerciseCategory: ex.exerciseCategory || ex.category || "compound",
+                weightLabel: `${weightKg} ${weightUnit}`,
+                reps,
+                previousBestLabel:
+                  previousBestKg > 0 ? `${previousBestKg} ${weightUnit}` : "—",
+                points,
+              };
+            }
           }
         } catch (err) {
           console.warn("[useWorkoutSession] PR check failed", err);
@@ -484,7 +584,7 @@ export const useWorkoutSession = () => {
 
       return { prDetail };
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite, completedExerciseIds],
   );
 
   /**
@@ -639,6 +739,7 @@ export const useWorkoutSession = () => {
     currentDayDetail,
     syncWrite,
     enqueueWrite,
+    dispatch,
   ]);
 
   /** Navigate to rest timer between sets or exercises */
@@ -663,6 +764,16 @@ export const useWorkoutSession = () => {
   /** Navigate to session complete — marks session done in Supabase first */
   const navigateToSessionComplete = useCallback(async () => {
     if (!sessionWorkout) return;
+
+    // Edit mode (Start Again on an already-completed session): we've persisted
+    // the user's edits along the way and there's nothing left to award. Pop
+    // all the way back to the workout home tab so the user lands where they
+    // started, instead of the day overview.
+    if (isEditMode) {
+      dispatch(setEditMode(false));
+      navigation.popToTop();
+      return;
+    }
 
     // Defensive: any backend failure inside finishSession must NOT block the
     // navigation. We always continue to SessionComplete; failed writes will
@@ -708,7 +819,7 @@ export const useWorkoutSession = () => {
       newPRs: result?.newPRs ?? 0,
       bonusPoints,
     });
-  }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch, sessionId]);
+  }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch, sessionId, isEditMode]);
 
   /** Add a dynamic set for an exercise (creates DB row + updates Redux) */
   const addSet = useCallback(
@@ -809,6 +920,20 @@ export const useWorkoutSession = () => {
     [sessionWorkout, exerciseStatsMap, completedSetsMap, weightUnitPref],
   );
 
+  /** Per-exercise comment cache (session_exercises.comment) for sheet prefill. */
+  const exerciseCommentsMap = useSelector(
+    (state: RootState) => state.session.exerciseComments,
+  );
+  const getExerciseComment = useCallback(
+    (exerciseIndex: number): string => {
+      if (!sessionWorkout) return "";
+      const ex = sessionWorkout.exercises[exerciseIndex];
+      if (!ex) return "";
+      return exerciseCommentsMap[ex.exerciseLibraryId] ?? "";
+    },
+    [sessionWorkout, exerciseCommentsMap],
+  );
+
   /** Get completed sets for the exercise completed bottom sheet */
   const getCompletedSetsForSheet = useCallback(
     (exerciseIndex: number): { weight: string; reps: number; setNumber: number; duration?: number | null }[] => {
@@ -878,5 +1003,6 @@ export const useWorkoutSession = () => {
     getSetCount,
     getExerciseSetStats,
     getCompletedSetsForSheet,
+    getExerciseComment,
   };
 };

@@ -475,7 +475,7 @@ function mapPlanWeek({
     title: getLocalizedText(week.title_translations, language, week.title),
     phase: getLocalizedText(week.focus_translations, language, week.focus ?? ""),
     completedDays: allDayEntries.filter((e) => completed.has(e.day.id)).length,
-    totalDays: allDayEntries.filter((e) => !e.day.is_rest_day).length,
+    totalDays: allDayEntries.length,
     days: allDayEntries.map((entry) => {
       const { day, dayDate } = entry;
       // Use calendar date for weekday label when available

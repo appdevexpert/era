@@ -17,7 +17,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
@@ -46,7 +46,7 @@ const WorkoutLogScreen = () => {
     currentSet: startSet = 0, // 0-based set to resume from
   } = route.params;
 
-  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet } = useWorkoutSession();
+  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet, getExerciseComment } = useWorkoutSession();
   const { formatted: timer } = useSessionTimer();
   const exercises = sessionWorkout?.exercises ?? [];
   const total = exercises.length;
@@ -63,11 +63,19 @@ const WorkoutLogScreen = () => {
     const ssId = seId ? state.session.setMap[seId]?.[startSet] : undefined;
     return ssId ? state.session.suggestedWeightBySetId[ssId] : undefined;
   });
+  // Previously-logged value for this exact (exercise, set) pair — highest
+  // priority on initial mount so a revisit or Start Again shows what was saved.
+  const previouslyLogged = useSelector((state: RootState) => {
+    if (!currentEx) return undefined;
+    return state.session.completedSets[currentEx.exerciseLibraryId]?.[startSet];
+  });
   const plannedWeightForSet =
     currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 120;
   // Canonical kg. The ruler displays/edits in the user's preferred unit; we
   // convert at the edge so the session log keeps storing kg.
-  const [weightKg, setWeightKg] = useState(suggestedWeight ?? plannedWeightForSet);
+  const [weightKg, setWeightKg] = useState(
+    previouslyLogged?.weight ?? suggestedWeight ?? plannedWeightForSet,
+  );
   const { label: weightUnitLabel, range: weightRange, toDisplay, fromDisplayToKg } =
     useWeightUnit();
   const weightDisplay = toDisplay(weightKg);
@@ -75,9 +83,13 @@ const WorkoutLogScreen = () => {
     (next: number) => setWeightKg(fromDisplayToKg(next)),
     [fromDisplayToKg],
   );
-  const [reps, setReps] = useState(currentEx?.targetReps ?? 6);
-  const [comment, setComment] = useState("");
-  const [feedback, setFeedback] = useState<"light_weight" | "correct_weight" | "felt_heavy" | null>(null);
+  const [reps, setReps] = useState(
+    previouslyLogged?.reps ?? currentEx?.targetReps ?? 6,
+  );
+  const [comment, setComment] = useState(previouslyLogged?.comment ?? "");
+  const [feedback, setFeedback] = useState<"light_weight" | "correct_weight" | "felt_heavy" | null>(
+    previouslyLogged?.feedback ?? null,
+  );
 
   const MAX_SETS = 5;
   const [activeSet, setActiveSet] = useState(startSet);
@@ -93,16 +105,25 @@ const WorkoutLogScreen = () => {
   const sheetRef = useRef<BottomSheet>(null);
   const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
   const lastSetLogged = useRef(false);
+  // Set true right before any programmatic leave (CompleteSet → RestTimer,
+  // prev/next exercise, End Workout confirm). Lets beforeRemove distinguish
+  // an intentional navigation from a back-press / swipe-back that should
+  // surface the End Workout sheet instead.
+  const allowLeaveRef = useRef(false);
 
   /** Navigate to a specific exercise by 0-based index */
   const goToExercise = useCallback(
-    (idx: number, direction: "forward" | "back" = "forward") => goToEx(idx, 0, direction),
+    (idx: number, direction: "forward" | "back" = "forward") => {
+      allowLeaveRef.current = true;
+      goToEx(idx, 0, direction);
+    },
     [goToEx],
   );
 
   /** Complete Set (not last) → log + rest timer */
   const handleCompleteSet = useCallback(() => {
     logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
+    allowLeaveRef.current = true;
     navigateToRest(exIdx, activeSet + 2);
     setActiveSet((s) => s + 1);
     setFeedback(null);
@@ -129,6 +150,7 @@ const WorkoutLogScreen = () => {
       const result = await completeExerciseResult(exIdx, _comment);
 
       const nextIdx = exIdx + 1;
+      allowLeaveRef.current = true;
       if (nextIdx >= total) {
         await navigateToSessionComplete();
       } else {
@@ -148,6 +170,24 @@ const WorkoutLogScreen = () => {
     },
     [exIdx, total, completeExerciseResult, navigateToRest, navigateToSessionComplete, navigation],
   );
+
+  // Intercept hardware back + iOS swipe-back gesture. When the user tries to
+  // leave the workout (not via Complete Set / Next / End-Workout flow), we
+  // surface the End Workout sheet instead of letting the screen pop. The
+  // sheet's End / Keep Going buttons resolve the intent.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      if (allowLeaveRef.current) return;
+      e.preventDefault();
+      endWorkoutSheetRef.current?.show();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const handleEndWorkout = useCallback(async () => {
+    allowLeaveRef.current = true;
+    await navigateToSessionComplete();
+  }, [navigateToSessionComplete]);
 
   const COLLAPSE_DISTANCE = 60;
 
@@ -229,10 +269,21 @@ const WorkoutLogScreen = () => {
 
           {showWeight ? (
             <View style={styles.bodyPadded}>
-              <SetFeedback onSelect={(option) => {
-                const map = { light: "light_weight", correct: "correct_weight", heavy: "felt_heavy" } as const;
-                setFeedback(map[option]);
-              }} />
+              <SetFeedback
+                initialValue={
+                  previouslyLogged?.feedback === "light_weight"
+                    ? "light"
+                    : previouslyLogged?.feedback === "correct_weight"
+                      ? "correct"
+                      : previouslyLogged?.feedback === "felt_heavy"
+                        ? "heavy"
+                        : null
+                }
+                onSelect={(option) => {
+                  const map = { light: "light_weight", correct: "correct_weight", heavy: "felt_heavy" } as const;
+                  setFeedback(map[option]);
+                }}
+              />
             </View>
           ) : null}
 
@@ -263,11 +314,12 @@ const WorkoutLogScreen = () => {
       <ExerciseCompletedBottomSheet
         ref={sheetRef}
         sets={getCompletedSetsForSheet(exIdx)}
+        initialComment={getExerciseComment(exIdx)}
         onContinue={handleSheetContinue}
       />
       <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
-        onEnd={navigateToSessionComplete}
+        onEnd={handleEndWorkout}
       />
     </View>
   );
