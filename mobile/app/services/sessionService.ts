@@ -852,6 +852,55 @@ export async function createPointEvent(params: {
   });
 }
 
+/**
+ * Re-read what was earned in the original completion of this session.
+ * Used when the user re-opens a completed day via "Start Again" — we want
+ * to show the same SessionComplete celebration with the historically-true
+ * totals, without awarding anything again.
+ */
+export async function getSessionFinishedStats(sessionId: string): Promise<{
+  durationSeconds: number;
+  setsLogged: number;
+  eraPoints: number;
+  bonusPoints: number;
+  newPRs: number;
+} | null> {
+  const { data: session, error: sErr } = await supabase
+    .from("workout_sessions")
+    .select("duration_seconds, sets_logged")
+    .eq("id", sessionId)
+    .maybeSingle();
+  throwIfError(sErr, "Failed to load session totals");
+  if (!session) return null;
+
+  const { data: events, error: eErr } = await supabase
+    .from("era_point_events")
+    .select("event_type, points")
+    .eq("session_id", sessionId);
+  throwIfError(eErr, "Failed to load session points");
+
+  let eraPoints = 0;
+  let bonusPoints = 0;
+  for (const ev of events ?? []) {
+    const points = Number(ev.points ?? 0);
+    if (ev.event_type === "streak_added") {
+      bonusPoints += points;
+    } else {
+      eraPoints += points;
+    }
+  }
+
+  const newPRs = await countSessionPRs(sessionId);
+
+  return {
+    durationSeconds: Number(session.duration_seconds ?? 0),
+    setsLogged: Number(session.sets_logged ?? 0),
+    eraPoints,
+    bonusPoints,
+    newPRs,
+  };
+}
+
 /** How many PR rows were inserted for this session. Used on SessionComplete. */
 export async function countSessionPRs(sessionId: string): Promise<number> {
   const { count, error } = await supabase

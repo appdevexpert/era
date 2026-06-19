@@ -765,13 +765,36 @@ export const useWorkoutSession = () => {
   const navigateToSessionComplete = useCallback(async () => {
     if (!sessionWorkout) return;
 
-    // Edit mode (Start Again on an already-completed session): we've persisted
-    // the user's edits along the way and there's nothing left to award. Pop
-    // all the way back to the workout home tab so the user lands where they
-    // started, instead of the day overview.
+    // Edit mode (Start Again on an already-completed session): nothing new is
+    // awarded — but the user expects the celebration screen they saw the first
+    // time. Re-read the original totals from DB and push SessionComplete with
+    // those values. No award_points / streak / PR-insert calls run.
     if (isEditMode) {
       dispatch(setEditMode(false));
-      navigation.popToTop();
+      if (!sessionId) {
+        navigation.popToTop();
+        return;
+      }
+      let stats: Awaited<ReturnType<typeof sessionService.getSessionFinishedStats>> = null;
+      try {
+        stats = await sessionService.getSessionFinishedStats(sessionId);
+      } catch (err) {
+        console.warn("[useWorkoutSession] getSessionFinishedStats failed", err);
+      }
+      const durationSeconds = stats?.durationSeconds ?? 0;
+      const mins = Math.floor(durationSeconds / 60);
+      const secs = durationSeconds % 60;
+      navigation.replace("SessionComplete", {
+        sessionId,
+        programTitle: sessionWorkout.title,
+        weekNumber: sessionWorkout.weekNumber,
+        dayNumber: sessionWorkout.dayNumber,
+        sessionDuration: `${mins}:${String(secs).padStart(2, "0")}`,
+        setsLogged: stats?.setsLogged ?? 0,
+        eraPoints: stats?.eraPoints ?? 0,
+        newPRs: stats?.newPRs ?? 0,
+        bonusPoints: stats?.bonusPoints ?? 0,
+      });
       return;
     }
 
