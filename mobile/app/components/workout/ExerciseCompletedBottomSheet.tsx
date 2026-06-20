@@ -61,12 +61,6 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
       exerciseLibraryId ? state.session.completedSets[exerciseLibraryId] ?? null : null,
     );
     const sets = useMemo<SetSummary[]>(() => {
-      if (__DEV__) {
-        console.log("[ExerciseCompletedSheet] render", {
-          exerciseLibraryId,
-          loggedMapKeys: loggedMap ? Object.keys(loggedMap) : null,
-        });
-      }
       if (!loggedMap) return [];
       return Object.entries(loggedMap)
         .sort(([a], [b]) => Number(a) - Number(b))
@@ -76,7 +70,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
           setNumber: Number(key) + 1,
           duration: s.duration,
         }));
-    }, [loggedMap, formatWeight, exerciseLibraryId]);
+    }, [loggedMap, formatWeight]);
 
     // Keep the textarea in sync with the latest prefill when the user navigates
     // between exercises (this component is mounted continuously on the parent).

@@ -26,6 +26,14 @@ export interface ExerciseStatSnapshot {
   bestReps: number | null;
 }
 
+/** One row of inter-session seed data: per (exercise, setNumber) the most recent log. */
+export interface LastLoggedSetSnapshot {
+  weight: number;
+  weightUnit: string;
+  feedback: "light_weight" | "correct_weight" | "felt_heavy" | null;
+  setKind: string;
+}
+
 interface SessionState {
   sessionId: string | null;
   /** programDayExerciseId → sessionExerciseId */
@@ -37,6 +45,12 @@ interface SessionState {
   sessionStartedAt: string | null;
   /** exerciseLibraryId → historical stats (fetched at session start) */
   exerciseStats: Record<string, ExerciseStatSnapshot>;
+  /**
+   * Inter-session smart-weight seed: exerciseLibraryId → setNumber (1-based) →
+   * most recent logged set. Fetched at session start, used to prefill the ruler
+   * via computeInterSessionSeed in WorkoutLogScreen.
+   */
+  lastLoggedSetsByExercise: Record<string, Record<number, LastLoggedSetSnapshot>>;
   /** exerciseLibraryId → { setNumber: LoggedSetResult } — keyed by set index, no duplicates */
   completedSets: Record<string, Record<number, LoggedSetResult>>;
   /** sessionSetId → suggested kg for that upcoming set (smart weight adjustment). */
@@ -61,6 +75,7 @@ const initialState: SessionState = {
   exercisesCompleted: 0,
   sessionStartedAt: null,
   exerciseStats: {},
+  lastLoggedSetsByExercise: {},
   completedSets: {},
   suggestedWeightBySetId: {},
   completedExerciseIds: [],
@@ -155,6 +170,12 @@ const sessionSlice = createSlice({
     ) {
       state.exerciseStats = action.payload;
     },
+    setLastLoggedSetsByExercise(
+      state,
+      action: PayloadAction<Record<string, Record<number, LastLoggedSetSnapshot>>>,
+    ) {
+      state.lastLoggedSetsByExercise = action.payload;
+    },
     logCompletedSet(
       state,
       action: PayloadAction<{
@@ -199,6 +220,7 @@ export const {
   incrementSetsLogged,
   incrementExercisesCompleted,
   setExerciseStats,
+  setLastLoggedSetsByExercise,
   logCompletedSet,
   startSessionTimer,
   setSuggestedWeights,

@@ -275,7 +275,7 @@ const ProgressScreen = () => {
   const openTransformationGallery = () =>
     navigation.navigate("TransformationGallery", {
       title: t("progress.transformationTitle"),
-      subtitle: t("progress.photosCount", { count: 21 }),
+      subtitle: t("progress.photosCount", { count: photos.length }),
     });
 
   return (

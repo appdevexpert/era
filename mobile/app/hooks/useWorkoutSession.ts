@@ -31,6 +31,7 @@ import {
   incrementSetsLogged,
   incrementExercisesCompleted,
   setExerciseStats,
+  setLastLoggedSetsByExercise,
   logCompletedSet,
   startSessionTimer,
   setSuggestedWeights,
@@ -47,7 +48,7 @@ import {
   loadRewardBootstrap,
   setStreak,
 } from "@/app/stores/slice/rewardSlice";
-import type { ExerciseStatSnapshot } from "@/app/stores/slice/sessionSlice";
+import type { ExerciseStatSnapshot, LastLoggedSetSnapshot } from "@/app/stores/slice/sessionSlice";
 import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMappers";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import * as sessionService from "@/app/services/sessionService";
@@ -106,9 +107,10 @@ export const useWorkoutSession = () => {
   /**
    * Start (or resume) the session.
    * - If an in_progress row exists for (user, program_day) → resume it (load DB state into Redux).
-   * - If a completed row exists →
-   *     when `editMode` is true → also hydrate it for edit/replay.
-   *     otherwise → block (do nothing; caller should route to a "view completed" screen).
+   * - If a completed row exists → hydrate it; `editMode` controls only whether isEditMode
+   *   is set (Start Again = true, Resume on End-Workout-early = false). Hydration always
+   *   happens because the caller (countdown screen) navigates into WorkoutLog regardless,
+   *   and writes would silently bail on empty maps.
    * - Otherwise → insert fresh session + exercises + sets.
    * On race conditions, the unique index throws; we catch and re-query, then resume.
    */
@@ -120,9 +122,13 @@ export const useWorkoutSession = () => {
     const editMode = options?.editMode === true;
     const programDayId = sessionWorkout.programDayId;
 
-    const hydrateStats = async () => {
+    const hydrateExerciseData = async () => {
       const exerciseLibraryIds = sessionWorkout.exercises.map((ex) => ex.exerciseLibraryId);
-      const statsMap = await sessionService.fetchUserExerciseStats(userId, exerciseLibraryIds);
+      // Run both lookups in parallel — single bootstrap round-trip cost.
+      const [statsMap, lastLoggedMap] = await Promise.all([
+        sessionService.fetchUserExerciseStats(userId, exerciseLibraryIds),
+        sessionService.fetchLastLoggedSetsByIndex(userId, exerciseLibraryIds),
+      ]);
       const statsObj: Record<string, ExerciseStatSnapshot> = {};
       for (const [exId, stat] of statsMap.entries()) {
         statsObj[exId] = {
@@ -134,7 +140,17 @@ export const useWorkoutSession = () => {
           bestReps: stat.best_reps,
         };
       }
-      return statsObj;
+      const lastLoggedObj: Record<string, Record<number, LastLoggedSetSnapshot>> = {};
+      for (const [exId, perIndex] of lastLoggedMap.entries()) {
+        lastLoggedObj[exId] = perIndex;
+      }
+      return { statsObj, lastLoggedObj };
+    };
+
+    const dispatchHydratedExerciseData = async () => {
+      const { statsObj, lastLoggedObj } = await hydrateExerciseData();
+      dispatch(setExerciseStats(statsObj));
+      dispatch(setLastLoggedSetsByExercise(lastLoggedObj));
     };
 
     const insertFresh = async () => {
@@ -168,15 +184,6 @@ export const useWorkoutSession = () => {
       state: NonNullable<Awaited<ReturnType<typeof sessionService.loadSessionState>>>,
       edit: boolean,
     ) => {
-      if (__DEV__) {
-        console.log("[startSession] hydrateFromState", {
-          sessionId: id,
-          edit,
-          exerciseMapKeys: Object.keys(state.exerciseMap),
-          setMapKeys: Object.keys(state.setMap),
-          completedSetsKeys: Object.keys(state.completedSets),
-        });
-      }
       dispatch(initSession({
         sessionId: id,
         exerciseMap: state.exerciseMap,
@@ -190,13 +197,6 @@ export const useWorkoutSession = () => {
 
     try {
       const existing = await sessionService.findExistingSession({ userId, programDayId });
-      if (__DEV__) {
-        console.log("[startSession] existing", {
-          existingId: existing?.id ?? null,
-          status: existing?.status ?? null,
-          editMode,
-        });
-      }
 
       if (existing?.status === "completed") {
         // Always hydrate — covers both Start Again (editMode=true, full redo)
@@ -207,7 +207,7 @@ export const useWorkoutSession = () => {
         const state = await sessionService.loadSessionState(existing.id);
         if (!state) return "already_completed";
         hydrateFromState(existing.id, state, editMode);
-        dispatch(setExerciseStats(await hydrateStats()));
+        await dispatchHydratedExerciseData();
         dispatch(startSessionTimer());
         return editMode ? "edit_mode" : "resumed";
       }
@@ -220,12 +220,12 @@ export const useWorkoutSession = () => {
           await sessionService.deleteWorkoutSession(existing.id);
           const fresh = await insertFresh();
           dispatch(initSession(fresh));
-          dispatch(setExerciseStats(await hydrateStats()));
+          await dispatchHydratedExerciseData();
           dispatch(startSessionTimer());
           return "started";
         }
         hydrateFromState(existing.id, state, false);
-        dispatch(setExerciseStats(await hydrateStats()));
+        await dispatchHydratedExerciseData();
         dispatch(startSessionTimer());
         return "resumed";
       }
@@ -244,19 +244,18 @@ export const useWorkoutSession = () => {
             const state = await sessionService.loadSessionState(winner.id);
             if (state) {
               hydrateFromState(winner.id, state, false);
-              dispatch(setExerciseStats(await hydrateStats()));
+              await dispatchHydratedExerciseData();
               dispatch(startSessionTimer());
               return "resumed";
             }
           }
           if (winner?.status === "completed") {
-            if (!editMode) return "already_completed";
             const state = await sessionService.loadSessionState(winner.id);
             if (state) {
-              hydrateFromState(winner.id, state, true);
-              dispatch(setExerciseStats(await hydrateStats()));
+              hydrateFromState(winner.id, state, editMode);
+              await dispatchHydratedExerciseData();
               dispatch(startSessionTimer());
-              return "edit_mode";
+              return editMode ? "edit_mode" : "resumed";
             }
             return "already_completed";
           }
@@ -264,7 +263,7 @@ export const useWorkoutSession = () => {
         throw err;
       }
       dispatch(initSession(fresh));
-      dispatch(setExerciseStats(await hydrateStats()));
+      await dispatchHydratedExerciseData();
       dispatch(startSessionTimer());
       return "started";
     } catch (err) {
@@ -337,40 +336,18 @@ export const useWorkoutSession = () => {
       duration: number | null = null,
       comment: string | null = null,
     ) => {
-      if (!sessionWorkout) {
-        if (__DEV__) console.log("[logSetResult] BAIL: no sessionWorkout", { exerciseIndex, setNumber });
-        return;
-      }
+      if (!sessionWorkout) return;
       const ex = sessionWorkout.exercises[exerciseIndex];
-      if (!ex) {
-        if (__DEV__) console.log("[logSetResult] BAIL: no ex at index", { exerciseIndex, setNumber });
-        return;
-      }
+      if (!ex) return;
 
       const seId = exerciseMap[ex.id];
-      if (!seId) {
-        if (__DEV__) console.log("[logSetResult] BAIL: no seId for ex.id", { exId: ex.id, exerciseLibraryId: ex.exerciseLibraryId, setNumber, exerciseMapKeys: Object.keys(exerciseMap) });
-        return;
-      }
+      if (!seId) return;
       const setIds = setMap[seId];
       const ssId = setIds?.[setNumber];
-      if (!ssId) {
-        if (__DEV__) console.log("[logSetResult] BAIL: no ssId for setNumber", { seId, setNumber, setIdsLength: setIds?.length, setMapKeys: Object.keys(setMap) });
-        return;
-      }
+      if (!ssId) return;
 
       const alreadyLogged = (completedSetsMap[ex.exerciseLibraryId] ?? {})[setNumber] != null;
       if (!alreadyLogged) dispatch(incrementSetsLogged());
-      if (__DEV__) {
-        console.log("[logSetResult] dispatching", {
-          exerciseIndex,
-          exerciseLibraryId: ex.exerciseLibraryId,
-          setNumber,
-          ssId,
-          seId,
-          beforeKeys: Object.keys(completedSetsMap[ex.exerciseLibraryId] ?? {}),
-        });
-      }
       dispatch(logCompletedSet({
         exerciseLibraryId: ex.exerciseLibraryId,
         setNumber,

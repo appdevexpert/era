@@ -13,6 +13,7 @@ import { horizontalScale } from "@/app/utils/responsive";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
+import { computeInterSessionSeed } from "@/app/utils/setSuggestion";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -69,12 +70,34 @@ const WorkoutLogScreen = () => {
     if (!currentEx) return undefined;
     return state.session.completedSets[currentEx.exerciseLibraryId]?.[startSet];
   });
+  // Inter-session seed: last logged set (across ALL prior completed sessions)
+  // for this exercise + set_number, adjusted by that set's feedback.
+  // Falls back to the last available set index if Day 2 has more sets than Day 1.
+  const interSessionSeed = useSelector((state: RootState) => {
+    if (!currentEx) return undefined;
+    const byIdx = state.session.lastLoggedSetsByExercise[currentEx.exerciseLibraryId];
+    if (!byIdx) return undefined;
+    const setNumber = startSet + 1; // session_sets.set_number is 1-based
+    const indices = Object.keys(byIdx).map(Number);
+    if (indices.length === 0) return undefined;
+    const lastLog = byIdx[setNumber] ?? byIdx[Math.max(...indices)];
+    if (!lastLog) return undefined;
+    const seed = computeInterSessionSeed({
+      lastLog,
+      nextSetKind: currentEx.sets[startSet]?.setKind ?? "working",
+      exerciseCategory: currentEx.exerciseCategory,
+    });
+    return seed ?? undefined;
+  });
   const plannedWeightForSet =
-    currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 120;
+    currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 0;
   // Canonical kg. The ruler displays/edits in the user's preferred unit; we
   // convert at the edge so the session log keeps storing kg.
   const [weightKg, setWeightKg] = useState(
-    previouslyLogged?.weight ?? suggestedWeight ?? plannedWeightForSet,
+    previouslyLogged?.weight
+      ?? suggestedWeight
+      ?? interSessionSeed
+      ?? plannedWeightForSet,
   );
   const { label: weightUnitLabel, range: weightRange, toDisplay, fromDisplayToKg } =
     useWeightUnit();

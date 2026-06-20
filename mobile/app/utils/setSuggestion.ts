@@ -112,6 +112,59 @@ export function suggestFutureSetWeights({
   return result;
 }
 
+// =====================================================================
+// Inter-session smart weight seed.
+//
+// On a NEW session, for each planned set we look up the user's most recent
+// log for the same (exercise, set_number) across ALL prior completed sessions.
+// We then apply the same feedback delta as the intra-session engine so the
+// ruler starts where the user "should" be lifting today.
+//
+// Reuses computeNextSetWeight: treat the last logged set as the "current"
+// set and the planned set as the "next" set. Same cross-tier rules apply
+// (e.g., working → backoff still returns null; top_set → backoff still ×0.9).
+// =====================================================================
+
+export interface ComputeInterSessionSeedInput {
+  lastLog: {
+    weight: number;
+    feedback: SetFeedbackValue | null;
+    setKind: string;
+  };
+  nextSetKind: string;
+  exerciseCategory: string;
+}
+
+/**
+ * Returns the seed weight for the FIRST set of the same exercise in a new
+ * session, derived from the user's last log + its feedback. Returns null
+ * for non-lift kinds or unsupported cross-tier transitions.
+ *
+ * When the previous set had no feedback, we still seed with the raw weight
+ * so the user lands on what they did last time — they can adjust manually.
+ */
+export function computeInterSessionSeed({
+  lastLog,
+  nextSetKind,
+  exerciseCategory,
+}: ComputeInterSessionSeedInput): number | null {
+  if (nextSetKind === "core" || nextSetKind === "cardio") return null;
+
+  // No feedback on the previous set → no delta; seed raw weight so the user
+  // continues from where they left off.
+  if (lastLog.feedback == null) {
+    return Math.max(0, lastLog.weight);
+  }
+
+  return computeNextSetWeight({
+    loggedWeight: lastLog.weight,
+    feedback: lastLog.feedback,
+    exerciseCategory,
+    currentSetKind: lastLog.setKind,
+    nextSetKind,
+  });
+}
+
 // -------- helpers ----------------------------------------------------
 
 function pickDelta(feedback: SetFeedbackValue, exerciseCategory: string): number {
