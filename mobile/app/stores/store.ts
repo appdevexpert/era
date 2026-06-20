@@ -27,6 +27,7 @@ const workoutPersistConfig = {
     "programId",
     "overview",
     "currentDayDetail",
+    "dayDetailsById",
     "completedDayIds",
     "loadedAt",
     "versionSignature",

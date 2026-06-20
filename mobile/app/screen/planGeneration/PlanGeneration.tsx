@@ -26,7 +26,7 @@ import { FONTS } from "@/app/constants/fonts";
 import { PlanGenerationStackParamList } from "@/app/navigation/types";
 import { completePlanGeneration } from "@/app/stores/slice/authSlice";
 import { submitGoalData } from "@/app/stores/slice/onboardingSlice";
-import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import { loadWorkoutBootstrap, prefetchAllDays } from "@/app/stores/slice/workoutSlice";
 import {
   selectHasWorkoutBootstrap,
   selectWorkoutError,
@@ -304,6 +304,9 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   // Navigate when ready
   useEffect(() => {
     if (isReady) {
+      // Background prefetch all non-rest days so the 12-week overview is
+      // instant on first tap. Fire-and-forget — never blocks navigation.
+      dispatch(prefetchAllDays());
       dispatch(completePlanGeneration());
     }
   }, [dispatch, isReady]);

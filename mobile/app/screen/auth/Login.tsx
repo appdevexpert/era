@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -97,9 +98,16 @@ const Login = ({ navigation }: LoginProps) => {
   return (
     <GradientBackground>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.screen}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+        style={styles.flex}
       >
+        <ScrollView
+          contentContainerStyle={styles.screen}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         <View style={styles.header}>
           <Text style={styles.title}>{t('auth.login')}</Text>
           <Text style={styles.description}>{t('auth.loginDescription')}</Text>
@@ -197,6 +205,7 @@ const Login = ({ navigation }: LoginProps) => {
             </PressableScale>
           </View>
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </GradientBackground>
   )
@@ -205,8 +214,11 @@ const Login = ({ navigation }: LoginProps) => {
 export default Login
 
 const styles = StyleSheet.create({
-  screen: {
+  flex: {
     flex: 1,
+  },
+  screen: {
+    flexGrow: 1,
     paddingHorizontal: horizontalScale(24),
   },
   header: {

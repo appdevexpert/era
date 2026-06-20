@@ -43,7 +43,6 @@ const TimerLogScreen = () => {
     completeExerciseResult,
     addSet,
     getSetCount,
-    getCompletedSetsForSheet,
     getExerciseComment,
   } = useWorkoutSession();
 
@@ -263,7 +262,7 @@ const TimerLogScreen = () => {
 
       <ExerciseCompletedBottomSheet
         ref={sheetRef}
-        sets={getCompletedSetsForSheet(exIdx)}
+        exerciseLibraryId={exercises[exIdx]?.exerciseLibraryId}
         initialComment={getExerciseComment(exIdx)}
         onContinue={handleSheetContinue}
       />

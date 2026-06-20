@@ -110,7 +110,8 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
   return (
     <GradientBackground>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
         style={styles.screen}
       >
         <ScrollView

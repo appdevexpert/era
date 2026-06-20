@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -133,9 +134,16 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
     return (
       <GradientBackground>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.screen}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+          style={styles.flex}
         >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
           <View style={styles.navHeader}>
             <BackButton onPress={() => { clearRecovery(); navigation.navigate('Login') }} />
           </View>
@@ -208,6 +216,7 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
                 />
               </View>
             </>
+          </ScrollView>
         </KeyboardAvoidingView>
       </GradientBackground>
     )
@@ -217,9 +226,16 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
   return (
     <GradientBackground>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.screen}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+        style={styles.flex}
       >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
         <View style={styles.navHeader}>
           <BackButton onPress={() => navigation.goBack()} />
         </View>
@@ -250,6 +266,7 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
         <View style={styles.buttonContainer}>
           <PrimaryButton label={t('common.continue')} onPress={handleSendEmail} loading={isRequestLoading} />
         </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </GradientBackground>
   )
@@ -258,8 +275,11 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
 export default ForgotPassword
 
 const styles = StyleSheet.create({
-  screen: {
+  flex: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: horizontalScale(24),
   },
   navHeader: {

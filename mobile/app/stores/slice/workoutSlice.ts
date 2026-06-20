@@ -5,6 +5,7 @@ import { loadWeightBootstrap } from "./weightSlice";
 import {
   getCompletedSessionDayIds,
   getProgramDayDetail,
+  getProgramDayDetailFast,
   getProgramVersion,
   getWorkoutOverview,
   resolveUserProgramId,
@@ -40,6 +41,14 @@ interface WorkoutState {
   programId: string | null;
   overview: WorkoutOverviewData | null;
   currentDayDetail: ProgramDayDetailData | null;
+  /**
+   * Per-day cache of fully-hydrated day details (sections + exercises + sets
+   * + library exercises). Populated lazily on day open via loadProgramDayDetail
+   * and proactively in the background via prefetchAllDays. A cache hit lets
+   * ExerciseListScreen render synchronously with zero network roundtrips.
+   * Keyed by program_days.id.
+   */
+  dayDetailsById: Record<string, ProgramDayDetailData>;
   /** program_day_ids of days with completed workout sessions */
   completedDayIds: string[];
   loadedAt: string | null;
@@ -61,6 +70,7 @@ const initialState: WorkoutState = {
   programId: null,
   overview: null,
   currentDayDetail: null,
+  dayDetailsById: {},
   completedDayIds: [],
   loadedAt: null,
   versionSignature: null,
@@ -186,6 +196,104 @@ export const loadWorkoutBootstrap = createAsyncThunk<
 });
 
 /**
+ * Lean per-day loader used when navigating from the 12-week plan into any
+ * day that isn't today. Replaces the previous "dispatch loadWorkoutBootstrap
+ * again" pattern (~7 serial roundtrips of mostly-redundant data) with a
+ * single targeted fetch:
+ *
+ *   - Pull day + week from state.workout.overview (already in Redux).
+ *   - Call getProgramDayDetailFast (2 parallel batches).
+ *   - Stash the result in state.workout.dayDetailsById so revisits are free.
+ *
+ * Returns the existing cache entry synchronously when present (callers can
+ * still await — the thunk resolves immediately in that case).
+ *
+ * Falls back to the slow getProgramDayDetail path only if the overview slice
+ * doesn't contain the requested day (edge case: deep link before bootstrap).
+ */
+export const loadProgramDayDetail = createAsyncThunk<
+  ProgramDayDetailData,
+  string,
+  { rejectValue: string; state: RootState }
+>(
+  "workout/loadDayDetail",
+  async (programDayId, { getState, rejectWithValue }) => {
+    try {
+      const state = getState().workout;
+      const cached = state.dayDetailsById[programDayId];
+      if (cached) return cached;
+
+      const overview = state.overview;
+      const day = overview?.days.find((d) => d.id === programDayId);
+      const week = day
+        ? overview?.weeks.find((w) => w.id === day.week_id)
+        : undefined;
+
+      if (day && week) {
+        return await getProgramDayDetailFast(day, week);
+      }
+      // Fallback path — overview not ready yet, do the full fetch.
+      return await getProgramDayDetail(programDayId);
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : "Unable to load workout day.",
+      );
+    }
+  },
+  {
+    condition: (programDayId, { getState }) => {
+      const state = getState() as RootState;
+      // Skip if already cached or already being fetched.
+      if (state.workout.dayDetailsById[programDayId]) return false;
+      return true;
+    },
+  },
+);
+
+/**
+ * Background prefetch of all non-rest days into dayDetailsById. Fire-and-forget
+ * after a successful bootstrap so the user's first tap on any day from the
+ * 12-week overview is already a cache hit.
+ *
+ * Rules:
+ *   - Never blocks the UI — caller does not await this.
+ *   - Skips days already in the cache (today's day is seeded by bootstrap).
+ *   - Skips rest days (nothing to render).
+ *   - Runs in chunks of 5 concurrent fetches to avoid spiking Supabase or
+ *     hammering the device's connection pool.
+ *   - Swallows individual day errors; the on-demand path catches the miss.
+ */
+const PREFETCH_CONCURRENCY = 5;
+
+export const prefetchAllDays = createAsyncThunk<
+  void,
+  void,
+  { state: RootState }
+>("workout/prefetchAllDays", async (_, { getState, dispatch }) => {
+  const state = getState().workout;
+  const overview = state.overview;
+  if (!overview) return;
+
+  const targets = overview.days.filter(
+    (d) => !d.is_rest_day && !state.dayDetailsById[d.id],
+  );
+  if (targets.length === 0) return;
+
+  for (let i = 0; i < targets.length; i += PREFETCH_CONCURRENCY) {
+    const chunk = targets.slice(i, i + PREFETCH_CONCURRENCY);
+    await Promise.all(
+      chunk.map((day) =>
+        dispatch(loadProgramDayDetail(day.id))
+          .unwrap()
+          .catch(() => {
+            // Swallow — on-demand path will retry when the user opens it.
+          }),
+      ),
+    );
+  }
+});
+
+/**
  * Asks the server for the latest program change-signature and refetches the
  * full workout bootstrap only when the signature differs from the cached one.
  * The signature ("<MAX(updated_at)>:<row count>") moves on insert / update /
@@ -239,6 +347,17 @@ const workoutSlice = createSlice({
       state.loadedAt = action.payload.loadedAt;
       state.versionSignature = action.payload.versionSignature;
       state.assignment = action.payload.assignment;
+      // Reset the per-day cache (program may have changed) and seed it with
+      // today's day so taps on today are also cache hits.
+      const today = action.payload.currentDayDetail;
+      state.dayDetailsById = { [today.day.id]: today };
+    });
+    builder.addCase(loadProgramDayDetail.fulfilled, (state, action) => {
+      const detail = action.payload;
+      // Drop late results from a prefetch that was kicked off before a
+      // program switch (admin change, deload week, user re-onboarded).
+      if (state.programId && detail.day.program_id !== state.programId) return;
+      state.dayDetailsById[detail.day.id] = detail;
     });
     builder.addCase(loadWorkoutBootstrap.rejected, (state, action) => {
       state.status = "failed";

@@ -12,7 +12,10 @@ import {
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
-import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import {
+  loadProgramDayDetail,
+  loadWorkoutBootstrap,
+} from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
   CompletedExerciseView,
@@ -208,17 +211,32 @@ const ExerciseListScreen = () => {
   const programStartDate = useSelector(
     (state: RootState) => state.auth.programStartDate,
   );
-  const workout = useMemo(
-    () => (currentDayDetail ? mapExerciseList(currentDayDetail, i18n.language) : null),
-    [currentDayDetail, i18n.language],
-  );
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
   const requestedDayId = route.params?.programDayId;
   const dayStatus: DayStatus = route.params?.dayStatus ?? "active";
+
+  // Resolve which day-detail we're rendering. Priority order:
+  //   1. dayDetailsById[requestedDayId] — cache hit (instant)
+  //   2. currentDayDetail when it matches the requested day
+  //   3. null → trigger the lean loadProgramDayDetail fetch
+  const cachedDayDetail = useSelector((state: RootState) =>
+    requestedDayId ? state.workout.dayDetailsById[requestedDayId] : undefined,
+  );
+  const activeDayDetail =
+    cachedDayDetail ??
+    (requestedDayId && currentDayDetail?.day.id === requestedDayId
+      ? currentDayDetail
+      : !requestedDayId
+        ? currentDayDetail
+        : null);
+  const workout = useMemo(
+    () => (activeDayDetail ? mapExerciseList(activeDayDetail, i18n.language) : null),
+    [activeDayDetail, i18n.language],
+  );
   const shouldLoadRequestedDay = Boolean(
-    requestedDayId && currentDayDetail?.day.id !== requestedDayId,
+    requestedDayId && !activeDayDetail,
   );
 
   // Completed session data (fetched for "completed" mode)
@@ -236,15 +254,15 @@ const ExerciseListScreen = () => {
   // past completed days stay locked (no restart). Compute the day's calendar
   // date from the program-start anchor and compare with today.
   const isTodayDay = useMemo(() => {
-    if (!currentDayDetail || !programStartDate) return false;
+    if (!activeDayDetail || !programStartDate) return false;
     const date = computeDateForDay(
       { programStartDate, totalWeeks: 12 },
-      currentDayDetail.week.week_number,
-      currentDayDetail.day.day_number,
+      activeDayDetail.week.week_number,
+      activeDayDetail.day.day_number,
       false,
     );
     return date === getToday();
-  }, [currentDayDetail, programStartDate]);
+  }, [activeDayDetail, programStartDate]);
 
   // Derive the button mode from the summary + planned exercise count.
   // "all complete" is gated on the count of exercises whose session_exercises
@@ -287,15 +305,15 @@ const ExerciseListScreen = () => {
   );
 
   const handlePrimaryAction = useCallback(() => {
-    if (!workout || !currentDayDetail) return;
+    if (!workout || !activeDayDetail) return;
 
     const firstExercise = workout.sections
       .flatMap((s) => s.exercises)
       .find((e) => e.name);
     const weekLabel = t("workout.ui.weekLabel", {
-      number: currentDayDetail.week.week_number ?? 1,
+      number: activeDayDetail.week.week_number ?? 1,
     });
-    const dayLabel = getWeekdayLabel(currentDayDetail.day.weekday ?? null, i18n.language);
+    const dayLabel = getWeekdayLabel(activeDayDetail.day.weekday ?? null, i18n.language);
 
     const startIdx =
       buttonMode === "resume" && sessionSummary?.firstIncompleteProgramDayExerciseId
@@ -319,7 +337,7 @@ const ExerciseListScreen = () => {
     buttonMode,
     sessionSummary,
     workout,
-    currentDayDetail,
+    activeDayDetail,
     findExerciseIndexByDayExerciseId,
     navigation,
     t,
@@ -345,20 +363,25 @@ const ExerciseListScreen = () => {
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
 
   useEffect(() => {
-    const shouldLoad = !hasWorkoutBootstrap || shouldLoadRequestedDay;
-    const canLoad =
-      workoutStatus === "idle" ||
-      (shouldLoadRequestedDay && workoutStatus === "succeeded");
-
-    if (shouldLoad && canLoad) {
-      dispatch(loadWorkoutBootstrap({
-        programId: route.params?.programId,
-        programDayId: route.params?.programDayId,
-      }));
+    // Cold start: no bootstrap at all → run the heavy bootstrap once.
+    if (!hasWorkoutBootstrap && workoutStatus === "idle") {
+      dispatch(
+        loadWorkoutBootstrap({
+          programId: route.params?.programId,
+          programDayId: route.params?.programDayId,
+        }),
+      );
+      return;
+    }
+    // Warm start: bootstrap is ready but this specific day isn't cached yet.
+    // Lean fetch — ~1 batch instead of 7 round-trips.
+    if (hasWorkoutBootstrap && shouldLoadRequestedDay && requestedDayId) {
+      dispatch(loadProgramDayDetail(requestedDayId));
     }
   }, [
     dispatch,
     hasWorkoutBootstrap,
+    requestedDayId,
     route.params?.programDayId,
     route.params?.programId,
     shouldLoadRequestedDay,
@@ -370,7 +393,7 @@ const ExerciseListScreen = () => {
   // SessionComplete). Only relevant for the active/in-progress flow — when
   // the route was opened explicitly with dayStatus="completed" or "missed",
   // the summary doesn't change the button rendering.
-  const summaryProgramDayId = currentDayDetail?.day.id ?? requestedDayId;
+  const summaryProgramDayId = activeDayDetail?.day.id ?? requestedDayId;
   const summaryEnabled =
     dayStatus === "active" || (dayStatus === "completed" && isTodayDay);
   useFocusEffect(

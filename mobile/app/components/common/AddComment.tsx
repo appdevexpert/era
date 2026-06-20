@@ -11,18 +11,26 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
+import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 
 type AddCommentProps = {
   value: string;
   onChangeText: (text: string) => void;
+  /**
+   * Render `BottomSheetTextInput` instead of `TextInput`. Required when this
+   * component lives inside a gorhom BottomSheet so the keyboard avoidance and
+   * focus handling stay wired up correctly on iOS.
+   */
+  inSheet?: boolean;
 };
 
 const localeFor = (lang: string) => (lang?.toLowerCase().startsWith("nb") ? "nb-NO" : "en-US");
 
-const AddComment = ({ value, onChangeText }: AddCommentProps) => {
+const AddComment = ({ value, onChangeText, inSheet = false }: AddCommentProps) => {
   const { t, i18n } = useTranslation();
   const [recognizing, setRecognizing] = useState(false);
   const baseTextRef = useRef("");
+  const InputComponent = inSheet ? BottomSheetTextInput : TextInput;
 
   useSpeechRecognitionEvent("start", () => setRecognizing(true));
   useSpeechRecognitionEvent("end", () => setRecognizing(false));
@@ -78,7 +86,7 @@ const AddComment = ({ value, onChangeText }: AddCommentProps) => {
             </Text>
           </View>
         ) : (
-          <TextInput
+          <InputComponent
             style={styles.input}
             placeholder={t("workout.ui.commentPlaceholder")}
             placeholderTextColor={COLORS.alpha.white50}

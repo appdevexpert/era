@@ -168,6 +168,15 @@ export const useWorkoutSession = () => {
       state: NonNullable<Awaited<ReturnType<typeof sessionService.loadSessionState>>>,
       edit: boolean,
     ) => {
+      if (__DEV__) {
+        console.log("[startSession] hydrateFromState", {
+          sessionId: id,
+          edit,
+          exerciseMapKeys: Object.keys(state.exerciseMap),
+          setMapKeys: Object.keys(state.setMap),
+          completedSetsKeys: Object.keys(state.completedSets),
+        });
+      }
       dispatch(initSession({
         sessionId: id,
         exerciseMap: state.exerciseMap,
@@ -181,15 +190,26 @@ export const useWorkoutSession = () => {
 
     try {
       const existing = await sessionService.findExistingSession({ userId, programDayId });
+      if (__DEV__) {
+        console.log("[startSession] existing", {
+          existingId: existing?.id ?? null,
+          status: existing?.status ?? null,
+          editMode,
+        });
+      }
 
       if (existing?.status === "completed") {
-        if (!editMode) return "already_completed";
+        // Always hydrate — covers both Start Again (editMode=true, full redo)
+        // and Resume Workout on a session that was ended early via "End Workout"
+        // (status='completed' but exercises_completed < totalPlanned, editMode=false).
+        // Without hydration the caller would land on WorkoutLog with empty
+        // exerciseMap/setMap and every logSetResult would silently bail.
         const state = await sessionService.loadSessionState(existing.id);
         if (!state) return "already_completed";
-        hydrateFromState(existing.id, state, true);
+        hydrateFromState(existing.id, state, editMode);
         dispatch(setExerciseStats(await hydrateStats()));
         dispatch(startSessionTimer());
-        return "edit_mode";
+        return editMode ? "edit_mode" : "resumed";
       }
 
       if (existing?.status === "in_progress") {
@@ -317,18 +337,40 @@ export const useWorkoutSession = () => {
       duration: number | null = null,
       comment: string | null = null,
     ) => {
-      if (!sessionWorkout) return;
+      if (!sessionWorkout) {
+        if (__DEV__) console.log("[logSetResult] BAIL: no sessionWorkout", { exerciseIndex, setNumber });
+        return;
+      }
       const ex = sessionWorkout.exercises[exerciseIndex];
-      if (!ex) return;
+      if (!ex) {
+        if (__DEV__) console.log("[logSetResult] BAIL: no ex at index", { exerciseIndex, setNumber });
+        return;
+      }
 
       const seId = exerciseMap[ex.id];
-      if (!seId) return;
+      if (!seId) {
+        if (__DEV__) console.log("[logSetResult] BAIL: no seId for ex.id", { exId: ex.id, exerciseLibraryId: ex.exerciseLibraryId, setNumber, exerciseMapKeys: Object.keys(exerciseMap) });
+        return;
+      }
       const setIds = setMap[seId];
       const ssId = setIds?.[setNumber];
-      if (!ssId) return;
+      if (!ssId) {
+        if (__DEV__) console.log("[logSetResult] BAIL: no ssId for setNumber", { seId, setNumber, setIdsLength: setIds?.length, setMapKeys: Object.keys(setMap) });
+        return;
+      }
 
       const alreadyLogged = (completedSetsMap[ex.exerciseLibraryId] ?? {})[setNumber] != null;
       if (!alreadyLogged) dispatch(incrementSetsLogged());
+      if (__DEV__) {
+        console.log("[logSetResult] dispatching", {
+          exerciseIndex,
+          exerciseLibraryId: ex.exerciseLibraryId,
+          setNumber,
+          ssId,
+          seId,
+          beforeKeys: Object.keys(completedSetsMap[ex.exerciseLibraryId] ?? {}),
+        });
+      }
       dispatch(logCompletedSet({
         exerciseLibraryId: ex.exerciseLibraryId,
         setNumber,
@@ -957,26 +999,6 @@ export const useWorkoutSession = () => {
     [sessionWorkout, exerciseCommentsMap],
   );
 
-  /** Get completed sets for the exercise completed bottom sheet */
-  const getCompletedSetsForSheet = useCallback(
-    (exerciseIndex: number): { weight: string; reps: number; setNumber: number; duration?: number | null }[] => {
-      if (!sessionWorkout) return [];
-      const ex = sessionWorkout.exercises[exerciseIndex];
-      if (!ex) return [];
-
-      const loggedMap = completedSetsMap[ex.exerciseLibraryId] ?? {};
-      return Object.entries(loggedMap)
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([key, s]) => ({
-          weight: s.weight != null ? formatWeightFromKg(s.weight, weightUnitPref) : "—",
-          reps: s.reps ?? 0,
-          setNumber: Number(key) + 1,
-          duration: s.duration,
-        }));
-    },
-    [sessionWorkout, completedSetsMap, weightUnitPref],
-  );
-
   /** Log a cardio exercise (session_sets + session_cardio_logs) */
   const logCardioResult = useCallback(
     async (exerciseIndex: number, durationSeconds: number) => {
@@ -1025,7 +1047,6 @@ export const useWorkoutSession = () => {
     addSet,
     getSetCount,
     getExerciseSetStats,
-    getCompletedSetsForSheet,
     getExerciseComment,
   };
 };

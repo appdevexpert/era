@@ -475,6 +475,85 @@ export interface UserExerciseStat {
   last_logged_at: string | null;
 }
 
+export interface LastLoggedSet {
+  weight: number;
+  weightUnit: string;
+  feedback: "light_weight" | "correct_weight" | "felt_heavy" | null;
+  setKind: string;
+  completedAt: string | null;
+}
+
+/** exerciseLibraryId → Record<setNumber (1-based), LastLoggedSet> */
+export type LastLoggedSetsByExercise = Map<string, Record<number, LastLoggedSet>>;
+
+/**
+ * Inter-session smart weight seeding: returns the most recently logged set per
+ * (exercise_library_id, set_number) across ALL completed sessions for the user.
+ * Cross-program by design — keyed on exercise_library_id only. Caller pipes each
+ * entry through computeInterSessionSeed() to apply the feedback delta.
+ */
+export async function fetchLastLoggedSetsByIndex(
+  userId: string,
+  exerciseLibraryIds: string[],
+): Promise<LastLoggedSetsByExercise> {
+  const result: LastLoggedSetsByExercise = new Map();
+  if (exerciseLibraryIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from("session_sets")
+    .select(
+      `set_number, set_kind, logged_weight_value, logged_weight_unit,
+       perceived_feedback, completed_at,
+       session_exercises!inner ( exercise_id,
+         workout_sessions!inner ( user_id ) )`,
+    )
+    .eq("session_exercises.workout_sessions.user_id", userId)
+    .in("session_exercises.exercise_id", exerciseLibraryIds)
+    .eq("status", "completed")
+    .not("logged_weight_value", "is", null)
+    .order("completed_at", { ascending: false });
+
+  throwIfError(error, "Failed to fetch last logged sets by index");
+
+  type Row = {
+    set_number: number;
+    set_kind: string;
+    logged_weight_value: number | string | null;
+    logged_weight_unit: string | null;
+    perceived_feedback: string | null;
+    completed_at: string | null;
+    session_exercises: {
+      exercise_id: string;
+      workout_sessions: { user_id: string };
+    };
+  };
+
+  for (const row of (data ?? []) as unknown as Row[]) {
+    const exerciseId = row.session_exercises.exercise_id;
+    const setNumber = row.set_number;
+    const weight =
+      row.logged_weight_value == null ? null : Number(row.logged_weight_value);
+    if (weight == null) continue;
+
+    let perExercise = result.get(exerciseId);
+    if (!perExercise) {
+      perExercise = {};
+      result.set(exerciseId, perExercise);
+    }
+    // Rows pre-ordered DESC by completed_at — keep the first per setNumber.
+    if (perExercise[setNumber] != null) continue;
+    perExercise[setNumber] = {
+      weight,
+      weightUnit: row.logged_weight_unit ?? "kg",
+      feedback: row.perceived_feedback as LastLoggedSet["feedback"],
+      setKind: row.set_kind,
+      completedAt: row.completed_at,
+    };
+  }
+
+  return result;
+}
+
 export async function upsertUserExerciseStat(params: {
   userId: string;
   exerciseId: string;

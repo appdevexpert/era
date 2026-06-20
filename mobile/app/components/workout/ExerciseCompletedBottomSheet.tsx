@@ -3,11 +3,14 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { forwardRef, useCallback, useEffect, useState } from "react";
+import React, { forwardRef, useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import { useSelector } from "react-redux";
+import type { RootState } from "@/app/stores/store";
+import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 
 type SetSummary = {
   weight: string;
@@ -17,7 +20,9 @@ type SetSummary = {
 };
 
 type ExerciseCompletedBottomSheetProps = {
-  sets: SetSummary[];
+  /** Sheet subscribes to Redux completedSets[exerciseLibraryId] directly so the latest set
+   *  shows up even when expand() fires before the parent re-renders. */
+  exerciseLibraryId: string | undefined;
   /** Previously-saved per-exercise comment, used to prefill the textarea on revisit. */
   initialComment?: string;
   onContinue: (comment: string) => void;
@@ -47,9 +52,31 @@ const SetCard = ({ set }: { set: SetSummary }) => {
 };
 
 const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBottomSheetProps>(
-  function ExerciseCompletedBottomSheet({ sets, initialComment = "", onContinue }, ref) {
+  function ExerciseCompletedBottomSheet({ exerciseLibraryId, initialComment = "", onContinue }, ref) {
     const { t } = useTranslation();
     const [comment, setComment] = useState(initialComment);
+
+    const { format: formatWeight } = useWeightUnit();
+    const loggedMap = useSelector((state: RootState) =>
+      exerciseLibraryId ? state.session.completedSets[exerciseLibraryId] ?? null : null,
+    );
+    const sets = useMemo<SetSummary[]>(() => {
+      if (__DEV__) {
+        console.log("[ExerciseCompletedSheet] render", {
+          exerciseLibraryId,
+          loggedMapKeys: loggedMap ? Object.keys(loggedMap) : null,
+        });
+      }
+      if (!loggedMap) return [];
+      return Object.entries(loggedMap)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .map(([key, s]) => ({
+          weight: s.weight != null ? formatWeight(s.weight) : "—",
+          reps: s.reps ?? 0,
+          setNumber: Number(key) + 1,
+          duration: s.duration,
+        }));
+    }, [loggedMap, formatWeight, exerciseLibraryId]);
 
     // Keep the textarea in sync with the latest prefill when the user navigates
     // between exercises (this component is mounted continuously on the parent).
@@ -86,7 +113,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
           </View>
 
           {/* Add Comments */}
-          <AddComment value={comment} onChangeText={setComment} />
+          <AddComment value={comment} onChangeText={setComment} inSheet />
 
           {/* Continue button */}
           <PressableScale style={styles.continueBtn} onPress={handleContinue}>

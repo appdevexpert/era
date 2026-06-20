@@ -8,7 +8,7 @@ import {
   selectWorkoutError,
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
-import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import { loadWorkoutBootstrap, prefetchAllDays } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
   WorkoutPlanWeekView,
@@ -192,7 +192,7 @@ const WeekSection = ({ week, isLast, hasAdjustment, onDayPress, onInfoPress }: {
                   <DayPillItem
                     key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
                     pill={pill}
-                    onPress={week.isLocked ? undefined : () => onDayPress(pill)}
+                    onPress={() => onDayPress(pill)}
                   />
                 ))}
                 {isLastRow && <WeekBadge weekNumber={week.weekNumber} />}
@@ -245,6 +245,15 @@ const WorkoutPlanScreen = () => {
       dispatch(loadWorkoutBootstrap({ programId: route.params?.programId }));
     }
   }, [dispatch, hasWorkoutBootstrap, route.params?.programId, workoutStatus]);
+
+  // Safety-net prefetch — covers existing users who updated the app without
+  // re-running PlanGeneration. prefetchAllDays internally filters out days
+  // already cached, so re-firing is a cheap no-op once the cache is warm.
+  useEffect(() => {
+    if (hasWorkoutBootstrap) {
+      dispatch(prefetchAllDays());
+    }
+  }, [dispatch, hasWorkoutBootstrap]);
 
   // Auto-show adjustment sheet on first visit if mid-week start
   useEffect(() => {

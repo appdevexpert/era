@@ -1,15 +1,20 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
-import { PrTrophy } from "@/assets/images";
+import { TrophyGold } from "@/assets/images";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const TROPHY_SIZE = Math.round(SCREEN_WIDTH * 1.075);
+const TROPHY_TOP_OFFSET = -90;
+const TOP_GRADIENT_HEIGHT = 237;
 
 const PRScreen = () => {
   const insets = useSafeAreaInsets();
@@ -28,10 +33,34 @@ const PRScreen = () => {
   } = route.params;
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      {/* Trophy + Title */}
-      <View style={styles.topSection}>
-        <Image source={PrTrophy} style={styles.trophy} />
+    <View style={styles.root}>
+      {/* Gold gradient backdrop covering the top area */}
+      <LinearGradient
+        colors={["rgba(201,168,76,0.4)", "rgba(201,168,76,0)"]}
+        style={[
+          styles.topGradient,
+          { height: TOP_GRADIENT_HEIGHT + insets.top },
+        ]}
+        pointerEvents="none"
+      />
+
+      {/* Trophy — ribbon extends above status bar */}
+      <View
+        style={[
+          styles.trophyWrap,
+          { marginTop: insets.top + TROPHY_TOP_OFFSET },
+        ]}
+        pointerEvents="none"
+      >
+        <Image
+          source={TrophyGold}
+          style={{ width: TROPHY_SIZE, height: TROPHY_SIZE }}
+          resizeMode="contain"
+        />
+      </View>
+
+      {/* Title + points badge */}
+      <View style={styles.titleSection}>
         <Text style={styles.title}>{t("workout.ui.newPR")}</Text>
         <View style={styles.pointsBadge}>
           <Text style={styles.pointsText}>
@@ -42,41 +71,40 @@ const PRScreen = () => {
 
       {/* Exercise details */}
       <View style={styles.detailsSection}>
-        {/* Exercise card */}
         <View style={styles.exerciseCard}>
           <Text style={styles.exerciseCategory}>{exerciseCategory}</Text>
           <Text style={styles.exerciseName}>{exerciseName}</Text>
         </View>
 
-        {/* Weight x Reps */}
         <Text style={styles.record}>
           {weight}  x  {reps} reps
         </Text>
 
-        {/* Previous best */}
         <Text style={styles.previousBest}>
           {t("workout.ui.previousBest", { value: previousBest })}
         </Text>
       </View>
 
       {/* Continue button */}
-      <PressableScale
-        style={[styles.continueBtn, { marginBottom: insets.bottom + 16 }]}
-        onPress={() => navigation.goBack()}
-      >
-        <LinearGradient
-          colors={[
-            "rgba(201,168,76,0.6)",
-            "rgba(247,224,111,0.6)",
-            "rgba(252,243,192,0.6)",
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <GlassFill />
-        <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
-      </PressableScale>
+      <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 16 }]}>
+        <PressableScale
+          style={styles.continueBtn}
+          onPress={() => navigation.goBack()}
+        >
+          <LinearGradient
+            colors={[
+              "rgba(201,168,76,0.6)",
+              "rgba(247,224,111,0.6)",
+              "rgba(252,243,192,0.6)",
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <GlassFill />
+          <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
+        </PressableScale>
+      </View>
     </View>
   );
 };
@@ -87,17 +115,21 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.neutral.black2,
-    paddingHorizontal: 20,
   },
-  topSection: {
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  trophyWrap: {
     alignItems: "center",
-    marginTop: 60,
-    gap: 16,
   },
-  trophy: {
-    width: 140,
-    height: 140,
-    opacity: 0.8,
+  titleSection: {
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 20,
+    marginTop: -24,
   },
   title: {
     fontFamily: FONTS.display,
@@ -124,7 +156,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 25,
+    gap: 20,
+    paddingHorizontal: 20,
   },
   exerciseCard: {
     backgroundColor: COLORS.neutral.black3,
@@ -169,6 +202,9 @@ const styles = StyleSheet.create({
     lineHeight: 16.8,
     color: "rgba(255,255,255,0.6)",
     textAlign: "center",
+  },
+  bottomSection: {
+    paddingHorizontal: 20,
   },
   continueBtn: {
     height: 53,

@@ -46,7 +46,7 @@ const WorkoutLogScreen = () => {
     currentSet: startSet = 0, // 0-based set to resume from
   } = route.params;
 
-  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getCompletedSetsForSheet, getExerciseComment } = useWorkoutSession();
+  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getExerciseComment } = useWorkoutSession();
   const { formatted: timer } = useSessionTimer();
   const exercises = sessionWorkout?.exercises ?? [];
   const total = exercises.length;
@@ -232,6 +232,8 @@ const WorkoutLogScreen = () => {
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.scrollContent,
           { paddingBottom: insets.bottom + 24 },
@@ -313,7 +315,7 @@ const WorkoutLogScreen = () => {
 
       <ExerciseCompletedBottomSheet
         ref={sheetRef}
-        sets={getCompletedSetsForSheet(exIdx)}
+        exerciseLibraryId={currentEx?.exerciseLibraryId}
         initialComment={getExerciseComment(exIdx)}
         onContinue={handleSheetContinue}
       />
