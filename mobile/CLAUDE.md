@@ -28,6 +28,7 @@ All feature/reference docs live in `doc/`:
 - `doc/WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.
 - `doc/PAYMENT_FEATURE.md` — Subscription tiers (Free / Standard 99 NOK / Pro 199 NOK), RevenueCat integration, 12-week completion flow. Locked by Rami 2026-06-12.
 - `doc/12_WEEK_PROGRAM.md`, `doc/12_WEEK_PROGRAM_CLIENT.md` — 12-week program structure references.
+- `doc/MID_PROGRAM_SWITCH_DECISION.md` — Open product question: what happens when a user changes `goals.level` mid-cycle (root cause of Rami feedback #6). Awaiting Rami confirmation before implementation.
 
 **Rule:** Every new feature/reference markdown doc MUST be created inside `mobile/doc/`. Do NOT create new `*.md` docs at the `mobile/` root. The only `.md` files allowed at `mobile/` root are `CLAUDE.md`, `claude.local.md`, and `README.md`. When you add a new doc, also add a one-line entry for it under this list so future sessions can find it.
 

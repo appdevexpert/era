@@ -39,12 +39,21 @@ const nutritionPersistConfig = {
   storage: AsyncStorage,
   whitelist: ["bootstrap", "logsByDate", "waterByDate", "selectedDate", "loadedAt"],
 };
+// Only the queue itself survives app kills — `flushing` is a runtime lock
+// that has no meaning across processes, and persisting it could leave a
+// fresh launch deadlocked.
+const syncPersistConfig = {
+  key: "sync",
+  storage: AsyncStorage,
+  whitelist: ["queue"],
+};
 
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 const persistedOnboardingReducer = persistReducer(onboardingPersistConfig, onboardingReducer);
 const persistedPreferencesReducer = persistReducer(preferencesPersistConfig, preferencesReducer);
 const persistedWorkoutReducer = persistReducer(workoutPersistConfig, workoutReducer);
 const persistedNutritionReducer = persistReducer(nutritionPersistConfig, nutritionReducer);
+const persistedSyncReducer = persistReducer(syncPersistConfig, syncReducer);
 
 const combinedReducer = combineReducers({
   auth: persistedAuthReducer,
@@ -52,7 +61,7 @@ const combinedReducer = combineReducers({
   workout: persistedWorkoutReducer,
   nutrition: persistedNutritionReducer,
   session: sessionReducer,
-  sync: syncReducer,
+  sync: persistedSyncReducer,
   reward: rewardReducer,
   weight: weightReducer,
   photo: photoReducer,

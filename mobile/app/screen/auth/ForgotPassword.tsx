@@ -15,11 +15,15 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import Toast from 'react-native-toast-message'
 import { EmailAddressIcon, PasswordLockIcon } from '@/assets/icons'
-import { EMAIL_REGEX, updatePassword } from '@/app/utils/auth'
-import { resetPasswordThunk, clearError } from '@/app/stores/slice/authSlice'
+import { EMAIL_REGEX, supabase, updatePassword, mapSupabaseUser } from '@/app/utils/auth'
+import {
+  resetPasswordThunk,
+  clearError,
+  setRecovery,
+  login,
+} from '@/app/stores/slice/authSlice'
 import { selectAuthLoading, selectAuthError } from '@/app/stores/selectors/authSelectors'
-import { useAppDispatch } from '@/app/stores/store'
-import { useRecovery } from '@/app/navigation/RecoveryContext'
+import { useAppDispatch, type RootState } from '@/app/stores/store'
 import { AuthStackParamList } from '@/app/navigation/types'
 import GradientBackground from '@/app/components/common/GradientBackground'
 import BackButton from '@/app/components/common/BackButton'
@@ -31,9 +35,21 @@ import { horizontalScale, verticalScale } from '@/app/utils/responsive'
 type ForgotPasswordProps = NativeStackScreenProps<AuthStackParamList, 'ForgotPassword'>
 
 const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
-  const { isRecovery, clearRecovery } = useRecovery()
   const dispatch = useAppDispatch()
+  const isRecovery = useSelector((state: RootState) => state.auth.isRecovery)
   const { t } = useTranslation()
+
+  // Mirrors Navigation's old clearRecovery: drop the recovery flag, then
+  // promote the active Supabase session (if any) into Redux so the user
+  // lands on Home instead of the login screen.
+  const clearRecovery = () => {
+    dispatch(setRecovery(false))
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        dispatch(login(mapSupabaseUser(session.user)))
+      }
+    })
+  }
 
   // Email request state
   const [email, setEmail] = useState('')

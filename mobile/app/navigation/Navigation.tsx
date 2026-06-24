@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { AppState, Linking } from "react-native";
 import {
   AuthNavigator,
@@ -10,6 +10,7 @@ import {
   completePlanGeneration,
   login,
   clearSession,
+  setRecovery,
 } from "@/app/stores/slice/authSlice";
 import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
 import {
@@ -28,7 +29,6 @@ import { mapSupabaseUser, supabase } from "@/app/utils/auth";
 import { NavigationContainer, NavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSelector } from "react-redux";
-import { RecoveryContext } from "./RecoveryContext";
 import { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -97,14 +97,14 @@ const Navigation = () => {
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
   const userId = useSelector((state: RootState) => state.auth.user?.id);
   const isPlanGenerated = useSelector((state: RootState) => state.auth.isPlanGenerated);
+  const isRecovery = useSelector((state: RootState) => state.auth.isRecovery);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
-  const [isRecovery, setIsRecovery] = useState(false);
 
   // Handle deep links (password recovery)
   useEffect(() => {
     const onUrl = async (url: string) => {
       if (!url.includes("reset-password")) return;
-      setIsRecovery(true);
+      dispatch(setRecovery(true));
       await handleDeepLink(url);
     };
 
@@ -119,14 +119,14 @@ const Navigation = () => {
     });
 
     return () => subscription.remove();
-  }, []);
+  }, [dispatch]);
 
   // Auth state listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "PASSWORD_RECOVERY" && session?.user) {
-          setIsRecovery(true);
+          dispatch(setRecovery(true));
           return;
         }
         if (event === "SIGNED_IN" && session?.user) {
@@ -139,7 +139,6 @@ const Navigation = () => {
             dispatch(submitGoalData());
           }
         } else if (event === "SIGNED_OUT") {
-          setIsRecovery(false);
           dispatch(clearSession());
           dispatch(clearWorkoutCache());
         }
@@ -157,9 +156,19 @@ const Navigation = () => {
     };
   }, [dispatch, isRecovery]);
 
-  // Flush any failed Supabase writes from the sync queue
+  // Flush any failed Supabase writes from the sync queue.
+  //   - Fires whenever the queue gains items (the persisted queue rehydrates
+  //     into a non-zero length on cold start; new failures bump it during a
+  //     session).
+  //   - Also re-fires when the app comes back to the foreground, since the
+  //     most common reason a write failed is "network was off" and "back to
+  //     active" is a strong signal that the user just regained connectivity.
   useEffect(() => {
     if (queueLength > 0) flushQueue();
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && queueLength > 0) flushQueue();
+    });
+    return () => sub.remove();
   }, [queueLength, flushQueue]);
 
   // Detect admin-side program changes. Compares server's MAX(updated_at)
@@ -190,34 +199,22 @@ const Navigation = () => {
     }
   }, [dispatch, hasWorkoutBootstrap, isLoggedIn, isPlanGenerated]);
 
-  const clearRecovery = useCallback(() => {
-    setIsRecovery(false);
-    // After recovery, check if there's a valid session and log the user in
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        dispatch(login(mapSupabaseUser(session.user)));
-      }
-    });
-  }, [dispatch]);
-  const recoveryValue = useMemo(() => ({ isRecovery, clearRecovery }), [isRecovery, clearRecovery]);
   const showAuthStack = !isOnboarded ? false : isLoggedIn ? false : true;
 
   return (
-    <RecoveryContext.Provider value={recoveryValue}>
-      <NavigationContainer ref={navigationRef} linking={showAuthStack || isRecovery ? linking : undefined}>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {isRecovery || (!isLoggedIn && isOnboarded) ? (
-            <Stack.Screen name="AuthStack" component={AuthNavigator} />
-          ) : !isLoggedIn && !isOnboarded ? (
-            <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
-          ) : !hasWorkoutBootstrap ? (
-            <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
-          ) : (
-            <Stack.Screen name="HomeStack" component={HomeNavigator} />
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
-    </RecoveryContext.Provider>
+    <NavigationContainer ref={navigationRef} linking={showAuthStack || isRecovery ? linking : undefined}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isRecovery || (!isLoggedIn && isOnboarded) ? (
+          <Stack.Screen name="AuthStack" component={AuthNavigator} />
+        ) : !isLoggedIn && !isOnboarded ? (
+          <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
+        ) : !hasWorkoutBootstrap ? (
+          <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
+        ) : (
+          <Stack.Screen name="HomeStack" component={HomeNavigator} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 };
 

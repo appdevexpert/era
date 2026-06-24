@@ -19,6 +19,7 @@ import {
   type AssignmentRow,
 } from "@/app/services/assignmentService";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
+import { reportBackgroundError } from "@/app/utils/sentry";
 import type { ProgramDayDetailData, WorkoutOverviewData } from "@/app/types/workout";
 import type { LoadingState } from "@/app/types";
 import type { RootState } from "@/app/stores/store";
@@ -103,11 +104,11 @@ export const loadWorkoutBootstrap = createAsyncThunk<
           try {
             await saveProgramStartDate(userId, localStart);
           } catch (error) {
-            console.warn("[workout] failed to migrate programStartDate", error);
+            reportBackgroundError("workout.migrateProgramStartDate", error, { userId });
           }
         }
       } catch (error) {
-        console.warn("[workout] failed to fetch programStartDate", error);
+        reportBackgroundError("workout.fetchProgramStartDate", error, { userId });
       }
     }
 
@@ -130,7 +131,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       try {
         await saveProgramStartDate(userId, startDate);
       } catch (error) {
-        console.warn("[workout] failed to save initial programStartDate", error);
+        reportBackgroundError("workout.saveInitialProgramStartDate", error, { userId });
       }
     }
 
@@ -139,11 +140,17 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       ? await getCompletedSessionDayIds(userId)
       : [];
 
-    // Hydrate reward + weight slices in the background (fire-and-forget —
-    // failure here shouldn't block the workout screen from rendering).
+    // Hydrate reward + weight slices in the background. Failure here
+    // shouldn't block the workout screen from rendering, but it MUST surface
+    // to Sentry — silent failures leave HistoryCard / weight chart stale
+    // with no signal anywhere.
     if (userId) {
-      dispatch(loadRewardBootstrap(userId)).catch(() => {});
-      dispatch(loadWeightBootstrap(userId)).catch(() => {});
+      dispatch(loadRewardBootstrap(userId))
+        .unwrap()
+        .catch((error) => reportBackgroundError("loadRewardBootstrap", error, { userId }));
+      dispatch(loadWeightBootstrap(userId))
+        .unwrap()
+        .catch((error) => reportBackgroundError("loadWeightBootstrap", error, { userId }));
     }
 
     // Determine the correct day to load detail for
@@ -285,8 +292,12 @@ export const prefetchAllDays = createAsyncThunk<
       chunk.map((day) =>
         dispatch(loadProgramDayDetail(day.id))
           .unwrap()
-          .catch(() => {
-            // Swallow — on-demand path will retry when the user opens it.
+          .catch((error) => {
+            // On-demand path will retry when the user opens it — but record
+            // the breadcrumb so a recurring failure isn't invisible.
+            reportBackgroundError("workout.prefetchAllDays", error, {
+              programDayId: day.id,
+            });
           }),
       ),
     );

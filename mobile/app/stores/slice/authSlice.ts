@@ -11,6 +11,7 @@ import {
 } from "@/app/utils/auth";
 import { deleteAccount } from "@/app/services/accountService";
 import { saveProgramStartDate } from "@/app/services/profileService";
+import { reportBackgroundError } from "@/app/utils/sentry";
 import type { LoadingState } from "@/app/types";
 import { RESET_ALL } from "@/app/stores/resetAction";
 import type { RootState } from "@/app/stores/store";
@@ -24,6 +25,13 @@ interface AuthState {
   isPlanGenerated: boolean;
   /** YYYY-MM-DD when the user first completed plan generation */
   programStartDate: string | null;
+  /**
+   * True while the user is in the middle of a password-recovery deep link
+   * flow. Persisted so an app crash mid-recovery doesn't bounce the user
+   * back to the wrong stack — they reopen the app, the flag is still set,
+   * Navigation pins them on AuthStack/ForgotPassword.
+   */
+  isRecovery: boolean;
 
   loadingStatus: LoadingState;
   error: string | null;
@@ -35,6 +43,7 @@ const initialState: AuthState = {
   isOnboarded: false,
   isPlanGenerated: false,
   programStartDate: null,
+  isRecovery: false,
 
   loadingStatus: "idle",
   error: null,
@@ -137,7 +146,7 @@ export const completePlanGeneration = createAsyncThunk(
       try {
         await saveProgramStartDate(user.id, programStartDate);
       } catch (error) {
-        console.warn("[auth] failed to push programStartDate", error);
+        reportBackgroundError("auth.pushProgramStartDate", error, { userId: user.id });
       }
     }
   },
@@ -160,8 +169,12 @@ const authSlice = createSlice({
       state.user = null;
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
+      state.isRecovery = false;
       state.loadingStatus = "idle";
       state.error = null;
+    },
+    setRecovery: (state, action: PayloadAction<boolean>) => {
+      state.isRecovery = action.payload;
     },
     updateUser: (state, action: PayloadAction<Partial<AuthUser>>) => {
       if (state.user) state.user = { ...state.user, ...action.payload };
@@ -238,6 +251,7 @@ const authSlice = createSlice({
       state.user = null;
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
+      state.isRecovery = false;
       state.loadingStatus = "idle";
       state.error = null;
     });
@@ -248,6 +262,7 @@ const authSlice = createSlice({
       state.user = null;
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
+      state.isRecovery = false;
     });
 
     // Delete Account — fulfilled is a no-op because RESET_ALL has already
@@ -266,6 +281,7 @@ const authSlice = createSlice({
 export const {
   login, logout, clearSession, updateUser, clearError,
   completeOnboarding, setPlanGenerationLocal, setProgramStartDate, resetPlanGeneration,
+  setRecovery,
 } = authSlice.actions;
 
 export default authSlice.reducer;
