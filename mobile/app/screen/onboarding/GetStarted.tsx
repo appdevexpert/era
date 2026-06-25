@@ -8,7 +8,9 @@ import Svg, { Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from 
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import GlassFill from "@/app/components/common/GlassFill";
-import { OnboardingStackParamList } from "@/app/navigation/types";
+import { AuthStackParamList } from "@/app/navigation/types";
+import { setHasSeenGetStarted } from "@/app/stores/slice/authSlice";
+import { useAppDispatch } from "@/app/stores/store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -27,10 +29,11 @@ const CIRCLE_MARGIN = 4;
 const MAX_SLIDE = 354 - CIRCLE_SIZE - CIRCLE_MARGIN * 2;
 const TRIGGER_THRESHOLD = MAX_SLIDE * 0.5;
 
-type Nav = NativeStackNavigationProp<OnboardingStackParamList, "GetStarted">;
+type Nav = NativeStackNavigationProp<AuthStackParamList, "GetStarted">;
 
 const GetStarted = () => {
   const navigation = useNavigation<Nav>();
+  const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
@@ -38,7 +41,10 @@ const GetStarted = () => {
   const hasNavigated = useSharedValue(false);
 
   const navigate = () => {
-    navigation.replace("Onboarding");
+    // Mark the gate as crossed so the user lands on Login directly on every
+    // future launch. Only an account delete (RESET_ALL) brings GetStarted back.
+    dispatch(setHasSeenGetStarted(true));
+    navigation.replace("Login");
   };
 
   const panGesture = Gesture.Pan()

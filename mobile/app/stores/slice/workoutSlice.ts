@@ -163,10 +163,6 @@ export const loadWorkoutBootstrap = createAsyncThunk<
         const config = { programStartDate, totalWeeks: overview.program.duration_weeks };
         const pos = computeCurrentPosition(config);
         const found = overview.days.find((d) => {
-          if (pos.isAdjustedDay) {
-            const week1 = overview.weeks.find((w) => w.week_number === 1);
-            return week1 && d.week_id === week1.id && d.day_number === pos.dayNumber;
-          }
           const w = overview.weeks.find((wk) => wk.id === d.week_id);
           return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
         });

@@ -10,13 +10,12 @@ import {
   completePlanGeneration,
   login,
   clearSession,
+  setHasGoals,
   setRecovery,
 } from "@/app/stores/slice/authSlice";
 import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
-import {
-  loadGoalDataFromSupabase,
-  submitGoalData,
-} from "@/app/stores/slice/onboardingSlice";
+import { loadGoalDataFromSupabase } from "@/app/stores/slice/onboardingSlice";
+import { fetchUserGoalData } from "@/app/services/onboardingService";
 import {
   checkAndRefreshIfStale,
   clearWorkoutCache,
@@ -93,11 +92,11 @@ const Navigation = () => {
   const dispatch = useAppDispatch();
   const { flushQueue, queueLength } = useSyncQueue();
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList>>(null);
-  const isOnboarded = useSelector((state: RootState) => state.auth.isOnboarded);
   const isLoggedIn = useSelector((state: RootState) => state.auth.isLoggedIn);
   const userId = useSelector((state: RootState) => state.auth.user?.id);
   const isPlanGenerated = useSelector((state: RootState) => state.auth.isPlanGenerated);
   const isRecovery = useSelector((state: RootState) => state.auth.isRecovery);
+  const hasGoals = useSelector((state: RootState) => state.auth.hasGoals);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
 
   // Handle deep links (password recovery)
@@ -123,6 +122,25 @@ const Navigation = () => {
 
   // Auth state listener
   useEffect(() => {
+    /**
+     * Source-of-truth for "should we route to onboarding or skip past it?".
+     * signInThunk already does this fetch and sets hasGoals atomically with
+     * the login fulfillment — but social login (Google/Apple) and cold-start
+     * session restores fire through this listener / getSession instead, so
+     * we mirror the same logic here.
+     */
+    const resolveHasGoals = async (uid: string) => {
+      try {
+        const { data } = await fetchUserGoalData(uid);
+        dispatch(setHasGoals(data !== null));
+      } catch {
+        // Network blip: stay conservative — assume goals exist so we don't
+        // shove a returning user back into onboarding. Real failures surface
+        // when loadWorkoutBootstrap runs next.
+        dispatch(setHasGoals(true));
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "PASSWORD_RECOVERY" && session?.user) {
@@ -132,11 +150,7 @@ const Navigation = () => {
         if (event === "SIGNED_IN" && session?.user) {
           if (!isRecovery) {
             dispatch(login(mapSupabaseUser(session.user)));
-            // The thunk itself guards against pushing empty data, so this
-            // is safe for both fresh-onboarding users (push) and returning
-            // users with reset Redux (no-op; loadGoalDataFromSupabase
-            // below handles the pull).
-            dispatch(submitGoalData());
+            resolveHasGoals(session.user.id);
           }
         } else if (event === "SIGNED_OUT") {
           dispatch(clearSession());
@@ -148,6 +162,7 @@ const Navigation = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         dispatch(login(mapSupabaseUser(session.user)));
+        resolveHasGoals(session.user.id);
       }
     });
 
@@ -199,14 +214,30 @@ const Navigation = () => {
     }
   }, [dispatch, hasWorkoutBootstrap, isLoggedIn, isPlanGenerated]);
 
-  const showAuthStack = !isOnboarded ? false : isLoggedIn ? false : true;
+  /**
+   * Auth-first decision tree:
+   *   - Not logged in, in recovery, OR `hasGoals` not yet known → AuthStack.
+   *     `hasGoals === null` means the post-login server check (signInThunk
+   *     or the SIGNED_IN listener) is still in flight; pinning the user to
+   *     AuthStack avoids briefly flashing PlanGeneration for new users
+   *     who'll actually need onboarding. The Login button keeps its own
+   *     spinner via signInThunk.pending so the user sees uninterrupted
+   *     loading until the destination is decided.
+   *   - Logged in but no goals row on the server → OnboardingStack.
+   *   - Logged in with goals but workout cache not hydrated → PlanGeneration.
+   *   - Otherwise → HomeStack.
+   *
+   * Persisted hasGoals from a previous session means returning users skip
+   * the null window entirely on cold start and route straight to Home.
+   */
+  const showAuthStack = isRecovery || !isLoggedIn || hasGoals === null;
 
   return (
-    <NavigationContainer ref={navigationRef} linking={showAuthStack || isRecovery ? linking : undefined}>
+    <NavigationContainer ref={navigationRef} linking={showAuthStack ? linking : undefined}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {isRecovery || (!isLoggedIn && isOnboarded) ? (
+        {showAuthStack ? (
           <Stack.Screen name="AuthStack" component={AuthNavigator} />
-        ) : !isLoggedIn && !isOnboarded ? (
+        ) : hasGoals === false ? (
           <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
         ) : !hasWorkoutBootstrap ? (
           <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />

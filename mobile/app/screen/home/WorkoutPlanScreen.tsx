@@ -11,6 +11,7 @@ import {
 import { loadWorkoutBootstrap, prefetchAllDays } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
+  WorkoutPlanRolledOverView,
   WorkoutPlanWeekView,
   WorkoutDayStatus,
 } from "@/app/types/workout";
@@ -20,7 +21,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AdjustmentInfoBottomSheet, { type AdjustmentInfoBottomSheetRef } from "@/app/components/workout/AdjustmentInfoBottomSheet";
 import { LayoutChangeEvent, ScrollView, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
@@ -148,7 +149,7 @@ const WeekBadge = ({ weekNumber }: { weekNumber: number }) => {
 
 const PILLS_PER_ROW = 4;
 
-const WeekSection = ({ week, isLast, hasAdjustment, onDayPress, onInfoPress }: { week: WorkoutPlanWeekView; isLast: boolean; hasAdjustment: boolean; onDayPress: (pill: DayPill) => void; onInfoPress: (weekNumber: number) => void }) => {
+const WeekSection = ({ week, isLast, onDayPress }: { week: WorkoutPlanWeekView; isLast: boolean; onDayPress: (pill: DayPill) => void }) => {
   const { t } = useTranslation();
 
   // Dynamic row chunking: rows of 4 pills max, badge in last row
@@ -201,19 +202,42 @@ const WeekSection = ({ week, isLast, hasAdjustment, onDayPress, onInfoPress }: {
           })}
         </View>
       </View>
+    </View>
+  );
+};
 
-      {week.weekNumber === 1 && hasAdjustment ? (
-        <PressableScale style={styles.infoRow} onPress={() => onInfoPress(1)}>
-          <InfoCircleGold width={18} height={18} />
-          <Text style={styles.infoText}>{t("workout.ui.weekInitialNote")}</Text>
-        </PressableScale>
-      ) : null}
-      {week.weekNumber === 4 && hasAdjustment ? (
-        <PressableScale style={styles.infoRow} onPress={() => onInfoPress(4)}>
-          <InfoCircleGold width={18} height={18} />
-          <Text style={styles.infoText}>{t("workout.ui.weekAdjustedNote")}</Text>
-        </PressableScale>
-      ) : null}
+const RolledOverSection = ({ section, isLast, onDayPress, onInfoPress }: { section: WorkoutPlanRolledOverView; isLast: boolean; onDayPress: (pill: DayPill) => void; onInfoPress: () => void }) => {
+  const { t } = useTranslation();
+
+  return (
+    <View style={[styles.weekSection, !section.isCurrent && styles.weekDimmed]}>
+      <View style={styles.weekHeader}>
+        <View style={styles.weekHeaderLeft}>
+          <Text style={styles.weekTitle}>{t("workout.ui.rolledOverDays")}</Text>
+          <Text style={styles.weekPhase}>{section.phase}</Text>
+        </View>
+      </View>
+
+      <View style={styles.weekBody}>
+        {!isLast && <DashedTimeline isCurrentWeek={section.isCurrent} />}
+
+        <View style={[styles.daysCard, isLast && styles.daysCardNoTimeline]}>
+          <View style={styles.daysRow2}>
+            {section.days.map((pill) => (
+              <DayPillItem
+                key={`rolled-${pill.programDayId}`}
+                pill={pill}
+                onPress={() => onDayPress(pill)}
+              />
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <PressableScale style={styles.infoRow} onPress={onInfoPress}>
+        <InfoCircleGold width={18} height={18} />
+        <Text style={styles.infoText}>{t("workout.ui.weekAdjustedNote")}</Text>
+      </PressableScale>
     </View>
   );
 };
@@ -269,18 +293,11 @@ const WorkoutPlanScreen = () => {
     }
   }, [plan?.hasAdjustment, t]);
 
-  const handleInfoPress = useCallback((weekNumber: number) => {
-    if (weekNumber === 4) {
-      adjustmentSheetRef.current?.show(
-        t("workout.ui.adjustmentWeek4Title"),
-        t("workout.ui.adjustmentWeek4Message"),
-      );
-    } else {
-      adjustmentSheetRef.current?.show(
-        t("workout.ui.adjustmentTitle"),
-        t("workout.ui.adjustmentMessage"),
-      );
-    }
+  const handleInfoPress = useCallback(() => {
+    adjustmentSheetRef.current?.show(
+      t("workout.ui.adjustmentWeek4Title"),
+      t("workout.ui.adjustmentWeek4Message"),
+    );
   }, [t]);
 
   const handleDayPress = useCallback((pill: DayPill) => {
@@ -309,9 +326,30 @@ const WorkoutPlanScreen = () => {
               <PlanProgressBar phases={plan.phases} />
             </View>
 
-            {plan.weeks.map((week, index) => (
-              <WeekSection key={week.weekNumber} week={week} isLast={index === plan.weeks.length - 1} hasAdjustment={plan.hasAdjustment} onDayPress={handleDayPress} onInfoPress={handleInfoPress} />
-            ))}
+            {plan.weeks.map((week, index) => {
+              const isLastWeek = index === plan.weeks.length - 1;
+              const matchingRolledOver = plan.rolledOver.find(
+                (r) => r.afterWeekNumber === week.weekNumber,
+              );
+              const isProgramLast = isLastWeek && !matchingRolledOver;
+              return (
+                <React.Fragment key={week.weekNumber}>
+                  <WeekSection
+                    week={week}
+                    isLast={isProgramLast}
+                    onDayPress={handleDayPress}
+                  />
+                  {matchingRolledOver ? (
+                    <RolledOverSection
+                      section={matchingRolledOver}
+                      isLast={isLastWeek}
+                      onDayPress={handleDayPress}
+                      onInfoPress={handleInfoPress}
+                    />
+                  ) : null}
+                </React.Fragment>
+              );
+            })}
           </>
         ) : (
           <View style={styles.statusBox}>

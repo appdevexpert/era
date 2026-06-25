@@ -695,6 +695,7 @@ const en = {
       daysCount: "{{completed}}/{{total}} Days",
       weekInitialNote: "The initial days will be adjusted in the 4th week",
       weekAdjustedNote: "Initial Days of Week 1 are adjusted here.",
+      rolledOverDays: "Rolled Over Days",
       adjustmentTitle: "Built Around You",
       adjustmentMessage: "Since you started mid-week, the days before your start date have been shifted to Week 4 to keep your program whole.",
       adjustmentWeek4Title: "Nothing Left Behind",

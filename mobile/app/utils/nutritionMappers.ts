@@ -181,13 +181,13 @@ export function buildWeekDays(
 export function canNavigateWeek(
   anchorDate: string,
   direction: "prev" | "next",
-  programStartDate: string | null,
+  _programStartDate: string | null,
 ): boolean {
   const weekStart = startOfWeek(parseIsoDate(anchorDate));
   if (direction === "prev") {
-    if (!programStartDate) return false;
-    const programWeekStart = startOfWeek(parseIsoDate(programStartDate));
-    return weekStart.getTime() > programWeekStart.getTime();
+    // Always allow stepping back. Pre-program weeks have no meal plan but
+    // users may still want to backfill custom meal logs for those dates.
+    return true;
   }
   // direction === "next" — only if the next week's Monday is <= today.
   const nextMonday = new Date(weekStart);

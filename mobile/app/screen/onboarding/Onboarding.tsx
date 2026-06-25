@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { completeOnboarding } from '@/app/stores/slice/authSlice'
-import { updateGoalData } from '@/app/stores/slice/onboardingSlice'
+import { completeOnboarding, setHasGoals } from '@/app/stores/slice/authSlice'
+import { submitGoalData, updateGoalData } from '@/app/stores/slice/onboardingSlice'
 import { useAppDispatch } from '@/app/stores/store'
 import OnboardingLayout from '@/app/components/common/OnboardingLayout'
 import GenderStep from './steps/GenderStep'
@@ -145,10 +145,14 @@ const Onboarding = () => {
       setDirection('forward')
       setStepIndex(stepIndex + 1)
     } else {
-      // At this point the user still has no auth.user.id — the Supabase
-      // write happens later, on SIGNED_IN (after they sign up / log in).
-      // See Navigation.tsx and submitGoalData's empty-data guard.
+      // Auth-first flow: the user is already signed in by the time they
+      // reach the final step, so we own `auth.user.id` and can push goals
+      // directly. Fire-and-forget — flipping hasGoals immediately routes
+      // the user to PlanGeneration; if the upsert fails the sync queue
+      // (and the next loadWorkoutBootstrap retry) handles it.
+      void dispatch(submitGoalData())
       dispatch(completeOnboarding())
+      dispatch(setHasGoals(true))
     }
   }
 

@@ -1,6 +1,20 @@
 /**
  * Frontend-driven program scheduling.
  * All date math computed from programStartDate — no DB scheduling needed.
+ *
+ * Phase model (28 days per phase, 3 phases for a 12-week program):
+ *
+ *   Per phase k (0..2), starting at programStartDate + k*28:
+ *     - Partial week (weekNumber = 4k+1): signup-weekday..Sun (e.g. Wed-Sun = 5 days)
+ *     - Full week 2 (weekNumber = 4k+2): Mon-Sun
+ *     - Full week 3 (weekNumber = 4k+3): Mon-Sun
+ *     - Full week 4 (weekNumber = 4k+4): Mon-Sun
+ *     - Rolled Over: Mon..(signup-1) — content from the partial week's days
+ *       1..(signup-1). Marked with isAdjustedDay=true.
+ *
+ *   So the user's content for "Mon of Week 1" never disappears — it shows up
+ *   on the Mon at the end of the phase as a rolled-over day, and the same
+ *   pattern repeats for Phase 2 (Week 5) and Phase 3 (Week 9).
  */
 
 export interface ProgramScheduleConfig {
@@ -9,10 +23,13 @@ export interface ProgramScheduleConfig {
 }
 
 export interface CurrentPosition {
-  weekNumber: number; // 1–12
-  dayNumber: number; // 1–7
-  isAdjustedDay: boolean; // Week 1 skipped day placed in Week 4
+  weekNumber: number; // DB content week. For rolled-over days, points to the partial week (1/5/9).
+  dayNumber: number; // DB content day (1..7)
+  isAdjustedDay: boolean; // true when on a rolled-over day at end of a phase
 }
+
+const PHASE_DAYS = 28;
+const PHASE_WEEKS = 4;
 
 /* ─── Helpers ─── */
 
@@ -42,9 +59,8 @@ function getSignupContext(config: ProgramScheduleConfig) {
   const start = toDate(config.programStartDate);
   const signupWeekday = isoDay(start); // 1=Mon … 7=Sun
   const skippedDays = signupWeekday - 1; // 0 if Monday
-  const week1End = addDays(start, 7 - signupWeekday); // first Sunday
-  const week2Start = addDays(week1End, 1); // first Monday after
-  return { start, signupWeekday, skippedDays, week1End, week2Start };
+  const partialWeekDays = 8 - signupWeekday; // 7 if Mon, 5 if Wed
+  return { start, signupWeekday, skippedDays, partialWeekDays };
 }
 
 /* ─── Which week & day is "today"? ─── */
@@ -53,53 +69,57 @@ export function computeCurrentPosition(
   config: ProgramScheduleConfig,
   today: string = getToday(),
 ): CurrentPosition {
-  const { start, signupWeekday, skippedDays, week1End, week2Start } =
-    getSignupContext(config);
+  const { start, signupWeekday, skippedDays, partialWeekDays } = getSignupContext(config);
   const t = toDate(today);
 
   // Before program started
-  if (t < start) return { weekNumber: 1, dayNumber: signupWeekday, isAdjustedDay: false };
-
-  // Week 1 (partial)
-  if (t <= week1End) {
-    const elapsed = diffDays(t, start);
-    return { weekNumber: 1, dayNumber: signupWeekday + elapsed, isAdjustedDay: false };
+  if (t < start) {
+    return { weekNumber: 1, dayNumber: signupWeekday, isAdjustedDay: false };
   }
 
-  // After Week 1
-  const fromW2 = diffDays(t, week2Start);
+  const totalPhases = Math.ceil(config.totalWeeks / PHASE_WEEKS);
+  const daysElapsed = diffDays(t, start);
+  const phaseIndex = Math.floor(daysElapsed / PHASE_DAYS);
 
-  // Weeks 2–3 (normal)
-  if (fromW2 < 14) {
+  // Past program end
+  if (phaseIndex >= totalPhases) {
+    return { weekNumber: config.totalWeeks, dayNumber: 7, isAdjustedDay: false };
+  }
+
+  const dayInPhase = daysElapsed - phaseIndex * PHASE_DAYS; // 0..27
+  const partialWeekNumber = phaseIndex * PHASE_WEEKS + 1; // 1, 5, 9
+
+  // Partial week (Wed..Sun for Wed signup)
+  if (dayInPhase < partialWeekDays) {
     return {
-      weekNumber: 2 + Math.floor(fromW2 / 7),
-      dayNumber: (fromW2 % 7) + 1,
+      weekNumber: partialWeekNumber,
+      dayNumber: signupWeekday + dayInPhase,
       isAdjustedDay: false,
     };
   }
 
-  // Week 4 (7 normal + skippedDays adjusted)
-  const fromW4 = fromW2 - 14;
-  const week4Total = 7 + skippedDays;
-  if (fromW4 < week4Total) {
-    if (fromW4 < 7) {
-      return { weekNumber: 4, dayNumber: fromW4 + 1, isAdjustedDay: false };
-    }
-    // Adjusted days — content from Week 1's skipped days
-    return { weekNumber: 4, dayNumber: fromW4 - 7 + 1, isAdjustedDay: true };
+  // Full weeks 2-4 within phase
+  const fromFullWeeks = dayInPhase - partialWeekDays;
+  if (fromFullWeeks < 21) {
+    return {
+      weekNumber: partialWeekNumber + 1 + Math.floor(fromFullWeeks / 7),
+      dayNumber: (fromFullWeeks % 7) + 1,
+      isAdjustedDay: false,
+    };
   }
 
-  // Weeks 5–12
-  const fromW5 = fromW2 - 14 - week4Total;
-  const weekOff = Math.floor(fromW5 / 7);
-  const weekNum = 5 + weekOff;
-
-  // Clamp to totalWeeks
-  if (weekNum > config.totalWeeks) {
-    return { weekNumber: config.totalWeeks, dayNumber: 7, isAdjustedDay: false };
+  // Rolled Over Mon..(signup-1)
+  const rolledIndex = fromFullWeeks - 21; // 0..(skippedDays-1)
+  if (rolledIndex < skippedDays) {
+    return {
+      weekNumber: partialWeekNumber,
+      dayNumber: rolledIndex + 1,
+      isAdjustedDay: true,
+    };
   }
 
-  return { weekNumber: weekNum, dayNumber: (fromW5 % 7) + 1, isAdjustedDay: false };
+  // Safety: snap to phase end
+  return { weekNumber: partialWeekNumber + 3, dayNumber: 7, isAdjustedDay: false };
 }
 
 /* ─── Calendar date for a given week + day ─── */
@@ -110,29 +130,26 @@ export function computeDateForDay(
   dayNumber: number,
   isAdjusted = false,
 ): string {
-  const { start, signupWeekday, skippedDays, week2Start } =
-    getSignupContext(config);
+  const { start, signupWeekday, partialWeekDays } = getSignupContext(config);
 
-  if (weekNumber === 1) {
-    // Partial week: day dayNumber maps to start + (dayNumber - signupWeekday)
-    return toYMD(addDays(start, dayNumber - signupWeekday));
+  const phaseIndex = Math.floor((weekNumber - 1) / PHASE_WEEKS);
+  const weekInPhase = (weekNumber - 1) % PHASE_WEEKS; // 0=partial, 1/2/3=full
+  const phaseOffset = phaseIndex * PHASE_DAYS;
+
+  if (isAdjusted) {
+    // Rolled-over Mon..(signup-1) at end of phase. dayNumber is 1..(signupWeekday-1).
+    return toYMD(addDays(start, phaseOffset + partialWeekDays + 21 + (dayNumber - 1)));
   }
 
-  if (weekNumber <= 3) {
-    return toYMD(addDays(week2Start, (weekNumber - 2) * 7 + (dayNumber - 1)));
+  if (weekInPhase === 0) {
+    // Partial week — visible days are signupWeekday..7
+    return toYMD(addDays(start, phaseOffset + (dayNumber - signupWeekday)));
   }
 
-  if (weekNumber === 4) {
-    if (isAdjusted) {
-      // Adjusted days come after Week 4's normal 7 days
-      return toYMD(addDays(week2Start, 14 + 7 + (dayNumber - 1)));
-    }
-    return toYMD(addDays(week2Start, 14 + (dayNumber - 1)));
-  }
-
-  // Week 5+
-  const week4Total = 7 + skippedDays;
-  return toYMD(addDays(week2Start, 14 + week4Total + (weekNumber - 5) * 7 + (dayNumber - 1)));
+  // Full weeks 2-4 within phase
+  return toYMD(
+    addDays(start, phaseOffset + partialWeekDays + (weekInPhase - 1) * 7 + (dayNumber - 1)),
+  );
 }
 
 /* ─── All dates for a week ─── */
@@ -148,21 +165,29 @@ export function computeWeekDates(
   weekNumber: number,
 ): WeekDayDate[] {
   const { signupWeekday, skippedDays } = getSignupContext(config);
+  const weekInPhase = (weekNumber - 1) % PHASE_WEEKS;
   const days: WeekDayDate[] = [];
 
-  if (weekNumber === 1) {
-    // Partial: only days from signupWeekday to 7
+  if (weekInPhase === 0) {
+    // Partial week (visible) + rolled-over (end of same phase)
     for (let d = signupWeekday; d <= 7; d++) {
       days.push({
         dayNumber: d,
-        calendarDate: computeDateForDay(config, 1, d),
+        calendarDate: computeDateForDay(config, weekNumber, d),
         isAdjustedDay: false,
+      });
+    }
+    for (let d = 1; d <= skippedDays; d++) {
+      days.push({
+        dayNumber: d,
+        calendarDate: computeDateForDay(config, weekNumber, d, true),
+        isAdjustedDay: true,
       });
     }
     return days;
   }
 
-  // Normal 7 days
+  // Full week
   for (let d = 1; d <= 7; d++) {
     days.push({
       dayNumber: d,
@@ -170,18 +195,6 @@ export function computeWeekDates(
       isAdjustedDay: false,
     });
   }
-
-  // Week 4: append adjusted days
-  if (weekNumber === 4 && skippedDays > 0) {
-    for (let d = 1; d <= skippedDays; d++) {
-      days.push({
-        dayNumber: d,
-        calendarDate: computeDateForDay(config, 4, d, true),
-        isAdjustedDay: true,
-      });
-    }
-  }
-
   return days;
 }
 
@@ -202,6 +215,36 @@ export function getSkippedDaysInfo(config: ProgramScheduleConfig) {
   const { signupWeekday, skippedDays } = getSignupContext(config);
   const dayNumbers = Array.from({ length: skippedDays }, (_, i) => i + 1);
   return { count: skippedDays, dayNumbers, signupWeekday };
+}
+
+/* ─── Calendar week (Mon-Sun) ─── */
+
+/** Returns the 7 calendar dates (Mon..Sun) of the week containing `today`. */
+export function getCalendarWeekDates(today: string = getToday()): string[] {
+  const t = toDate(today);
+  const wd = isoDay(t); // 1=Mon..7=Sun
+  const monday = addDays(t, -(wd - 1));
+  return Array.from({ length: 7 }, (_, i) => toYMD(addDays(monday, i)));
+}
+
+/* ─── Phase helpers ─── */
+
+/** Partial-week numbers — one per phase (e.g. [1, 5, 9] for a 12-week program). */
+export function getPartialWeekNumbers(totalWeeks: number): number[] {
+  const totalPhases = Math.ceil(totalWeeks / PHASE_WEEKS);
+  return Array.from({ length: totalPhases }, (_, i) => i * PHASE_WEEKS + 1);
+}
+
+/** Last calendar date of the program (last rolled-over day if any, else last week's Sun). */
+export function computeProgramEndDate(config: ProgramScheduleConfig): string {
+  const { skippedDays } = getSignupContext(config);
+  const lastPhase = Math.ceil(config.totalWeeks / PHASE_WEEKS) - 1;
+  const lastPartialWeek = lastPhase * PHASE_WEEKS + 1;
+
+  if (skippedDays > 0) {
+    return computeDateForDay(config, lastPartialWeek, skippedDays, true);
+  }
+  return computeDateForDay(config, lastPartialWeek + 3, 7);
 }
 
 /* ─── Day status ─── */
@@ -226,7 +269,7 @@ export function computeDayStatus(
 
 /* ─── Weekday from calendar date ─── */
 
-/** Returns ISO weekday (1=Mon, 7=Sun) from a YYYY-MM-DD string */
+/** ISO weekday (1=Mon, 7=Sun) from a YYYY-MM-DD string */
 export function getWeekdayFromDate(dateStr: string): number {
   return isoDay(toDate(dateStr));
 }

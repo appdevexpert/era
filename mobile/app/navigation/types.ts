@@ -1,12 +1,12 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 
 export type OnboardingStackParamList = {
-  GetStarted: undefined;
   Setting: undefined;
   Onboarding: undefined;
 };
 
 export type AuthStackParamList = {
+  GetStarted: undefined;
   Login: undefined;
   CreateAccount: undefined;
   ForgotPassword: undefined;

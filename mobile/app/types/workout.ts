@@ -156,9 +156,17 @@ export interface WorkoutPlanWeekView {
   isLocked: boolean;
 }
 
+export interface WorkoutPlanRolledOverView {
+  phase: string;
+  afterWeekNumber: number;
+  isCurrent: boolean;
+  days: WorkoutPlanWeekView["days"];
+}
+
 export interface WorkoutPlanView {
   phases: WorkoutPlanPhaseView[];
   weeks: WorkoutPlanWeekView[];
+  rolledOver: WorkoutPlanRolledOverView[];
   hasAdjustment: boolean;
   skippedDayCount: number;
 }

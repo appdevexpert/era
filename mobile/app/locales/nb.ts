@@ -695,6 +695,7 @@ const nb = {
       daysCount: "{{completed}}/{{total}} dager",
       weekInitialNote: "De første dagene justeres i uke 4",
       weekAdjustedNote: "De første dagene fra uke 1 justeres her.",
+      rolledOverDays: "Overførte dager",
       adjustmentTitle: "Tilpasset deg",
       adjustmentMessage: "Siden du startet midt i uken, er dagene før startdatoen flyttet til uke 4 for å holde programmet komplett.",
       adjustmentWeek4Title: "Ingenting gått tapt",

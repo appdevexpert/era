@@ -8,7 +8,7 @@
  * No DB writes. No side effects. Caller decides what to do with the result.
  */
 
-import { computeDateForDay, getToday, type ProgramScheduleConfig } from "./programSchedule";
+import { computeProgramEndDate, getToday, type ProgramScheduleConfig } from "./programSchedule";
 
 export interface CycleDetectionInput {
   programStartDate: string; // YYYY-MM-DD
@@ -38,7 +38,7 @@ export function detectCycleCompletion(input: CycleDetectionInput): CycleDetectio
     totalWeeks,
   };
 
-  const lastDayDate = computeDateForDay(config, totalWeeks, 7);
+  const lastDayDate = computeProgramEndDate(config);
   const diffDays = Math.floor((toDate(today).getTime() - toDate(lastDayDate).getTime()) / MS_PER_DAY);
   const isComplete = diffDays > 0;
 

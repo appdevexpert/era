@@ -10,6 +10,7 @@ import {
   signOutLocal,
 } from "@/app/utils/auth";
 import { deleteAccount } from "@/app/services/accountService";
+import { fetchUserGoalData } from "@/app/services/onboardingService";
 import { saveProgramStartDate } from "@/app/services/profileService";
 import { reportBackgroundError } from "@/app/utils/sentry";
 import type { LoadingState } from "@/app/types";
@@ -25,6 +26,19 @@ interface AuthState {
   isPlanGenerated: boolean;
   /** YYYY-MM-DD when the user first completed plan generation */
   programStartDate: string | null;
+  /**
+   * Server-side onboarding status. true = goals row exists in Supabase,
+   * false = no row, null = not yet checked (cold-start before getSession
+   * resolves, or before social login finishes its goal lookup).
+   */
+  hasGoals: boolean | null;
+  /**
+   * True once the user has slid through the GetStarted screen at least
+   * once on this install. Persists across logout (logout returns the user
+   * to Login, not GetStarted) and only resets on account delete (RESET_ALL
+   * wipes the whole slice back to initialState).
+   */
+  hasSeenGetStarted: boolean;
   /**
    * True while the user is in the middle of a password-recovery deep link
    * flow. Persisted so an app crash mid-recovery doesn't bounce the user
@@ -43,6 +57,8 @@ const initialState: AuthState = {
   isOnboarded: false,
   isPlanGenerated: false,
   programStartDate: null,
+  hasGoals: null,
+  hasSeenGetStarted: false,
   isRecovery: false,
 
   loadingStatus: "idle",
@@ -72,16 +88,24 @@ export const signUpThunk = createAsyncThunk(
   },
 );
 
-export const signInThunk = createAsyncThunk(
+export const signInThunk = createAsyncThunk<
+  { user: AuthUser; hasGoals: boolean },
+  { email: string; password: string },
+  { rejectValue: string }
+>(
   "auth/signIn",
-  async (
-    { email, password }: { email: string; password: string },
-    { rejectWithValue },
-  ) => {
+  async ({ email, password }, { rejectWithValue }) => {
     const { data, error } = await signIn(email, password);
     if (error) return rejectWithValue(error.message);
     if (!data.user) return rejectWithValue("Sign in failed");
-    return mapSupabaseUser(data.user);
+    const user = mapSupabaseUser(data.user);
+    // Decide auth-first onboarding routing atomically with the login. If the
+    // goals lookup itself errors we conservatively treat it as "unknown but
+    // probably exists" (true) so we don't push a returning user back into
+    // onboarding because of a transient network blip; the next bootstrap
+    // attempt will surface real issues.
+    const { data: goalRow } = await fetchUserGoalData(user.id);
+    return { user, hasGoals: goalRow !== null };
   },
 );
 
@@ -103,9 +127,10 @@ export const signOutThunk = createAsyncThunk(
 
 /** Deletes the Supabase Auth user through the server-side Edge Function,
  * signs out, then wipes the entire Redux tree. The RESET_ALL action sends
- * every slice back to initialState; redux-persist's middleware auto-writes
- * that empty state to AsyncStorage on the next tick. After this resolves,
- * Navigation routes to OnboardingStack → GetStarted. */
+ * every slice back to initialState (including hasSeenGetStarted = false);
+ * redux-persist's middleware auto-writes that empty state to AsyncStorage
+ * on the next tick. After this resolves, Navigation routes to AuthStack
+ * and AuthNavigator's initialRoute lands on GetStarted again. */
 export const deleteAccountThunk = createAsyncThunk(
   "auth/deleteAccount",
   async (_, { getState, dispatch, rejectWithValue }) => {
@@ -170,6 +195,8 @@ const authSlice = createSlice({
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
       state.isRecovery = false;
+      state.isOnboarded = false;
+      state.hasGoals = null;
       state.loadingStatus = "idle";
       state.error = null;
     },
@@ -178,6 +205,12 @@ const authSlice = createSlice({
     },
     updateUser: (state, action: PayloadAction<Partial<AuthUser>>) => {
       if (state.user) state.user = { ...state.user, ...action.payload };
+    },
+    setHasGoals: (state, action: PayloadAction<boolean | null>) => {
+      state.hasGoals = action.payload;
+    },
+    setHasSeenGetStarted: (state, action: PayloadAction<boolean>) => {
+      state.hasSeenGetStarted = action.payload;
     },
     completeOnboarding: (state) => { state.isOnboarded = true; },
     setPlanGenerationLocal: (state) => {
@@ -206,6 +239,9 @@ const authSlice = createSlice({
       state.loadingStatus = "succeeded";
       state.user = action.payload;
       state.isLoggedIn = true;
+      // Fresh signup → no goals row yet, route to onboarding next.
+      state.hasGoals = false;
+      state.isOnboarded = false;
       state.error = null;
     });
     builder.addCase(signUpThunk.rejected, (state, action) => {
@@ -220,8 +256,10 @@ const authSlice = createSlice({
     });
     builder.addCase(signInThunk.fulfilled, (state, action) => {
       state.loadingStatus = "succeeded";
-      state.user = action.payload;
+      state.user = action.payload.user;
       state.isLoggedIn = true;
+      state.hasGoals = action.payload.hasGoals;
+      state.isOnboarded = action.payload.hasGoals;
       state.error = null;
     });
     builder.addCase(signInThunk.rejected, (state, action) => {
@@ -252,6 +290,12 @@ const authSlice = createSlice({
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
       state.isRecovery = false;
+      // Clear onboarding state so the NEXT user signing in on this device
+      // gets routed via a fresh server-side hasGoals check. hasSeenGetStarted
+      // is intentionally NOT cleared — logout returns the user to Login,
+      // not GetStarted; only account delete (RESET_ALL) reverts to GetStarted.
+      state.isOnboarded = false;
+      state.hasGoals = null;
       state.loadingStatus = "idle";
       state.error = null;
     });
@@ -263,6 +307,8 @@ const authSlice = createSlice({
       state.isLoggedIn = false;
       state.isPlanGenerated = false;
       state.isRecovery = false;
+      state.isOnboarded = false;
+      state.hasGoals = null;
     });
 
     // Delete Account — fulfilled is a no-op because RESET_ALL has already
@@ -281,7 +327,7 @@ const authSlice = createSlice({
 export const {
   login, logout, clearSession, updateUser, clearError,
   completeOnboarding, setPlanGenerationLocal, setProgramStartDate, resetPlanGeneration,
-  setRecovery,
+  setRecovery, setHasGoals, setHasSeenGetStarted,
 } = authSlice.actions;
 
 export default authSlice.reducer;

@@ -139,6 +139,11 @@ const NutritionScreen = () => {
     () =>
       weekDays.map((d) => {
         const isToday = d.status === "today";
+        // Pre-program past dates are now selectable for backfill, so we
+        // render them the same way as a normal past day: "completed" when
+        // they have logs, "missed" otherwise. This avoids the dashed
+        // (inactive-looking) pill that would otherwise imply "not tappable".
+        const isPastPreProgram = d.status === "before_program";
         return {
           key: d.date,
           label: d.weekdayShort,
@@ -147,8 +152,12 @@ const NutritionScreen = () => {
           subtitle: "",
           muscles: [],
           active: isToday,
-          completed: d.status === "completed" || (isToday && d.hasLogs),
-          missed: d.status === "missed",
+          completed:
+            d.status === "completed" ||
+            (isPastPreProgram && d.hasLogs) ||
+            (isToday && d.hasLogs),
+          missed:
+            d.status === "missed" || (isPastPreProgram && !d.hasLogs),
         };
       }),
     [weekDays],
@@ -197,19 +206,24 @@ const NutritionScreen = () => {
 
   const handleDayPress = useCallback(
     (day: DayItem) => {
-      const matched = weekDays.find((d) => d.date === day.key);
-      if (!matched || matched.status === "before_program") {
-        return;
-      }
+      // Allow selecting any past or current date. Pre-program dates are still
+      // tappable so the user can backfill meals from before they started the
+      // program; the plan for those weeks just doesn't exist, so only custom
+      // logs will show. Only future dates remain effectively read-only via
+      // isFutureDate below.
       dispatch(selectNutritionDate(day.key));
     },
-    [dispatch, weekDays],
+    [dispatch],
   );
+
+  // Future-date logging is blocked; past + today both allowed. ISO strings
+  // (YYYY-MM-DD) compare lexicographically, so a string `>` is a real date `>`.
+  const isFutureDate = selectedDate > todayIso();
 
   const WATER_INCREMENT_ML = 250;
   const handleAdjustWater = useCallback(
     (deltaMl: number) => {
-      if (selectedDate !== todayIso()) return;
+      if (isFutureDate) return;
       if (isMutatingWater) return;
       dispatch(
         adjustWaterAmount({
@@ -220,7 +234,7 @@ const NutritionScreen = () => {
         }),
       );
     },
-    [dispatch, isMutatingWater, selectedDate, waterRow],
+    [dispatch, isFutureDate, isMutatingWater, selectedDate, waterRow],
   );
 
   const handleWaterIncrement = useCallback(
@@ -237,8 +251,8 @@ const NutritionScreen = () => {
   // the same optimistic insert pathway plan-driven meals use.
   const handleSaveLoggedMeal = useCallback(
     async (payload: SaveMealPayload) => {
-      if (selectedDate !== todayIso()) {
-        throw new Error("You can only log meals for today.");
+      if (isFutureDate) {
+        throw new Error("You can't log meals for a future date.");
       }
       const category = TAG_TO_CATEGORY[payload.tag];
       const analyzed = await analyzeMealText({
@@ -265,12 +279,12 @@ const NutritionScreen = () => {
         }),
       );
     },
-    [dispatch, selectedDate],
+    [dispatch, isFutureDate, selectedDate],
   );
 
   const handleToggleMeal = useCallback(
     (meal: MealRow) => {
-      if (selectedDate !== todayIso()) return;
+      if (isFutureDate) return;
 
       const merged = mergedMeals.find((m) => m.key === meal.id);
       if (!merged) return;
@@ -320,10 +334,10 @@ const NutritionScreen = () => {
         }),
       );
     },
-    [dispatch, mergedMeals, selectedDate, todaysLogs],
+    [dispatch, isFutureDate, mergedMeals, selectedDate, todaysLogs],
   );
 
-  const isReadOnlyDate = selectedDate !== todayIso();
+  const isReadOnlyDate = isFutureDate;
   // Skeleton only while generating and we have nothing to show yet.
   const showMealsSkeleton = isGeneratingPlan && meals.length === 0;
 

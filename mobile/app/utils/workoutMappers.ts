@@ -1,5 +1,5 @@
 import type { MuscleGroup } from "@/app/navigation/types";
-import { computeCurrentPosition, computeDateForDay, getSkippedDaysInfo, getToday, getWeekdayFromDate, isWeekAccessible } from "@/app/utils/programSchedule";
+import { computeCurrentPosition, computeDateForDay, getCalendarWeekDates, getPartialWeekNumbers, getSkippedDaysInfo, getToday, getWeekdayFromDate, isWeekAccessible } from "@/app/utils/programSchedule";
 import type {
   ExerciseListView,
   ExerciseMode,
@@ -12,6 +12,7 @@ import type {
   SessionWorkout,
   WorkoutHomeView,
   WorkoutPlanPhaseView,
+  WorkoutPlanRolledOverView,
   WorkoutPlanView,
   WorkoutPlanWeekView,
   WorkoutOverviewData,
@@ -129,7 +130,8 @@ export function mapWorkoutHome(
     ? { programStartDate, totalWeeks: data.program.duration_weeks }
     : null;
 
-  // Step A: Resolve current position — separate content day from calendar week
+  // Step A: Resolve current position. pos.weekNumber points to the DB content week
+  // (partial week 1/5/9 when on a rolled-over day).
   let currentDay = data.currentDay;
   let calendarWeekNumber = 1;
 
@@ -137,22 +139,11 @@ export function mapWorkoutHome(
     const pos = computeCurrentPosition(config);
     calendarWeekNumber = pos.weekNumber;
 
-    if (pos.isAdjustedDay) {
-      // Adjusted day in Week 4: content comes from Week 1's skipped day
-      const week1 = data.weeks.find((w) => w.week_number === 1);
-      if (week1) {
-        const found = data.days.find(
-          (d) => d.week_id === week1.id && d.day_number === pos.dayNumber,
-        );
-        if (found) currentDay = found;
-      }
-    } else {
-      const found = data.days.find((d) => {
-        const w = data.weeks.find((wk) => wk.id === d.week_id);
-        return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
-      });
-      if (found) currentDay = found;
-    }
+    const found = data.days.find((d) => {
+      const w = data.weeks.find((wk) => wk.id === d.week_id);
+      return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+    });
+    if (found) currentDay = found;
   } else {
     const week = getWeekForDay(data.weeks, currentDay);
     if (week) calendarWeekNumber = week.week_number;
@@ -161,69 +152,91 @@ export function mapWorkoutHome(
   // Step B: Calendar week for display (programWeek, programType)
   const calendarWeek = data.weeks.find((w) => w.week_number === calendarWeekNumber) ?? data.weeks[0];
 
-  // Step C: Build selector days for the calendar week
-  const skippedInfo = config ? getSkippedDaysInfo(config) : null;
-  const skipped = skippedInfo?.count ?? 0;
+  // Step C: Build the strip as a 7-day Mon-Sun calendar week. Each calendar
+  // date maps to its DB content via computeCurrentPosition (handles rolled-over
+  // automatically). Pre-signup dates render as dashed/inactive pills.
   const today = config ? getToday() : null;
   const completed = new Set(completedDayIds ?? []);
-
-  let selectorDays = data.days
-    .filter((day) => day.week_id === calendarWeek.id)
-    .sort((a, b) => a.sort_order - b.sort_order);
-
-  // If no DB rows for this week, generate from template
-  if (selectorDays.length === 0) {
-    const templateDays = data.days
-      .filter((day) => day.week_id === data.weeks[0]?.id)
-      .sort((a, b) => a.sort_order - b.sort_order);
-    selectorDays = buildFutureWeekDays(calendarWeek, templateDays, data.program.days_per_week);
-  }
-
-  // Build entries: normal days + adjusted days (Week 4 only)
-  type DayEntry = { day: ProgramDayRow; isAdjusted: boolean };
-  let allEntries: DayEntry[] = selectorDays.map((d) => ({ day: d, isAdjusted: false }));
-
-  if (calendarWeekNumber === 4 && skipped > 0 && skippedInfo) {
-    const week1 = data.weeks.find((w) => w.week_number === 1);
-    if (week1) {
-      const week1Skipped = data.days
-        .filter((d) => d.week_id === week1.id && d.day_number < skippedInfo.signupWeekday)
-        .sort((a, b) => a.sort_order - b.sort_order);
-      allEntries = [
-        ...allEntries,
-        ...week1Skipped.map((d) => ({ day: d, isAdjusted: true })),
-      ];
-    }
-  }
-
-  // Map selector days with calendar dates and weekday labels
   const startDate = config?.programStartDate ?? null;
-  const days = allEntries.map((entry) => {
-    const { day, isAdjusted } = entry;
-    let dayDate: string | null = null;
-    if (config) {
-      dayDate = computeDateForDay(config, calendarWeekNumber, day.day_number, isAdjusted);
-    }
-    const weekday = dayDate ? getWeekdayFromDate(dayDate) : day.weekday;
-    // Pre-signup days (before programStartDate) are treated as future-style — not interactive
-    const isPreSignup = !!(dayDate && startDate && dayDate < startDate);
-    const isCompleted = !isPreSignup && completed.has(day.id);
-    const isActive = !isPreSignup && day.id === currentDay.id;
-    const isPast = dayDate && today ? dayDate < today : false;
-    const isMissed = !isPreSignup && isPast && !isCompleted && !day.is_rest_day;
 
-    return {
+  const calendarDates = config && today ? getCalendarWeekDates(today) : null;
+
+  let days: WorkoutHomeView["days"];
+  if (config && calendarDates && startDate && today) {
+    const todayStr = today;
+    days = calendarDates.map((dateStr, index) => {
+      const weekday = index + 1; // 1=Mon..7=Sun
+      const dateLabel = dateStr.split("-")[2];
+
+      // Pre-signup or post-program — render inactive dashed pill
+      if (dateStr < startDate) {
+        return {
+          key: `pre-${dateStr}`,
+          label: getWeekdayLabel(weekday, language),
+          date: dateLabel,
+          title: "",
+          subtitle: "",
+          muscles: [] as MuscleGroup[],
+          active: false,
+          completed: false,
+          missed: false,
+        };
+      }
+
+      const pos = computeCurrentPosition(config, dateStr);
+      const day = data.days.find((d) => {
+        const w = data.weeks.find((wk) => wk.id === d.week_id);
+        return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+      });
+
+      if (!day) {
+        return {
+          key: `none-${dateStr}`,
+          label: getWeekdayLabel(weekday, language),
+          date: dateLabel,
+          title: "",
+          subtitle: "",
+          muscles: [] as MuscleGroup[],
+          active: false,
+          completed: false,
+          missed: false,
+        };
+      }
+
+      const isCompleted = completed.has(day.id);
+      const isActive = dateStr === todayStr;
+      const isPast = dateStr < todayStr;
+      const isMissed = isPast && !isCompleted && !day.is_rest_day;
+
+      return {
+        key: day.id,
+        label: getWeekdayLabel(weekday, language),
+        date: dateLabel,
+        title: getLocalizedText(day.title_translations, language, day.title),
+        subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
+        muscles: mapMusclesToIcons(day.target_muscles),
+        active: isActive,
+        completed: isCompleted,
+        missed: isMissed,
+      };
+    });
+  } else {
+    // Fallback: programStartDate not available — show the calendarWeek's DB days
+    const fallback = data.days
+      .filter((d) => d.week_id === calendarWeek.id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    days = fallback.map((day) => ({
       key: day.id,
-      label: getWeekdayLabel(weekday, language),
-      date: dayDate ? dayDate.split("-")[2] : padDayNumber(day.day_number),
+      label: getWeekdayLabel(day.weekday, language),
+      date: padDayNumber(day.day_number),
       title: getLocalizedText(day.title_translations, language, day.title),
       subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
       muscles: mapMusclesToIcons(day.target_muscles),
-      active: isActive,
-      completed: isCompleted,
-      missed: isMissed,
-    };
-  });
+      active: day.id === currentDay.id,
+      completed: completed.has(day.id),
+      missed: false,
+    }));
+  }
 
   // Step D: Build output — calendarWeek for program info, currentDay for workout content
   return {
@@ -254,11 +267,13 @@ export function mapWorkoutPlan(
   programStartDate?: string | null,
   completedDayIds?: string[],
 ): WorkoutPlanView {
-  // Determine current day from date math
+  // pos.weekNumber points to the DB content week (1/5/9 when on a rolled-over day)
   let currentDay = data.currentDay;
+  let activeAdjustedWeekNumber: number | null = null;
   if (programStartDate) {
     const config = { programStartDate, totalWeeks: data.program.duration_weeks };
     const pos = computeCurrentPosition(config);
+    if (pos.isAdjustedDay) activeAdjustedWeekNumber = pos.weekNumber;
     const found = data.days.find((d) => {
       const w = data.weeks.find((wk) => wk.id === d.week_id);
       return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
@@ -282,8 +297,6 @@ export function mapWorkoutPlan(
       mapPlanWeek({
         week,
         days: data.days.filter((day) => day.week_id === week.id),
-        allDays: data.days,
-        allWeeks: data.weeks,
         templateDays: firstWeekDays,
         currentDay,
         daysPerWeek: data.program.days_per_week,
@@ -293,9 +306,93 @@ export function mapWorkoutPlan(
         skippedInfo,
       }),
     ),
+    rolledOver: buildRolledOverSections({
+      data,
+      currentDay,
+      activeAdjustedWeekNumber,
+      language,
+      programStartDate,
+      completedDayIds,
+      skippedInfo,
+    }),
     hasAdjustment: (skippedInfo?.count ?? 0) > 0,
     skippedDayCount: skippedInfo?.count ?? 0,
   };
+}
+
+function buildRolledOverSections({
+  data,
+  currentDay,
+  activeAdjustedWeekNumber,
+  language,
+  programStartDate,
+  completedDayIds,
+  skippedInfo,
+}: {
+  data: WorkoutOverviewData;
+  currentDay: ProgramDayRow;
+  activeAdjustedWeekNumber: number | null;
+  language: string;
+  programStartDate?: string | null;
+  completedDayIds?: string[];
+  skippedInfo?: { count: number; dayNumbers: number[]; signupWeekday: number } | null;
+}): WorkoutPlanRolledOverView[] {
+  if (!programStartDate || !skippedInfo || skippedInfo.count <= 0) return [];
+
+  const config = { programStartDate, totalWeeks: data.program.duration_weeks };
+  const today = getToday();
+  const completed = new Set(completedDayIds ?? []);
+  const partialWeekNumbers = getPartialWeekNumbers(data.program.duration_weeks);
+
+  return partialWeekNumbers.flatMap((partialWeekNumber) => {
+    const partialWeek = data.weeks.find((w) => w.week_number === partialWeekNumber);
+    if (!partialWeek) return [];
+
+    const lastWeekOfPhase = partialWeekNumber + 3;
+    const phaseWeek = data.weeks.find((w) => w.week_number === lastWeekOfPhase);
+    if (!phaseWeek) return [];
+
+    const skippedDayRows = data.days
+      .filter((d) => d.week_id === partialWeek.id && d.day_number < skippedInfo.signupWeekday)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    if (skippedDayRows.length === 0) return [];
+
+    const days = skippedDayRows.map((day) => {
+      const dayDate = computeDateForDay(config, partialWeekNumber, day.day_number, true);
+      const weekday = getWeekdayFromDate(dayDate);
+      const isCompleted = completed.has(day.id);
+      const isActive = day.id === currentDay.id;
+      const isPast = dayDate < today;
+      const isFuture = dayDate > today;
+
+      let status: "completed" | "missed" | "active" | "future";
+      if (isCompleted) status = "completed";
+      else if (isActive) status = "active";
+      else if (isPast && !day.is_rest_day) status = "missed";
+      else if (isFuture) status = "future";
+      else status = "future";
+
+      return {
+        programDayId: day.id,
+        isRestDay: day.is_rest_day,
+        isToday: dayDate === today,
+        date: dayDate.split("-")[2],
+        dayLabel: getWeekdayLabel(weekday, language),
+        status,
+        title: getLocalizedText(day.title_translations, language, day.title),
+        subtitle: getLocalizedText(day.subtitle_translations, language, day.subtitle ?? ""),
+        muscles: mapMusclesToIcons(day.target_muscles),
+      };
+    });
+
+    return [{
+      phase: getLocalizedText(phaseWeek.focus_translations, language, phaseWeek.focus ?? ""),
+      afterWeekNumber: lastWeekOfPhase,
+      isCurrent: activeAdjustedWeekNumber === partialWeekNumber,
+      days,
+    }];
+  });
 }
 
 export function mapExerciseList(
@@ -399,8 +496,6 @@ function buildPhases(
 function mapPlanWeek({
   week,
   days,
-  allDays,
-  allWeeks,
   templateDays,
   currentDay,
   daysPerWeek,
@@ -411,8 +506,6 @@ function mapPlanWeek({
 }: {
   week: ProgramWeekRow;
   days: ProgramDayRow[];
-  allDays: ProgramDayRow[];
-  allWeeks: ProgramWeekRow[];
   templateDays: ProgramDayRow[];
   currentDay: ProgramDayRow;
   daysPerWeek: number;
@@ -425,20 +518,6 @@ function mapPlanWeek({
     ? [...days].sort((a, b) => a.sort_order - b.sort_order)
     : buildFutureWeekDays(week, templateDays, daysPerWeek);
 
-  const skipped = skippedInfo?.count ?? 0;
-
-  // Week 4 adjusted: append Week 1's skipped days after the normal 7
-  let adjustedDays: { day: ProgramDayRow; isAdjusted: boolean }[] = [];
-  if (week.week_number === 4 && skipped > 0 && skippedInfo) {
-    const week1 = allWeeks.find((w) => w.week_number === 1);
-    if (week1) {
-      const week1Skipped = allDays
-        .filter((d) => d.week_id === week1.id && d.day_number < skippedInfo.signupWeekday)
-        .sort((a, b) => a.sort_order - b.sort_order);
-      adjustedDays = week1Skipped.map((d) => ({ day: d, isAdjusted: true }));
-    }
-  }
-
   const isCurrentWeek = week.id === currentDay.week_id;
   const completed = new Set(completedDayIds ?? []);
   const today = programStartDate ? getToday() : null;
@@ -449,11 +528,14 @@ function mapPlanWeek({
     ? !isWeekAccessible(config, week.week_number, today ?? undefined)
     : false;
 
-  // Build day entries: normal days + adjusted days (Week 4 only)
-  const rawEntries = [
-    ...orderedDays.map((d) => ({ day: d, isAdjusted: false })),
-    ...adjustedDays,
-  ];
+  // Partial weeks (1, 5, 9) only show day_number >= signupWeekday in their own card;
+  // the earlier day_numbers render in the matching "Rolled Over Days" section.
+  const isPartialWeek = (week.week_number - 1) % 4 === 0;
+  if (isPartialWeek && skippedInfo && skippedInfo.count > 0) {
+    orderedDays = orderedDays.filter((d) => d.day_number >= skippedInfo.signupWeekday);
+  }
+
+  const rawEntries = orderedDays.map((d) => ({ day: d, isAdjusted: false }));
 
   // Attach calendar date once, then hide days before the user joined the program.
   // Only the week containing programStartDate can lose entries here — every other
