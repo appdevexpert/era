@@ -177,17 +177,20 @@ export function buildWeekDays(
   });
 }
 
-/** True when the user is allowed to navigate the week-selector arrow. */
+/** True when the user is allowed to navigate the week-selector arrow.
+ *  Nutrition is locked to the program timeframe — the plan only exists from
+ *  programStartDate forward, so we never let the user step into a week
+ *  before that. */
 export function canNavigateWeek(
   anchorDate: string,
   direction: "prev" | "next",
-  _programStartDate: string | null,
+  programStartDate: string | null,
 ): boolean {
   const weekStart = startOfWeek(parseIsoDate(anchorDate));
   if (direction === "prev") {
-    // Always allow stepping back. Pre-program weeks have no meal plan but
-    // users may still want to backfill custom meal logs for those dates.
-    return true;
+    if (!programStartDate) return false;
+    const programWeekStart = startOfWeek(parseIsoDate(programStartDate));
+    return weekStart.getTime() > programWeekStart.getTime();
   }
   // direction === "next" — only if the next week's Monday is <= today.
   const nextMonday = new Date(weekStart);

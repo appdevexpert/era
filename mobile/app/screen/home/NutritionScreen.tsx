@@ -12,9 +12,12 @@ import AddLogMealBottomSheet, {
   type SaveMealPayload,
 } from "@/app/components/nutrition/AddLogMealBottomSheet";
 import DailyTargetsCard from "@/app/components/nutrition/DailyTargetsCard";
+import NutritionWeekHeader from "@/app/components/nutrition/NutritionWeekHeader";
+import {
+  type NutritionDayItem,
+  type NutritionDayStatus,
+} from "@/app/components/nutrition/NutritionWeekDays";
 import MealsTimelineSkeleton from "@/app/components/skeleton/MealsTimelineSkeleton";
-import PhaseWeekHeader from "@/app/components/workout/PhaseWeekHeader";
-import { type DayItem } from "@/app/components/workout/WeekDaySelector";
 import { FONTS } from "@/app/constants/fonts";
 import { MealBreakfast } from "@/assets/icons";
 import {
@@ -135,32 +138,28 @@ const NutritionScreen = () => {
 
   // -------- View-model mapping --------------------------------------
 
-  const days: DayItem[] = useMemo(
+  const days: NutritionDayItem[] = useMemo(
     () =>
       weekDays.map((d) => {
-        const isToday = d.status === "today";
-        // Pre-program past dates are now selectable for backfill, so we
-        // render them the same way as a normal past day: "completed" when
-        // they have logs, "missed" otherwise. This avoids the dashed
-        // (inactive-looking) pill that would otherwise imply "not tappable".
-        const isPastPreProgram = d.status === "before_program";
+        const status: NutritionDayStatus =
+          d.status === "before_program"
+            ? "before_program"
+            : d.status === "today"
+              ? "today"
+              : d.status === "future"
+                ? "future"
+                : d.hasLogs
+                  ? "past_completed"
+                  : "past_missed";
         return {
           key: d.date,
           label: d.weekdayShort,
           date: String(d.dayOfMonth).padStart(2, "0"),
-          title: "",
-          subtitle: "",
-          muscles: [],
-          active: isToday,
-          completed:
-            d.status === "completed" ||
-            (isPastPreProgram && d.hasLogs) ||
-            (isToday && d.hasLogs),
-          missed:
-            d.status === "missed" || (isPastPreProgram && !d.hasLogs),
+          status,
+          selected: d.date === selectedDate,
         };
       }),
-    [weekDays],
+    [selectedDate, weekDays],
   );
 
   // Localize plan names at render time so a language switch updates instantly.
@@ -192,6 +191,14 @@ const NutritionScreen = () => {
     return t("nutrition.phaseHypertrophy");
   }, [phaseKey, t]);
 
+  // Figma node 6671:7147 — gold uppercase weekday under the phase title,
+  // localized via the device weekday name (Thursday / torsdag) and force-
+  // uppercased at render time so the styling stays consistent across locales.
+  const selectedWeekdayName = useMemo(() => {
+    const d = new Date(selectedDate);
+    return d.toLocaleDateString(i18n.language, { weekday: "long" });
+  }, [i18n.language, selectedDate]);
+
   // -------- Handlers -------------------------------------------------
 
   const handlePrevWeek = useCallback(() => {
@@ -205,12 +212,12 @@ const NutritionScreen = () => {
   }, [canGoNext, dispatch, selectedDate]);
 
   const handleDayPress = useCallback(
-    (day: DayItem) => {
-      // Allow selecting any past or current date. Pre-program dates are still
-      // tappable so the user can backfill meals from before they started the
-      // program; the plan for those weeks just doesn't exist, so only custom
-      // logs will show. Only future dates remain effectively read-only via
-      // isFutureDate below.
+    (day: NutritionDayItem) => {
+      // Nutrition is locked to the generated plan's timeframe — there is no
+      // meal plan for dates before programStartDate, so those pills stay
+      // visually dashed AND inert. Future dates remain tappable for preview
+      // but are write-blocked by `isFutureDate` further down.
+      if (day.status === "before_program") return;
       dispatch(selectNutritionDate(day.key));
     },
     [dispatch],
@@ -357,8 +364,9 @@ const NutritionScreen = () => {
           eyebrow={t("nutrition.eyebrow")}
         />
 
-        <PhaseWeekHeader
+        <NutritionWeekHeader
           title={phaseTitle}
+          subtitle={selectedWeekdayName}
           currentWeek={currentWeek}
           totalWeeks={12}
           days={days}
@@ -367,7 +375,6 @@ const NutritionScreen = () => {
           onDayPress={handleDayPress}
           canGoPrev={canGoPrev}
           canGoNext={canGoNext}
-          enableInactivePress
         />
 
         <DailyTargetsCard
