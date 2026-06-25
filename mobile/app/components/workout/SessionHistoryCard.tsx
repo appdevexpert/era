@@ -1,6 +1,6 @@
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
-import { AwardPrBadge } from "@/assets/icons";
+import { MedalPrRed } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -36,8 +36,9 @@ interface SessionHistoryCardProps {
 const POSITIVE = "#3DCA7A";
 const NEGATIVE = "#E67777";
 
-// Default PR badge — purple-ribboned gold trophy at the SVG's natural 88×48 aspect.
-const DefaultBadge = () => <AwardPrBadge width={88} height={48} />;
+// Default PR badge — red-ribboned gold star medal. Renders at its natural ~38×72 ratio
+// and is pulled up slightly so the ribbon top edge sits above the card.
+const DefaultBadge = () => <MedalPrRed width={38} height={72} />;
 
 /**
  * Session history row used inside the Exercise History screen.
@@ -69,15 +70,16 @@ const SessionHistoryCard = ({
     metricKind === "duration" || !delta ? delta?.kg : toDisplay(delta.kg);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, showBadge && styles.cardWithBadge]}>
       {showBadge ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={["rgba(17,17,17,0)", "rgba(201,168,76,0.30)"]}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.badgeGradient}
-        />
+        <View style={styles.gradientClip} pointerEvents="none">
+          <LinearGradient
+            colors={["rgba(17,17,17,0)", "rgba(201,168,76,0.30)"]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={styles.badgeGradient}
+          />
+        </View>
       ) : null}
 
       <View style={styles.left}>
@@ -86,7 +88,7 @@ const SessionHistoryCard = ({
       </View>
 
       {showBadge ? (
-        <View style={styles.badgeSlot}>{badgeNode}</View>
+        <View style={styles.badgeSlot} pointerEvents="none">{badgeNode}</View>
       ) : delta ? (
         <Text
           style={[styles.delta, { color: delta.positive ? POSITIVE : NEGATIVE }]}
@@ -111,6 +113,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 20,
+    overflow: "hidden",
+  },
+  // overflow:visible lets the medal's ribbon hang above the card top edge to match Figma.
+  cardWithBadge: {
+    overflow: "visible",
+    paddingRight: 60,
+  },
+  // Clips the gold gradient to the card's rounded corners since the card itself is overflow:visible.
+  gradientClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
     overflow: "hidden",
   },
   // Gold gradient that fades in from the right (~83% of the way across the card).
@@ -147,7 +160,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.56,
     textTransform: "uppercase",
   },
+  // Medal sits absolutely on the right; top:-5 mirrors the Figma offset so the ribbon overhangs the card.
   badgeSlot: {
+    position: "absolute",
+    right: 16,
+    top: -5,
+    width: 38,
+    height: 72,
     alignItems: "center",
     justifyContent: "center",
   },

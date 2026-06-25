@@ -8,6 +8,7 @@ import { useCallback, useMemo } from "react";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTranslation } from "react-i18next";
+import Toast from "react-native-toast-message";
 import { useSelector } from "react-redux";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
@@ -69,7 +70,7 @@ export const useWorkoutSession = () => {
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
   const { syncWrite, enqueueWrite } = useSyncQueue();
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
   const user = useSelector(selectUser);
   const userId = user?.id ?? "";
@@ -272,6 +273,44 @@ export const useWorkoutSession = () => {
     }
   }, [sessionWorkout, userId, totalExercises, dispatch]);
 
+  /**
+   * Self-heal — guarantees the session maps (exerciseMap / setMap) are populated
+   * before any log/complete write. Required because both Redux-persist rehydration
+   * and a partially-completed startSession() can leave us with currentSessionId
+   * set but maps empty, which makes every logSetResult silently bail.
+   *
+   * Returns the FRESH maps (not the stale closure values) so callers can retry
+   * lookups immediately without waiting for React to re-render the hook.
+   */
+  const ensureSessionHydrated = useCallback(async (): Promise<{
+    exerciseMap: Record<string, string>;
+    setMap: Record<string, string[]>;
+  } | null> => {
+    if (!sessionId) return null;
+    if (Object.keys(exerciseMap).length > 0) {
+      return { exerciseMap, setMap };
+    }
+    try {
+      const state = await sessionService.loadSessionState(sessionId);
+      if (!state) {
+        console.warn("[session] ensureSessionHydrated: loadSessionState empty", sessionId);
+        return null;
+      }
+      dispatch(initSession({
+        sessionId,
+        exerciseMap: state.exerciseMap,
+        setMap: state.setMap,
+      }));
+      dispatch(hydrateCompletedSets(state.completedSets));
+      dispatch(hydrateCompletedExerciseIds(state.completedExerciseIds));
+      dispatch(hydrateExerciseComments(state.exerciseComments));
+      return { exerciseMap: state.exerciseMap, setMap: state.setMap };
+    } catch (err) {
+      console.error("[session] ensureSessionHydrated failed", err);
+      return null;
+    }
+  }, [sessionId, exerciseMap, setMap, dispatch]);
+
   /** Navigate to the correct screen for an exercise. startSet is 0-based. */
   const navigateToExercise = useCallback(
     (exerciseIndex: number, startSet = 0, direction: "forward" | "back" = "forward") => {
@@ -340,11 +379,26 @@ export const useWorkoutSession = () => {
       const ex = sessionWorkout.exercises[exerciseIndex];
       if (!ex) return;
 
-      const seId = exerciseMap[ex.id];
-      if (!seId) return;
-      const setIds = setMap[seId];
-      const ssId = setIds?.[setNumber];
-      if (!ssId) return;
+      // Self-heal: if maps are missing, try rehydrating from DB before bailing.
+      let seId = exerciseMap[ex.id];
+      let setIds = seId ? setMap[seId] : undefined;
+      let ssId = setIds?.[setNumber];
+      if ((!seId || !ssId) && sessionId) {
+        const hydrated = await ensureSessionHydrated();
+        if (hydrated) {
+          seId = hydrated.exerciseMap[ex.id];
+          setIds = seId ? hydrated.setMap[seId] : undefined;
+          ssId = setIds?.[setNumber];
+        }
+      }
+      if (!seId || !ssId) {
+        Toast.show({
+          type: "error",
+          text2: t("workout.ui.sessionSyncError"),
+          visibilityTime: 3000,
+        });
+        return;
+      }
 
       const alreadyLogged = (completedSetsMap[ex.exerciseLibraryId] ?? {})[setNumber] != null;
       if (!alreadyLogged) dispatch(incrementSetsLogged());
@@ -432,7 +486,7 @@ export const useWorkoutSession = () => {
         );
       }
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, isEditMode],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, isEditMode, ensureSessionHydrated, t],
   );
 
   /** Complete an exercise. Returns PR detail when this exercise broke a max_weight PR. */
@@ -445,8 +499,24 @@ export const useWorkoutSession = () => {
       const ex = sessionWorkout.exercises[exerciseIndex];
       if (!ex) return { prDetail: null };
 
-      const seId = exerciseMap[ex.id];
-      if (!seId) return { prDetail: null };
+      // Self-heal: rehydrate maps if missing before any session writes.
+      let seId = exerciseMap[ex.id];
+      let activeSetMap = setMap;
+      if (!seId && sessionId) {
+        const hydrated = await ensureSessionHydrated();
+        if (hydrated) {
+          seId = hydrated.exerciseMap[ex.id];
+          activeSetMap = hydrated.setMap;
+        }
+      }
+      if (!seId) {
+        Toast.show({
+          type: "error",
+          text2: t("workout.ui.sessionSyncError"),
+          visibilityTime: 3000,
+        });
+        return { prDetail: null };
+      }
 
       const alreadyCompleted = completedExerciseIds.includes(seId);
 
@@ -478,7 +548,7 @@ export const useWorkoutSession = () => {
 
       if (!userId || !sessionId) return { prDetail: null };
 
-      const setIds = setMap[seId] ?? [];
+      const setIds = activeSetMap[seId] ?? [];
       const lastSetId = setIds.length > 0 ? setIds[setIds.length - 1] : null;
 
       // Use actual logged values from this session, not planned values
@@ -603,7 +673,7 @@ export const useWorkoutSession = () => {
 
       return { prDetail };
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite, completedExerciseIds],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite, completedExerciseIds, ensureSessionHydrated, t],
   );
 
   /**
@@ -1011,6 +1081,7 @@ export const useWorkoutSession = () => {
     totalExercises,
     sessionId,
     startSession,
+    ensureSessionHydrated,
     navigateToExercise,
     navigateToRest,
     navigateToSessionComplete,

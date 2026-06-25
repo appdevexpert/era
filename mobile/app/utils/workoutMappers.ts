@@ -282,7 +282,14 @@ export function mapWorkoutPlan(
   }
 
   const currentWeek = getWeekForDay(data.weeks, currentDay) ?? data.weeks[0];
-  const phases = buildPhases(data.weeks, currentWeek, language);
+
+  // When on a rolled-over day, the user is calendar-wise AT the end of the
+  // phase (Mon/Tue right after the phase's last full week). For phase progress,
+  // treat them as being on the last week of that phase so the bar fills to 100%.
+  const phaseProgressWeek = activeAdjustedWeekNumber !== null
+    ? data.weeks.find((w) => w.week_number === activeAdjustedWeekNumber + 3) ?? currentWeek
+    : currentWeek;
+  const phases = buildPhases(data.weeks, phaseProgressWeek, language);
   const firstWeekDays = data.days
     .filter((day) => day.week_id === currentWeek?.id)
     .sort((a, b) => a.sort_order - b.sort_order);
@@ -435,10 +442,14 @@ export function mapExerciseList(
           const firstWeightedSet = exerciseSets.find((set) => set.target_weight_value);
           const rawUnit =
             exercise.initial_weight_unit ?? firstWeightedSet?.target_weight_unit ?? "kg";
-          const weight = formatWeight(
-            exercise.initial_weight_value ?? firstWeightedSet?.target_weight_value,
-            rawUnit === "lb" ? "lb" : "kg",
-          );
+          const weightUnit = rawUnit === "lb" ? "lb" : "kg";
+          const rawInitial =
+            exercise.initial_weight_value ?? firstWeightedSet?.target_weight_value;
+          const initialWeightKg =
+            rawInitial == null || rawInitial === ""
+              ? null
+              : Number(rawInitial);
+          const weight = formatWeight(rawInitial, weightUnit);
           const name = getLocalizedText(
             exercise.display_name_translations,
             language,
@@ -448,8 +459,12 @@ export function mapExerciseList(
 
           return {
             id: exercise.id,
+            exerciseLibraryId: exercise.exercise_id,
+            exerciseCategory: libraryExercise?.category ?? "compound",
             name,
             prescription: formatSetSummary(exerciseSets, language),
+            initialWeightKg: Number.isFinite(initialWeightKg) ? initialWeightKg : null,
+            weightUnit,
             weight: weight || undefined,
             showHandle: section.section_kind !== "treadmill_walk",
           };
@@ -474,21 +489,35 @@ function buildPhases(
     return acc;
   }, []);
 
-  return uniquePhases.map((label) => {
+  const currentPhaseLabel = currentWeek
+    ? getLocalizedText(currentWeek.focus_translations, language, currentWeek.focus ?? "")
+    : null;
+  const currentPhaseIndex = currentPhaseLabel
+    ? uniquePhases.indexOf(currentPhaseLabel)
+    : -1;
+
+  return uniquePhases.map((label, phaseIndex) => {
     const phaseWeeks = weeks.filter(
       (week) => getLocalizedText(week.focus_translations, language, week.focus ?? "") === label,
     );
-    const isActive = currentWeek
-      ? phaseWeeks.some((week) => week.id === currentWeek.id)
-      : false;
-    const currentIndex = currentWeek
-      ? phaseWeeks.findIndex((week) => week.id === currentWeek.id)
-      : -1;
+    const isActive = phaseIndex === currentPhaseIndex;
+
+    let progress: number;
+    if (currentPhaseIndex >= 0 && phaseIndex < currentPhaseIndex) {
+      // Past phase — fully filled
+      progress = 1;
+    } else if (isActive && currentWeek) {
+      const currentIndex = phaseWeeks.findIndex((week) => week.id === currentWeek.id);
+      progress = Math.max((currentIndex + 1) / phaseWeeks.length, 0.12);
+    } else {
+      // Future phase
+      progress = 0;
+    }
 
     return {
       label,
       active: isActive,
-      progress: isActive ? Math.max((currentIndex + 1) / phaseWeeks.length, 0.12) : 0,
+      progress,
     };
   });
 }

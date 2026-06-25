@@ -28,10 +28,15 @@ import { horizontalScale, verticalScale } from "@/app/utils/responsive";
 import { computeDateForDay, getToday } from "@/app/utils/programSchedule";
 import { getWeekdayLabel, mapExerciseList } from "@/app/utils/workoutMappers";
 import {
+  fetchUserExerciseStats,
   getCompletedSessionDetail,
   getDaySessionSummary,
   type DaySessionSummary,
+  type UserExerciseStat,
 } from "@/app/services/sessionService";
+import { getSuggestedExerciseWeight } from "@/app/utils/exerciseSuggestedWeight";
+import { formatWeightFromKg } from "@/app/utils/workoutFormatters";
+import type { SetFeedbackValue } from "@/app/utils/setSuggestion";
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -99,13 +104,34 @@ const MissedBanner = () => {
 const ExerciseRow = ({
   exercise,
   mode,
+  stats,
 }: {
   exercise: ExerciseListExerciseView;
   mode: DayStatus;
+  /** user_exercise_stats row keyed by this exercise's library id. */
+  stats?: UserExerciseStat;
 }) => {
   const { t } = useTranslation();
   const showWeight = mode === "active" || mode === "future";
   const showHandle = exercise.showHandle && mode === "active";
+
+  const suggestion = getSuggestedExerciseWeight({
+    initialWeightKg: exercise.initialWeightKg,
+    lastWeightKg: stats?.last_weight_value,
+    lastFeedback: stats?.last_set_feedback as SetFeedbackValue | null | undefined,
+    exerciseCategory: exercise.exerciseCategory,
+  });
+  const displayWeight =
+    suggestion.weightKg != null
+      ? formatWeightFromKg(
+          suggestion.weightKg,
+          exercise.weightUnit === "lb" ? "lb" : "kg",
+        )
+      : (exercise.weight ?? "");
+  const weightLabel =
+    suggestion.kind === "suggested"
+      ? t("workout.ui.suggestedWeight")
+      : t("workout.ui.initialWeight");
 
   return (
     <View style={styles.exerciseRow}>
@@ -116,10 +142,10 @@ const ExerciseRow = ({
         </Text>
         <Text style={styles.exercisePrescription}>{exercise.prescription}</Text>
       </View>
-      {showWeight && exercise.weight ? (
+      {showWeight && displayWeight ? (
         <View style={styles.weightBlock}>
-          <Text style={styles.weightLabel}>{t("workout.ui.initialWeight")}</Text>
-          <Text style={styles.weightValue}>{exercise.weight}</Text>
+          <Text style={styles.weightLabel}>{weightLabel}</Text>
+          <Text style={styles.weightValue}>{displayWeight}</Text>
         </View>
       ) : null}
     </View>
@@ -183,16 +209,23 @@ const SkippedExerciseRow = ({
 const ExerciseSection = ({
   section,
   mode,
+  statsByExerciseId,
 }: {
   section: ExerciseListSectionView;
   mode: DayStatus;
+  /** Map keyed by exercise_library_id → user_exercise_stats. */
+  statsByExerciseId: Map<string, UserExerciseStat>;
 }) => (
   <View style={styles.section}>
     <SectionHeader title={section.title} />
     <View style={styles.exerciseList}>
       {section.exercises.map((exercise, index) => (
         <View key={exercise.id}>
-          <ExerciseRow exercise={exercise} mode={mode} />
+          <ExerciseRow
+            exercise={exercise}
+            mode={mode}
+            stats={statsByExerciseId.get(exercise.exerciseLibraryId)}
+          />
           {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
         </View>
       ))}
@@ -249,6 +282,13 @@ const ExerciseListScreen = () => {
   // resolves; the loaded flag distinguishes "no session" from "still loading".
   const [sessionSummary, setSessionSummary] = useState<DaySessionSummary | null>(null);
   const [summaryLoaded, setSummaryLoaded] = useState(false);
+
+  // user_exercise_stats keyed by exercise_library_id. Refreshed every focus so
+  // the row labels flip from "INITIAL WT." to "SUGGESTED WT." as soon as the
+  // user logs their first set for a given exercise.
+  const [statsByExerciseId, setStatsByExerciseId] = useState<Map<string, UserExerciseStat>>(
+    () => new Map(),
+  );
 
   // Today's day allows Start Again even after the day flips to "completed";
   // past completed days stay locked (no restart). Compute the day's calendar
@@ -418,6 +458,35 @@ const ExerciseListScreen = () => {
     }, [user?.id, summaryProgramDayId, summaryEnabled]),
   );
 
+  // Refetch user_exercise_stats every focus for the exercises in this day so
+  // newly logged sets immediately flip "Initial WT." → "Suggested WT.".
+  const libraryIdsKey = useMemo(() => {
+    if (!workout) return "";
+    return workout.sections
+      .flatMap((s) => s.exercises.map((e) => e.exerciseLibraryId))
+      .sort()
+      .join("|");
+  }, [workout]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id || !libraryIdsKey) return;
+      const exerciseIds = libraryIdsKey.split("|").filter(Boolean);
+      if (exerciseIds.length === 0) return;
+      let cancelled = false;
+      fetchUserExerciseStats(user.id, exerciseIds)
+        .then((map) => {
+          if (cancelled) return;
+          setStatsByExerciseId(map);
+        })
+        .catch((err) => {
+          console.warn("[ExerciseList] fetchUserExerciseStats failed", err);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [user?.id, libraryIdsKey]),
+  );
+
   // Fetch completed session data when in completed mode
   useEffect(() => {
     if (dayStatus === "completed" && requestedDayId && user?.id && !completedFetchedRef.current) {
@@ -520,7 +589,12 @@ const ExerciseListScreen = () => {
             {/* Non-completed modes: show planned exercise sections */}
             {dayStatus !== "completed"
               ? workout.sections.map((section) => (
-                  <ExerciseSection key={section.id} section={section} mode={dayStatus} />
+                  <ExerciseSection
+                    key={section.id}
+                    section={section}
+                    mode={dayStatus}
+                    statsByExerciseId={statsByExerciseId}
+                  />
                 ))
               : null}
 

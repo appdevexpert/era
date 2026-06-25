@@ -44,10 +44,16 @@ const TimerLogScreen = () => {
     addSet,
     getSetCount,
     getExerciseComment,
+    ensureSessionHydrated,
   } = useWorkoutSession();
 
   const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
   const allowLeaveRef = useRef(false);
+
+  // Self-heal: rehydrate session maps if missing — same safety net as WorkoutLogScreen.
+  useEffect(() => {
+    void ensureSessionHydrated();
+  }, [ensureSessionHydrated]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {

@@ -173,8 +173,16 @@ export interface WorkoutPlanView {
 
 export interface ExerciseListExerciseView {
   id: string;
+  /** Exercise library id — needed to look up user_exercise_stats. */
+  exerciseLibraryId: string;
+  /** "compound" | "isolation" | "core" | "cardio" — drives smart-weight delta. */
+  exerciseCategory: string;
   name: string;
   prescription: string;
+  /** Program's baseline initial weight in kg (raw); shown as fallback before history. */
+  initialWeightKg: number | null;
+  /** Weight unit for display (kg | lb). */
+  weightUnit: string;
   weight?: string;
   showHandle: boolean;
 }

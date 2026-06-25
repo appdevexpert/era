@@ -1,6 +1,6 @@
 import GlassFill from "@/app/components/common/GlassFill";
 import { FONTS } from "@/app/constants/fonts";
-import { ChevronRight, LeaderboardBadge } from "@/assets/icons";
+import { ChevronRight, MedalPrRed } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
@@ -20,14 +20,15 @@ const LeaderboardCard = ({ onPress }: LeaderboardCardProps) => {
       onPress={onPress}
       style={styles.card}
     >
-      <GlassFill effect="clear" scheme="dark" style={styles.glass} />
-      <LinearGradient
-        pointerEvents="none"
-        colors={["rgba(201,168,76,0.25)", "rgba(241,203,48,0.25)"]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={[StyleSheet.absoluteFill, styles.glass]}
-      />
+      <View style={styles.bgClip} pointerEvents="none">
+        <GlassFill effect="clear" scheme="dark" style={styles.glass} />
+        <LinearGradient
+          colors={["rgba(201,168,76,0.25)", "rgba(241,203,48,0.25)"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
 
       <View style={styles.row}>
         <View style={styles.textCol}>
@@ -38,7 +39,7 @@ const LeaderboardCard = ({ onPress }: LeaderboardCardProps) => {
       </View>
 
       <View style={styles.badge} pointerEvents="none">
-        <LeaderboardBadge width={48} height={61} />
+        <MedalPrRed width={38} height={72} />
       </View>
     </PressableScale>
   );
@@ -50,9 +51,15 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     padding: 16,
-    overflow: "hidden",
     minHeight: 78,
     justifyContent: "center",
+    // overflow:visible so the medal ribbon can hang above the card top edge (matches Figma).
+  },
+  // Clips background layers (glass + gold gradient) to the card's rounded corners.
+  bgClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    overflow: "hidden",
   },
   glass: { borderRadius: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -72,13 +79,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     lineHeight: 14.4,
   },
+  // Medal hangs from the top of the card (ribbon overflows above by 5px to match Figma).
   badge: {
     position: "absolute",
-    top: "50%",
+    top: -5,
     right: 48,
-    marginTop: -12.5,
-    width: 48,
-    height: 61,
+    width: 38,
+    height: 72,
     alignItems: "center",
     justifyContent: "center",
   },

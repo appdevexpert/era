@@ -22,6 +22,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
+import Toast from "react-native-toast-message";
+import { useTranslation } from "react-i18next";
 import type { RootState } from "@/app/stores/store";
 import Animated, {
   Extrapolation,
@@ -36,6 +38,7 @@ const WorkoutLogScreen = () => {
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutLog">>();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const { t } = useTranslation();
 
   const {
     exerciseName,
@@ -47,7 +50,7 @@ const WorkoutLogScreen = () => {
     currentSet: startSet = 0, // 0-based set to resume from
   } = route.params;
 
-  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getExerciseComment } = useWorkoutSession();
+  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getExerciseComment, ensureSessionHydrated } = useWorkoutSession();
   const { formatted: timer } = useSessionTimer();
   const exercises = sessionWorkout?.exercises ?? [];
   const total = exercises.length;
@@ -124,6 +127,14 @@ const WorkoutLogScreen = () => {
     await addSet(exIdx);
   }, [canAddSet, addSet, exIdx]);
 
+  // Safety net: if the session's lookup maps (exerciseMap/setMap) somehow ended
+  // up empty while we landed here (app kill + reopen, partial init, redux-persist
+  // edge case), refetch from the DB before the user logs anything — otherwise
+  // logSetResult silently bails and "Exercise Completed" shows no set cards.
+  useEffect(() => {
+    void ensureSessionHydrated();
+  }, [ensureSessionHydrated]);
+
   // Exercise completed bottom sheet
   const sheetRef = useRef<BottomSheet>(null);
   const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
@@ -143,15 +154,29 @@ const WorkoutLogScreen = () => {
     [goToEx],
   );
 
+  /** Guard: weighted exercises require weight > 0 before logging. */
+  const ensureWeightLogged = useCallback(() => {
+    if (showWeight && weightKg <= 0) {
+      Toast.show({
+        type: "error",
+        text2: t("workout.ui.weightRequired"),
+        visibilityTime: 2500,
+      });
+      return false;
+    }
+    return true;
+  }, [showWeight, weightKg, t]);
+
   /** Complete Set (not last) → log + rest timer */
   const handleCompleteSet = useCallback(() => {
+    if (!ensureWeightLogged()) return;
     logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
     allowLeaveRef.current = true;
     navigateToRest(exIdx, activeSet + 2);
     setActiveSet((s) => s + 1);
     setFeedback(null);
     setComment("");
-  }, [weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult, navigateToRest]);
+  }, [ensureWeightLogged, weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult, navigateToRest]);
 
   /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
@@ -159,10 +184,11 @@ const WorkoutLogScreen = () => {
       sheetRef.current?.expand();
       return;
     }
+    if (!ensureWeightLogged()) return;
     lastSetLogged.current = true;
     logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
     sheetRef.current?.expand();
-  }, [weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult]);
+  }, [ensureWeightLogged, weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult]);
 
   /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
