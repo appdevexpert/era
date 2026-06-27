@@ -39,9 +39,11 @@ Everything in Standard, plus:
 - Total Session Volume + Lifetime Volume tracking
 - 12-week progression chart per exercise
 
-### Annual pricing (from 2026-04-14 — NOT restated 2026-06-12, reconfirm)
-- Standard annual: 799 NOK
-- Pro annual: 1599 NOK
+### Annual pricing (updated 2026-06-24)
+- Standard monthly: 99 NOK
+- Standard annual: 899 NOK
+- Pro monthly: 199 NOK
+- Pro annual: 1799 NOK
 
 ---
 
@@ -60,25 +62,79 @@ Confirmed by Khushali on 2026-04-14 that backend is structured this way.
 ### Products to create
 ```
 era_standard_monthly   → 99 NOK/month
-era_standard_annual    → 799 NOK/year   (reconfirm)
+era_standard_annual    → 899 NOK/year
 era_pro_monthly        → 199 NOK/month
-era_pro_annual         → 1599 NOK/year  (reconfirm)
+era_pro_annual         → 1799 NOK/year
 ```
 
 ### Entitlements
 - `standard` — unlocks Standard features
 - `pro` — unlocks Pro features AND everything in Standard (set hierarchy in RevenueCat offerings)
 
-### Code-side gating pattern
-```ts
-if (entitlement === 'pro') {
-  // show all features
-} else if (entitlement === 'standard') {
-  // show standard features only
-} else {
-  // free tier
-}
+### Code-side architecture (current implementation)
+
+**File map**
+
+| File | Role |
+|---|---|
+| `app/services/revenueCatService.ts` | Only file that imports `react-native-purchases` + `react-native-purchases-ui`. Owns the SDK config, the in-module tier cache, the subscriber registry, and the Supabase mirror. |
+| `app/services/profileService.ts` | `saveSubscriptionState(userId, snapshot)` — writes the tier/expiry/product into `profiles`. Idempotent, called by revenueCatService on every customerInfo update. |
+| `app/hooks/useEntitlement.ts` | Read-only hook. Returns `{ tier, isFree, hasStandard, hasPro }`. Subscribes to the service's cache for live updates. |
+| `app/hooks/useRequireEntitlement.ts` | **Action-gate hook.** Returns a function `(required: "standard" \| "pro") => boolean`. Inside an event handler, call it before doing gated work — falsy return means it already redirected the user to the paywall. |
+| `app/components/common/EntitlementGate.tsx` | **UI-section gate.** `<EntitlementGate requires="pro" fallback={...}>...</EntitlementGate>` — wraps any block of JSX that should disappear (or be replaced) for users below the required tier. |
+| `app/screen/home/PaywallScreen.tsx` | Single paywall screen. Inline `<RevenueCatUI.Paywall />`. Reachable from both onboarding (`source: "onboarding"`) and Profile (`source: "profile"`); the source param decides whether dismissal completes onboarding or pops back. |
+
+**Data flow**
+
 ```
+RC dashboard / Apple-Google purchase
+  → Purchases.addCustomerInfoUpdateListener fires
+  → revenueCatService.updateCachedTier(info)
+    → tier cache updated → useEntitlement consumers re-render
+    → mirrorToSupabase(userId, info, tier) → profiles row updated
+```
+
+**Identity flow**
+
+```
+SIGNED_IN (Supabase) → Navigation.tsx → identifyRevenueCatUser(user.id)
+  → Purchases.logIn(supabaseUserId) → RC App User ID == Supabase UID
+  → Subsequent customerInfo events know which user to mirror
+```
+
+### Gating patterns — pick the right one
+
+**Action gate (event handlers, ~80% of cases):**
+```tsx
+const requireEntitlement = useRequireEntitlement();
+
+const handleAddPhoto = () => {
+  if (!requireEntitlement("standard")) return; // bounced to paywall
+  // ...proceed
+};
+```
+
+**UI gate (whole sections / cards):**
+```tsx
+<EntitlementGate requires="pro" fallback={<ProUpgradeCard />}>
+  <NutritionGuidancePanel />
+</EntitlementGate>
+```
+
+**Conditional render (rarely needed):**
+```tsx
+const { hasPro } = useEntitlement();
+{hasPro && <ProBadge />}
+```
+
+### Supabase mirror columns (on `profiles`)
+| Column | Type | Purpose |
+|---|---|---|
+| `subscription_tier` | text, default `'free'`, CHECK in (`free`, `standard`, `pro`) | Current tier mirror |
+| `subscription_expires_at` | timestamptz | Renewal/expiry from RC |
+| `subscription_product_id` | text | e.g. `era_pro_monthly` |
+
+RLS: `profiles_update_self` already lets the user write their own row. The mirror is convenience-only — RC stays source of truth, and Phase 2 will swap client writes for an authoritative RC webhook → Supabase edge function.
 
 ### Access status (as of 2026-06-08)
 - RevenueCat admin invite sent by Rami to `appeneuretech@gmail.com` — confirm received before starting.
@@ -143,11 +199,9 @@ Edge cases:
    - Total + Lifetime Volume → added to current sprint on 2026-06-03
    - 12-week progression chart → status unclear
 
-2. **Reconfirm annual pricing** (799 NOK / 1599 NOK) — not in latest message.
+2. **Confirm RevenueCat admin invite accepted** by `appeneuretech@gmail.com`.
 
-3. **Confirm RevenueCat admin invite accepted** by `appeneuretech@gmail.com`.
-
-4. **Landing page on erafit.no** — must be live before App Store submission.
+3. **Landing page on erafit.no** — must be live before App Store submission.
 
 ---
 

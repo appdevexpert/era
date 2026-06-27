@@ -1,6 +1,16 @@
 /**
- * Ephemeral session state — lives only during an active workout.
- * NOT persisted to AsyncStorage. Resets on app restart.
+ * Active workout session state. Persisted to AsyncStorage (see sessionPersistConfig
+ * in store.ts) so a mid-session app kill, force-quit, or OS-memory eviction
+ * doesn't lose the user's progress — they can resume exactly where they were.
+ *
+ * Lifecycle:
+ *   - startSession → initSession() repopulates everything for the new day
+ *   - finishSession → resetSession() clears it back to initial
+ *   - sign-out also clears via the signOutThunk extraReducer
+ *
+ * Pairs with the local-first sync queue: IDs in here are client-generated UUIDs,
+ * so all writes (set log, complete exercise, etc.) can run offline using these
+ * IDs directly, while the row inserts queue up for the next online flush.
  */
 
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
@@ -36,6 +46,12 @@ export interface LastLoggedSetSnapshot {
 
 interface SessionState {
   sessionId: string | null;
+  /**
+   * Which program day this active session belongs to. Used at WorkoutScreen
+   * mount to decide whether the persisted Redux session can be resumed for
+   * the day the user is opening, or whether a fresh session has to be created.
+   */
+  programDayId: string | null;
   /** programDayExerciseId → sessionExerciseId */
   exerciseMap: Record<string, string>;
   /** sessionExerciseId → sessionSetId[] */
@@ -69,6 +85,7 @@ interface SessionState {
 
 const initialState: SessionState = {
   sessionId: null,
+  programDayId: null,
   exerciseMap: {},
   setMap: {},
   setsLogged: 0,
@@ -91,11 +108,13 @@ const sessionSlice = createSlice({
       state,
       action: PayloadAction<{
         sessionId: string;
+        programDayId: string;
         exerciseMap: Record<string, string>;
         setMap: Record<string, string[]>;
       }>,
     ) {
       state.sessionId = action.payload.sessionId;
+      state.programDayId = action.payload.programDayId;
       state.exerciseMap = action.payload.exerciseMap;
       state.setMap = action.payload.setMap;
       state.setsLogged = 0;
@@ -103,6 +122,8 @@ const sessionSlice = createSlice({
       state.completedSets = {};
       state.completedExerciseIds = [];
       state.exerciseComments = {};
+      state.suggestedWeightBySetId = {};
+      state.sessionStartedAt = null;
       state.isEditMode = false;
     },
     /**
@@ -208,6 +229,12 @@ const sessionSlice = createSlice({
       }
     },
     clearSession: () => initialState,
+    /**
+     * Wipes the active session. Called from finishSession after the workout
+     * is complete so the next day starts clean. Keep this in sync with
+     * `initialState` — adding a new field above requires resetting it here.
+     */
+    resetSession: () => initialState,
   },
   extraReducers: (builder) => {
     builder.addCase(signOutThunk.fulfilled, () => initialState);
@@ -226,6 +253,7 @@ export const {
   setSuggestedWeights,
   clearSuggestedWeights,
   clearSession,
+  resetSession,
   hydrateCompletedSets,
   hydrateCompletedExerciseIds,
   markExerciseCompleted,

@@ -1,3 +1,4 @@
+import EntitlementGate from "@/app/components/common/EntitlementGate";
 import SuccessBanner from "@/app/components/progress/SuccessBanner";
 import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/WeightProgressChart";
 import { FONTS } from "@/app/constants/fonts";
@@ -63,14 +64,18 @@ const WeightStatsCard = ({
         ) : null}
       </View>
 
-      <WeightProgressChart
-        data={chartData}
-        xTickLabels={chartXTickLabels}
-        yMin={chartYMin}
-        yMax={chartYMax}
-        yStep={chartYStep}
-        pageSize={5}
-      />
+      {/* Full graph view is Standard+ — free users see the current/heaviest
+          numbers above but not the historical chart. */}
+      <EntitlementGate requires="standard">
+        <WeightProgressChart
+          data={chartData}
+          xTickLabels={chartXTickLabels}
+          yMin={chartYMin}
+          yMax={chartYMax}
+          yStep={chartYStep}
+          pageSize={5}
+        />
+      </EntitlementGate>
 
       <SuccessBanner text={bannerText} />
 

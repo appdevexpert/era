@@ -9,6 +9,7 @@ import {
   type CycleChoice,
   startNextCycle,
 } from "@/app/services/assignmentService";
+import { useRequireEntitlement } from "@/app/hooks/useRequireEntitlement";
 import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import { AltArrowLeft } from "@/assets/icons";
@@ -38,6 +39,9 @@ const WhatComesNowScreen = () => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const gender = useSelector((s: RootState) => s.onboarding.goalData.gender);
+  // Bro Split is a Standard+ unlock per PAYMENT_FEATURE.md. Free users
+  // tapping Confirm with "next" selected get bounced to the paywall.
+  const requireEntitlement = useRequireEntitlement();
 
   const [selected, setSelected] = useState<ChoiceKey>("restart");
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +66,7 @@ const WhatComesNowScreen = () => {
 
   const handleConfirm = async () => {
     if (submitting) return;
+    if (selected === "next" && !requireEntitlement("standard")) return;
     setSubmitting(true);
     try {
       await startNextCycle(CHOICE_TO_RPC[selected]);

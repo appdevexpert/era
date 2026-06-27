@@ -12,7 +12,11 @@
  * the auto-restart trigger that watches assignment.started_at.
  */
 
-/** Matches the planned_set_kind Postgres enum. */
+/**
+ * Matches the planned_set_kind Postgres enum.
+ * Note: "warmup" remains in the enum for DB parity, but Rami locked
+ * "no warm-up sets" 2026-06-25 — new program seeds must not emit warmup rows.
+ */
 export type PlannedSetKind =
   | "warmup"
   | "working"

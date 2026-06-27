@@ -1,8 +1,13 @@
 import { NavigatorScreenParams } from "@react-navigation/native";
 
+export type PaywallParams = {
+  source?: "onboarding" | "profile";
+};
+
 export type OnboardingStackParamList = {
   Setting: undefined;
   Onboarding: undefined;
+  Paywall: PaywallParams | undefined;
 };
 
 export type AuthStackParamList = {
@@ -166,6 +171,7 @@ export type HomeStackParamList = {
   TwelveWeekCompletion: undefined;
   WhatComesNow: undefined;
   Cycle2Begins: undefined;
+  Paywall: PaywallParams | undefined;
 };
 
 export type RootStackParamList = {

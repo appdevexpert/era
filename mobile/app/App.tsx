@@ -11,10 +11,15 @@ import { PersistGate } from "redux-persist/integration/react";
 import IntroVideoSplash from "./components/common/IntroVideoSplash";
 import { toastConfig } from "./components/common/toastConfig";
 import Navigation from "./navigation/Navigation";
+import { configureRevenueCat } from "./services/revenueCatService";
 import { persistor, store } from "./stores/store";
 import "./locales/i18n";
 
 SplashScreen.preventAutoHideAsync();
+
+// RC SDK init runs at module scope so it's ready before any screen mounts.
+// configureRevenueCat is idempotent; the service owns its own listener.
+configureRevenueCat();
 
 const App = () => {
   const [fontsLoaded] = useFonts({

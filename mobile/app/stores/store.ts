@@ -47,6 +47,31 @@ const syncPersistConfig = {
   storage: AsyncStorage,
   whitelist: ["queue"],
 };
+// Active workout session is persisted so a mid-workout app kill (OS memory
+// pressure, force-quit, crash) doesn't make the user lose their progress.
+// Pairs with the local-first sync queue: the IDs in here are client-generated
+// UUIDs, and the row inserts they reference are queued separately. Anything
+// purely ephemeral / runtime-derived stays OUT of this whitelist on purpose
+// (e.g. exerciseStats + lastLoggedSetsByExercise are refetched on resume so
+// they reflect the latest historical data).
+const sessionPersistConfig = {
+  key: "session",
+  storage: AsyncStorage,
+  whitelist: [
+    "sessionId",
+    "programDayId",
+    "exerciseMap",
+    "setMap",
+    "setsLogged",
+    "exercisesCompleted",
+    "sessionStartedAt",
+    "completedSets",
+    "completedExerciseIds",
+    "exerciseComments",
+    "suggestedWeightBySetId",
+    "isEditMode",
+  ],
+};
 
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 const persistedOnboardingReducer = persistReducer(onboardingPersistConfig, onboardingReducer);
@@ -54,13 +79,14 @@ const persistedPreferencesReducer = persistReducer(preferencesPersistConfig, pre
 const persistedWorkoutReducer = persistReducer(workoutPersistConfig, workoutReducer);
 const persistedNutritionReducer = persistReducer(nutritionPersistConfig, nutritionReducer);
 const persistedSyncReducer = persistReducer(syncPersistConfig, syncReducer);
+const persistedSessionReducer = persistReducer(sessionPersistConfig, sessionReducer);
 
 const combinedReducer = combineReducers({
   auth: persistedAuthReducer,
   onboarding: persistedOnboardingReducer,
   workout: persistedWorkoutReducer,
   nutrition: persistedNutritionReducer,
-  session: sessionReducer,
+  session: persistedSessionReducer,
   sync: persistedSyncReducer,
   reward: rewardReducer,
   weight: weightReducer,

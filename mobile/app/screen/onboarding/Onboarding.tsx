@@ -1,8 +1,11 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { completeOnboarding, setHasGoals } from '@/app/stores/slice/authSlice'
+import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+
 import { submitGoalData, updateGoalData } from '@/app/stores/slice/onboardingSlice'
 import { useAppDispatch } from '@/app/stores/store'
+import type { OnboardingStackParamList } from '@/app/navigation/types'
 import OnboardingLayout from '@/app/components/common/OnboardingLayout'
 import GenderStep from './steps/GenderStep'
 import AgeStep from './steps/AgeStep'
@@ -13,11 +16,10 @@ import AdvancedFocusStep from './steps/AdvancedFocusStep'
 import FrictionStep from './steps/FrictionStep'
 import WeightStep, { type WeightUnit } from './steps/WeightStep'
 import HeightStep, { type HeightUnit } from './steps/HeightStep'
-import RevenueCatPaywallStep from './steps/RevenueCatPaywallStep'
 
-const TOTAL_STEPS = 9
+const STEPS = ['gender', 'age', 'level', 'goal', 'focus', 'friction', 'weight', 'height'] as const
 
-const STEPS = ['gender', 'age', 'level', 'goal', 'focus', 'friction', 'weight', 'height', 'paywall'] as const
+const TOTAL_STEPS = STEPS.length
 
 interface Selections {
   gender: string | null
@@ -36,6 +38,8 @@ interface Selections {
 const Onboarding = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const navigation =
+    useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>()
   const [stepIndex, setStepIndex] = useState(0)
   const [direction, setDirection] = useState<'forward' | 'back'>('forward')
   const [selections, setSelections] = useState<Selections>({
@@ -56,18 +60,15 @@ const Onboarding = () => {
   const isAdvancedFocusStep = currentStepKey === 'focus' && selections.level === 'advanced'
   const layoutStepKey = isAdvancedFocusStep ? 'advancedFocus' : currentStepKey
   const currentValue =
-    currentStepKey === 'paywall'
-      ? true
-      : currentStepKey === 'age'
-        ? selections.birthYear
-        : isAdvancedFocusStep
-          ? selections.advancedFocus
-          : selections[currentStepKey]
+    currentStepKey === 'age'
+      ? selections.birthYear
+      : isAdvancedFocusStep
+        ? selections.advancedFocus
+        : selections[currentStepKey]
   const buttonDisabled =
     currentStepKey === 'age' ||
     currentStepKey === 'weight' ||
-    currentStepKey === 'height' ||
-    currentStepKey === 'paywall'
+    currentStepKey === 'height'
       ? false
       : Array.isArray(currentValue)
         ? currentValue.length === 0
@@ -77,8 +78,7 @@ const Onboarding = () => {
     if (
       currentStepKey === 'age' ||
       currentStepKey === 'weight' ||
-      currentStepKey === 'height' ||
-      currentStepKey === 'paywall'
+      currentStepKey === 'height'
     ) return
 
     const nextSelections: Selections = {
@@ -145,14 +145,12 @@ const Onboarding = () => {
       setDirection('forward')
       setStepIndex(stepIndex + 1)
     } else {
-      // Auth-first flow: the user is already signed in by the time they
-      // reach the final step, so we own `auth.user.id` and can push goals
-      // directly. Fire-and-forget — flipping hasGoals immediately routes
-      // the user to PlanGeneration; if the upsert fails the sync queue
-      // (and the next loadWorkoutBootstrap retry) handles it.
+      // Last measurement step finished. Push goals to Supabase in the
+      // background and route the user to the standalone Paywall screen —
+      // PaywallScreen handles the actual completion of onboarding once the
+      // user buys or dismisses, so the navigator can switch stacks then.
       void dispatch(submitGoalData())
-      dispatch(completeOnboarding())
-      dispatch(setHasGoals(true))
+      navigation.navigate('Paywall', { source: 'onboarding' })
     }
   }
 
@@ -171,7 +169,6 @@ const Onboarding = () => {
       heading={t(`onboarding.steps.${layoutStepKey}.heading`)}
       description={t(`onboarding.steps.${layoutStepKey}.description`)}
       buttonDisabled={buttonDisabled}
-      showHeader={currentStepKey !== 'paywall'}
       direction={direction}
       onNext={handleNext}
       onBack={stepIndex > 0 ? handleBack : undefined}
@@ -216,9 +213,6 @@ const Onboarding = () => {
           weight={weightInKg}
           onChange={handleHeightChange}
         />
-      )}
-      {currentStepKey === 'paywall' && (
-        <RevenueCatPaywallStep />
       )}
     </OnboardingLayout>
   )

@@ -169,6 +169,29 @@ const nb = {
         description: "",
         placeholderTitle: "Betalingsside",
         placeholderSubtitle: "Kommer snart",
+        loading: "Laster abonnementer...",
+        retry: "Prøv igjen",
+        empty: "Abonnementene er utilgjengelige akkurat nå. Prøv igjen om litt.",
+        tierToggle: {
+          standard: "Standard",
+          pro: "Pro",
+        },
+        period: {
+          monthly: "Månedlig",
+          annual: "Årlig",
+          perMonth: "/ måned",
+          perYear: "/ år",
+        },
+        annualBadge: "Beste verdi",
+        cta: "Start abonnement",
+        ctaActive: "Du er abonnent",
+        restore: "Gjenopprett kjøp",
+        skip: "Kanskje senere",
+        success: "Abonnementet er aktivt",
+        errors: {
+          purchaseFailed: "Kjøpet mislyktes. Prøv igjen.",
+          restoreFailed: "Ingen kjøp å gjenopprette.",
+        },
       },
       calories: {
         title: "Kalorier",
@@ -299,6 +322,7 @@ const nb = {
   profile: {
     fallbackName: "Bruker",
     sections: {
+      subscription: "Abonnement",
       appSettings: "App-innstillinger",
       support: "Støtte",
       sessionManagement: "Øktbehandling",
@@ -317,7 +341,15 @@ const nb = {
     deleteAccountFailedTitle: "Kunne ikke slette konto",
     version: "ERA v1.0.0",
     freeTrial: "ERA Gratis prøveperiode",
+    tierLabel: {
+      free: "ERA Gratis",
+      standard: "ERA Standard",
+      pro: "ERA Pro",
+    },
     manageSubscription: "Administrer abonnement",
+    upgradePlan: "Oppgrader abonnement",
+    upgradeFailed: "Kunne ikke åpne paywall. Prøv igjen.",
+    freePlanCta: "Oppgrader for full tilgang",
     daysLeft: "{{count}} dager igjen",
     eraPoints: "ERA-poeng",
     dayStreak: "dagers rekke",
@@ -450,6 +482,7 @@ const nb = {
     subscription: {
       title: "Administrer abonnement",
       active: "Aktiv",
+      manageInStore: "Avbryt eller bytt abonnement",
       standard: {
         name: "ERA Standard",
         price: "NOK 99/måned",
@@ -461,6 +494,7 @@ const nb = {
           "Opptil 5 venner i sosial konkurranse",
           "Progresjonsbilder",
         ],
+        cta: "Oppgrader til Standard",
       },
       pro: {
         name: "ERA PRO",
@@ -734,6 +768,9 @@ const nb = {
       sessionSyncError: "Treningsøkten er ute av synk. Start denne økten på nytt.",
       exerciseCompleted: "Øvelse fullført",
       topSet: "Beste sett",
+      weightLabel: "Vekt",
+      startingWeightHint: "Velg startvekt",
+      nextSetHint: "Neste sett: {{weight}} {{unit}}",
       newPR: "Ny personlig rekord",
       eraPoints: "+{{count}} ERA-poeng",
       previousBest: "Forrige beste: {{value}}",

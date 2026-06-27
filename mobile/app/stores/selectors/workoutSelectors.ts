@@ -33,7 +33,12 @@ export const buildSessionWorkout = (
 ): SessionWorkout | null => {
   const detail = state.workout.currentDayDetail;
   const isDeloadWeek = state.workout.assignment?.is_deload_week === true;
-  return detail ? mapSessionWorkout(detail, language, { isDeloadWeek }) : null;
+  const program = state.workout.overview?.program;
+  const usesTopSetBackoff =
+    program?.gender === "male" && program?.level === "advanced";
+  return detail
+    ? mapSessionWorkout(detail, language, { isDeloadWeek, usesTopSetBackoff })
+    : null;
 };
 
 /** Current week number (1..totalWeeks) based on programStartDate, or null when unknown. */

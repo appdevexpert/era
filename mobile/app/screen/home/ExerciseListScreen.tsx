@@ -34,6 +34,7 @@ import {
   type DaySessionSummary,
   type UserExerciseStat,
 } from "@/app/services/sessionService";
+import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { getSuggestedExerciseWeight } from "@/app/utils/exerciseSuggestedWeight";
 import { formatWeightFromKg } from "@/app/utils/workoutFormatters";
 import type { SetFeedbackValue } from "@/app/utils/setSuggestion";
@@ -112,13 +113,18 @@ const ExerciseRow = ({
   stats?: UserExerciseStat;
 }) => {
   const { t } = useTranslation();
+  // Smart Weight suggestion is Standard+ — free users always see the
+  // program's initial weight, never the history-derived recommendation.
+  const { hasStandard } = useEntitlement();
   const showWeight = mode === "active" || mode === "future";
   const showHandle = exercise.showHandle && mode === "active";
 
   const suggestion = getSuggestedExerciseWeight({
     initialWeightKg: exercise.initialWeightKg,
-    lastWeightKg: stats?.last_weight_value,
-    lastFeedback: stats?.last_set_feedback as SetFeedbackValue | null | undefined,
+    lastWeightKg: hasStandard ? stats?.last_weight_value : undefined,
+    lastFeedback: hasStandard
+      ? (stats?.last_set_feedback as SetFeedbackValue | null | undefined)
+      : null,
     exerciseCategory: exercise.exerciseCategory,
   });
   const displayWeight =

@@ -10,6 +10,7 @@ import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale } from "@/app/utils/responsive";
+import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
@@ -51,6 +52,9 @@ const WorkoutLogScreen = () => {
   } = route.params;
 
   const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getExerciseComment, ensureSessionHydrated } = useWorkoutSession();
+  // Smart Weight Engine = Standard+ only. Free users get the planned weight
+  // with no inter-session or intra-session auto-adjustment.
+  const { hasStandard } = useEntitlement();
   const { formatted: timer } = useSessionTimer();
   const exercises = sessionWorkout?.exercises ?? [];
   const total = exercises.length;
@@ -62,11 +66,13 @@ const WorkoutLogScreen = () => {
   // Smart weight adjustment — if a previous set's feedback produced a
   // suggested weight for the set we're about to log, prefill from it.
   // Falls back to the per-set planned weight, then the exercise's default.
-  const suggestedWeight = useSelector((state: RootState) => {
+  // Standard+ only — free users never see the suggestion side of the engine.
+  const suggestedWeightRaw = useSelector((state: RootState) => {
     const seId = currentEx ? state.session.exerciseMap[currentEx.id] : undefined;
     const ssId = seId ? state.session.setMap[seId]?.[startSet] : undefined;
     return ssId ? state.session.suggestedWeightBySetId[ssId] : undefined;
   });
+  const suggestedWeight = hasStandard ? suggestedWeightRaw : undefined;
   // Previously-logged value for this exact (exercise, set) pair — highest
   // priority on initial mount so a revisit or Start Again shows what was saved.
   const previouslyLogged = useSelector((state: RootState) => {
@@ -76,7 +82,8 @@ const WorkoutLogScreen = () => {
   // Inter-session seed: last logged set (across ALL prior completed sessions)
   // for this exercise + set_number, adjusted by that set's feedback.
   // Falls back to the last available set index if Day 2 has more sets than Day 1.
-  const interSessionSeed = useSelector((state: RootState) => {
+  // Standard+ only — free users keep the planned weight as the starting point.
+  const interSessionSeedRaw = useSelector((state: RootState) => {
     if (!currentEx) return undefined;
     const byIdx = state.session.lastLoggedSetsByExercise[currentEx.exerciseLibraryId];
     if (!byIdx) return undefined;
@@ -92,6 +99,7 @@ const WorkoutLogScreen = () => {
     });
     return seed ?? undefined;
   });
+  const interSessionSeed = hasStandard ? interSessionSeedRaw : undefined;
   const plannedWeightForSet =
     currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 0;
   // Canonical kg. The ruler displays/edits in the user's preferred unit; we
@@ -297,7 +305,18 @@ const WorkoutLogScreen = () => {
           {showWeight ? (
             <View style={styles.rulerFullWidth}>
               <WeightRuler
-                label="Weight"
+                label={
+                  previouslyLogged?.weight != null
+                    || suggestedWeight != null
+                    || interSessionSeed != null
+                    ? t("workout.ui.nextSetHint", {
+                        weight: weightDisplay,
+                        unit: weightUnitLabel,
+                      })
+                    : weightKg > 0
+                      ? t("workout.ui.weightLabel")
+                      : t("workout.ui.startingWeightHint")
+                }
                 unit={weightUnitLabel}
                 value={weightDisplay}
                 onValueChange={handleWeightChange}

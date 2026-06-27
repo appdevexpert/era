@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { COLORS } from '@/app/constants/colors'
 import { FONTS } from '@/app/constants/fonts'
 import AnimatedSelectableCard from '@/app/components/common/AnimatedSelectableCard'
+import { useRequireEntitlement } from '@/app/hooks/useRequireEntitlement'
 import { IconFlag, IconBolt, IconDumbbell } from '@/assets/icons'
 import type { FC } from 'react'
 import type { SvgProps } from 'react-native-svg'
@@ -21,6 +22,14 @@ const LEVELS: { key: string; icon: FC<SvgProps> }[] = [
 
 const LevelStep = ({ value, onSelect }: LevelStepProps) => {
   const { t } = useTranslation()
+  // Intermediate + Advanced levels are Standard+ — free users tapping
+  // them get bounced to the paywall. They can dismiss and pick Beginner.
+  const requireEntitlement = useRequireEntitlement()
+
+  const handleSelect = (key: string) => {
+    if (key !== 'beginner' && !requireEntitlement('standard')) return
+    onSelect(key)
+  }
 
   return (
     <View style={styles.container}>
@@ -28,7 +37,7 @@ const LevelStep = ({ value, onSelect }: LevelStepProps) => {
         const isSelected = value === key
 
         return (
-          <PressableScale key={key} onPress={() => onSelect(key)}>
+          <PressableScale key={key} onPress={() => handleSelect(key)}>
             <AnimatedSelectableCard selected={isSelected} contentStyle={styles.cardContent}>
               <View style={styles.cardHeader}>
                 <Icon width={24} height={24} />

@@ -1,8 +1,9 @@
 import {
   BACKOFF_MULTIPLIER,
+  WEIGHT_DELTA_CORRECT,
+  WEIGHT_DELTA_HEAVY,
+  WEIGHT_DELTA_LIGHT,
   WEIGHT_ROUND_TO,
-  WEIGHT_STEP_COMPOUND,
-  WEIGHT_STEP_ISOLATION,
 } from "@/app/constants/workout";
 import type { SessionExerciseSet } from "@/app/types/workout";
 
@@ -13,7 +14,7 @@ import type { SessionExerciseSet } from "@/app/types/workout";
 // the same exercise based on the user's feedback. Same-tier rule:
 //
 //   top_set → top_set : weight ± delta
-//   top_set → backoff : (weight ± delta) × 0.9, rounded to 2.5 kg
+//   top_set → backoff : (weight ± delta) × BACKOFF_MULTIPLIER, rounded to 2.5 kg
 //   top_set → working : weight ± delta  (working treated as a lift)
 //   working → working : weight ± delta
 //   working → backoff : no suggestion (no top reference)
@@ -21,9 +22,10 @@ import type { SessionExerciseSet } from "@/app/types/workout";
 //   backoff → top/working : no suggestion (don't propagate up)
 //   anything → core/cardio : no suggestion
 //
-// Delta:
-//   compound  light_weight = +2.5 kg  | felt_heavy = -2.5 kg | correct = 0
-//   isolation light_weight = +1.25 kg | felt_heavy = -1.25 kg| correct = 0
+// Delta (Rami 2026-06-25, universal across compound + isolation):
+//   light_weight   = +5 kg
+//   correct_weight = +2.5 kg  (steady progression, no longer flat)
+//   felt_heavy     = -5 kg
 // =====================================================================
 
 export type SetFeedbackValue = "light_weight" | "correct_weight" | "felt_heavy";
@@ -31,6 +33,10 @@ export type SetFeedbackValue = "light_weight" | "correct_weight" | "felt_heavy";
 export interface ComputeSuggestionInput {
   loggedWeight: number | null;
   feedback: SetFeedbackValue | null;
+  /**
+   * Retained for callsite compatibility — the universal Rami delta (2026-06-25)
+   * no longer scales by compound vs isolation. Safe to pass any string.
+   */
   exerciseCategory: string;
   currentSetKind: string;
   nextSetKind: string;
@@ -44,14 +50,13 @@ export interface ComputeSuggestionInput {
 export function computeNextSetWeight({
   loggedWeight,
   feedback,
-  exerciseCategory,
   currentSetKind,
   nextSetKind,
 }: ComputeSuggestionInput): number | null {
   if (loggedWeight == null || feedback == null) return null;
   if (nextSetKind === "core" || nextSetKind === "cardio") return null;
 
-  const delta = pickDelta(feedback, exerciseCategory);
+  const delta = pickDelta(feedback);
   const newReferenceWeight = Math.max(0, loggedWeight + delta);
 
   if (currentSetKind === "top_set") {
@@ -167,12 +172,10 @@ export function computeInterSessionSeed({
 
 // -------- helpers ----------------------------------------------------
 
-function pickDelta(feedback: SetFeedbackValue, exerciseCategory: string): number {
-  if (feedback === "correct_weight") return 0;
-  const step = exerciseCategory === "compound"
-    ? WEIGHT_STEP_COMPOUND
-    : WEIGHT_STEP_ISOLATION;
-  return feedback === "light_weight" ? step : -step;
+function pickDelta(feedback: SetFeedbackValue): number {
+  if (feedback === "light_weight") return WEIGHT_DELTA_LIGHT;
+  if (feedback === "correct_weight") return WEIGHT_DELTA_CORRECT;
+  return WEIGHT_DELTA_HEAVY;
 }
 
 function roundToStep(value: number, step: number): number {

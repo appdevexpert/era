@@ -75,7 +75,7 @@ export async function getWorkoutOverview(
   const programResult = await supabase
     .from("workout_programs")
     .select(
-      "id,title,title_translations,duration_weeks,days_per_week",
+      "id,title,title_translations,duration_weeks,days_per_week,gender,level",
     )
     .eq("id", programId)
     .single();

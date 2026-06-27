@@ -8,6 +8,7 @@ import SettingsCard from "@/app/components/common/SettingsCard";
 import SettingsRow from "@/app/components/common/SettingsRow";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
@@ -21,6 +22,7 @@ import { RootState, useAppDispatch } from "@/app/stores/store";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import { verticalScale } from "@/app/utils/responsive";
 import {
+  FluentPremium,
   InfoCircleGold,
   MedalBadge,
   ProfileBackChevron,
@@ -52,6 +54,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const Chevron = () => <SettingChevronRight width={24} height={24} />;
 const ChevronDanger = () => <SettingChevronRightDanger width={24} height={24} />;
 
+/**
+ * Map a RevenueCat product id + remaining days to a 0..1 billing progress
+ * fraction shown on the ProfileCard bar. Annual plans use a 365-day window,
+ * everything else falls back to monthly (~30 days). Returns 0 when we can't
+ * derive a period (e.g. free user, missing product id).
+ */
+const computeBillingProgress = (
+  productId: string | null,
+  daysRemaining: number | null,
+): number => {
+  if (productId == null || daysRemaining == null) return 0;
+  const periodDays = productId.endsWith("_annual") ? 365 : 30;
+  const consumed = Math.max(0, periodDays - daysRemaining);
+  return Math.min(1, consumed / periodDays);
+};
+
 const ProfileScreen = () => {
   const dispatch = useAppDispatch();
   const insets = useSafeAreaInsets();
@@ -60,6 +78,7 @@ const ProfileScreen = () => {
   const { t, i18n } = useTranslation();
   const subscriptionSheetRef = useRef<ManageSubscriptionBottomSheetRef>(null);
   const { unit: weightUnit, setUnit: setWeightUnitPref } = useWeightUnit();
+  const { tier, productId, daysRemaining } = useEntitlement();
 
   const user = useSelector(selectUser);
   const authStatus = useSelector((state: RootState) => state.auth.loadingStatus);
@@ -115,6 +134,8 @@ const ProfileScreen = () => {
     if (!isLoggingOut && !isDeleting) dispatch(signOutThunk());
   };
 
+  const handleOpenPaywall = () => navigation.navigate("Paywall");
+
   const handleDeleteAccount = () => {
     if (isLoggingOut || isDeleting) return;
     Alert.alert(
@@ -159,11 +180,21 @@ const ProfileScreen = () => {
           name={displayName}
           uid={uid}
           metaLine={metaLine}
-          subscriptionLabel={t("profile.freeTrial")}
-          manageLabel={t("profile.manageSubscription")}
-          daysLeftLabel={t("profile.daysLeft", { count: 3 })}
-          progress={0.78}
-          onManagePress={() => subscriptionSheetRef.current?.show()}
+          subscriptionLabel={t(`profile.tierLabel.${tier}`)}
+          manageLabel={t(tier === "free" ? "profile.upgradePlan" : "profile.manageSubscription")}
+          daysLeftLabel={
+            tier === "free"
+              ? t("profile.freePlanCta")
+              : daysRemaining != null
+                ? t("profile.daysLeft", { count: daysRemaining })
+                : ""
+          }
+          progress={computeBillingProgress(productId, daysRemaining)}
+          onManagePress={() =>
+            tier === "free"
+              ? navigation.navigate("Paywall")
+              : subscriptionSheetRef.current?.show()
+          }
         />
 
         <View style={styles.statsRow}>
@@ -171,6 +202,16 @@ const ProfileScreen = () => {
           <StatCard value={String(currentStreak)} label={t("profile.dayStreak")} />
           <StatCard value={String(completedWorkouts)} label={t("profile.workouts")} />
         </View>
+
+        <SectionTitle>{t("profile.sections.subscription")}</SectionTitle>
+        <SettingsCard>
+          <SettingsRow
+            icon={<FluentPremium width={24} height={24} />}
+            label={t("profile.upgradePlan")}
+            right={<Chevron />}
+            onPress={handleOpenPaywall}
+          />
+        </SettingsCard>
 
         <SectionTitle>{t("profile.sections.appSettings")}</SectionTitle>
         <SettingsCard>

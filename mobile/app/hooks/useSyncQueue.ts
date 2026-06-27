@@ -3,7 +3,7 @@
  * Provides enqueueWrite() for the session hook and flushQueue() for app mount.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import {
@@ -13,6 +13,7 @@ import {
   setFlushing,
 } from "@/app/stores/slice/syncSlice";
 import * as sessionService from "@/app/services/sessionService";
+import type { SessionExercise, SessionExerciseSet } from "@/app/types/workout";
 import {
   deleteMealLog,
   deleteWaterLog,
@@ -43,6 +44,64 @@ export const useSyncQueue = () => {
   const serviceMap = useMemo<Record<string, Handler>>(
     () => ({
       // -------- workout session ---------------------------------------
+      // Session bootstrap (offline-safe via client-generated UUIDs). The
+      // service layer treats PG 23505 duplicate-key as success, so a queued
+      // retry of a write that actually landed will dequeue cleanly.
+      createWorkoutSession: (p) =>
+        sessionService.createWorkoutSession(p as {
+          id: string;
+          userId: string;
+          programDayId: string;
+          totalExercises: number;
+          startedAt?: string;
+        }),
+      createSessionExercises: (p) => {
+        const params = p as {
+          sessionId: string;
+          exercises: {
+            id: string;
+            exerciseLibraryId: string;
+            sectionKind: string;
+            name: string;
+            exerciseCategory: string;
+          }[];
+          prebuiltIds: Record<string, string>;
+        };
+        // SessionExercise has many fields, but createSessionExercises only
+        // reads (id, exerciseLibraryId, sectionKind, name, exerciseCategory).
+        // Cast through unknown since the queue stores a serialized subset.
+        return sessionService.createSessionExercises(
+          params.sessionId,
+          params.exercises as unknown as SessionExercise[],
+          params.prebuiltIds,
+        );
+      },
+      createSessionSets: (p) => {
+        const params = p as {
+          sessionExerciseId: string;
+          sets: (Partial<SessionExerciseSet> & { setNumber: number })[];
+          prebuiltIds: Record<number, string>;
+        };
+        return sessionService.createSessionSets(
+          params.sessionExerciseId,
+          params.sets as unknown as SessionExerciseSet[],
+          params.prebuiltIds,
+        );
+      },
+      createSingleSessionSet: (p) => {
+        const params = p as {
+          sessionExerciseId: string;
+          setNumber: number;
+          template: Partial<SessionExerciseSet>;
+          id: string;
+        };
+        return sessionService.createSingleSessionSet(
+          params.sessionExerciseId,
+          params.setNumber,
+          params.template,
+          params.id,
+        );
+      },
       logSet: (p) => sessionService.logSet(p),
       completeExercise: (p) => sessionService.completeExercise(p.id, p.comment),
       completeSession: (p) => sessionService.completeSession(p),
@@ -50,6 +109,9 @@ export const useSyncQueue = () => {
       logCardio: (p) => sessionService.logCardio(p),
       createPointEvent: (p) => sessionService.createPointEvent(p),
       recordWorkoutCompletion: (p) => sessionService.recordWorkoutCompletion(p),
+      awardSetPoints: (p) => sessionService.awardPoints(p),
+      awardWorkoutPoints: (p) => sessionService.awardPoints(p),
+      awardCardioPoints: (p) => sessionService.awardPoints(p),
 
       // -------- nutrition --------------------------------------------
       // These mirror the thunks' write paths but go directly through the
@@ -104,6 +166,13 @@ export const useSyncQueue = () => {
     [userId, dispatch],
   );
 
+  /**
+   * Ref to the latest `flushQueue` so `syncWrite` (defined above flushQueue,
+   * to keep the file readable) can call it after a successful write without
+   * creating a circular useCallback dependency cycle.
+   */
+  const flushQueueRef = useRef<(() => Promise<void>) | null>(null);
+
   /** Queue a failed write for retry */
   const enqueueWrite = useCallback(
     (operation: string, params: Record<string, unknown>) => {
@@ -113,7 +182,12 @@ export const useSyncQueue = () => {
     [dispatch],
   );
 
-  /** Try a Supabase write — if it fails, queue it for retry */
+  /**
+   * Try a Supabase write — if it fails, queue it for retry. On success this
+   * is also a strong "network is up" signal, so we kick off a queue flush as
+   * a side-effect: any items left over from an earlier offline window drain
+   * immediately rather than waiting for the next app foreground.
+   */
   const syncWrite = useCallback(
     async (
       operation: string,
@@ -122,12 +196,17 @@ export const useSyncQueue = () => {
     ) => {
       try {
         await serviceCall();
+        // Fire-and-forget — flushQueue is a no-op if the queue is empty or
+        // already flushing, so this is safe to call on every successful write.
+        if (queue.length > 0 && !flushing) {
+          flushQueueRef.current?.();
+        }
       } catch (err) {
         console.warn(`[SyncQueue] ${operation} failed, queuing for retry:`, err);
         enqueueWrite(operation, params);
       }
     },
-    [enqueueWrite],
+    [enqueueWrite, queue.length, flushing],
   );
 
   /** Process all queued items sequentially */
@@ -161,6 +240,11 @@ export const useSyncQueue = () => {
 
     dispatch(setFlushing(false));
   }, [queue, flushing, dispatch, serviceMap]);
+
+  // Keep the ref pointing at the latest flushQueue so syncWrite can call it.
+  useEffect(() => {
+    flushQueueRef.current = flushQueue;
+  }, [flushQueue]);
 
   return { syncWrite, enqueueWrite, flushQueue, queueLength: queue.length, flushing };
 };

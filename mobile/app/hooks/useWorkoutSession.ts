@@ -18,6 +18,7 @@ import { selectCurrentDayDetail } from "@/app/stores/selectors/workoutSelectors"
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
   selectSessionId,
+  selectSessionProgramDayId,
   selectExerciseMap,
   selectSetMap,
   selectSetsLogged,
@@ -42,7 +43,9 @@ import {
   hydrateExerciseComments,
   setExerciseComment,
   setEditMode,
+  resetSession,
 } from "@/app/stores/slice/sessionSlice";
+import { uuidv4 } from "@/app/utils/uuid";
 import { markDayCompleted } from "@/app/stores/slice/workoutSlice";
 import {
   appendPointEvent,
@@ -51,6 +54,7 @@ import {
 } from "@/app/stores/slice/rewardSlice";
 import type { ExerciseStatSnapshot, LastLoggedSetSnapshot } from "@/app/stores/slice/sessionSlice";
 import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMappers";
+import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import * as sessionService from "@/app/services/sessionService";
 import { suggestFutureSetWeights } from "@/app/utils/setSuggestion";
@@ -69,14 +73,18 @@ export const useWorkoutSession = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
-  const { syncWrite, enqueueWrite } = useSyncQueue();
+  const { syncWrite, enqueueWrite, flushQueue } = useSyncQueue();
   const { i18n, t } = useTranslation();
+  // Smart Weight Engine is a Standard+ feature — free users keep the raw
+  // planned weight without auto-adjustment from feedback (PAYMENT_FEATURE.md).
+  const { hasStandard } = useEntitlement();
   const currentDayDetail = useSelector(selectCurrentDayDetail);
   const user = useSelector(selectUser);
   const userId = user?.id ?? "";
 
-  // Session state from Redux (survives navigation)
+  // Session state from Redux (survives navigation AND app kill — persisted)
   const sessionId = useSelector(selectSessionId);
+  const sessionProgramDayId = useSelector(selectSessionProgramDayId);
   const exerciseMap = useSelector(selectExerciseMap);
   const setMap = useSelector(selectSetMap);
   const setsLogged = useSelector(selectSetsLogged);
@@ -94,13 +102,20 @@ export const useWorkoutSession = () => {
   const isDeloadWeek = useSelector(
     (state: RootState) => state.workout.assignment?.is_deload_week === true,
   );
+  const usesTopSetBackoff = useSelector((state: RootState) => {
+    const program = state.workout.overview?.program;
+    return program?.gender === "male" && program?.level === "advanced";
+  });
 
   const sessionWorkout: SessionWorkout | null = useMemo(
     () =>
       currentDayDetail
-        ? mapSessionWorkout(currentDayDetail, i18n.language, { isDeloadWeek })
+        ? mapSessionWorkout(currentDayDetail, i18n.language, {
+            isDeloadWeek,
+            usesTopSetBackoff,
+          })
         : null,
-    [currentDayDetail, i18n.language, isDeloadWeek],
+    [currentDayDetail, i18n.language, isDeloadWeek, usesTopSetBackoff],
   );
 
   const totalExercises = sessionWorkout?.exercises.length ?? 0;
@@ -154,30 +169,84 @@ export const useWorkoutSession = () => {
       dispatch(setLastLoggedSetsByExercise(lastLoggedObj));
     };
 
-    const insertFresh = async () => {
-      const session = await sessionService.createWorkoutSession({
+    /**
+     * Local-first session creation. All IDs are generated client-side, Redux
+     * is updated synchronously, then the row inserts are queued for the next
+     * online flush. If the user is offline the function still returns a
+     * fully-usable session — every subsequent write (set log, complete
+     * exercise, finish session) references these IDs and runs through the
+     * same sync queue.
+     */
+    const insertFresh = () => {
+      const localSessionId = uuidv4();
+      const exerciseMapObj: Record<string, string> = {};
+      for (const ex of sessionWorkout.exercises) {
+        exerciseMapObj[ex.id] = uuidv4();
+      }
+      const setMapObj: Record<string, string[]> = {};
+      const setIdsByExercise: Record<string, Record<number, string>> = {};
+      for (const ex of sessionWorkout.exercises) {
+        const seId = exerciseMapObj[ex.id];
+        const setIds: string[] = [];
+        const idsBySetNumber: Record<number, string> = {};
+        for (const s of ex.sets) {
+          const id = uuidv4();
+          setIds.push(id);
+          idsBySetNumber[s.setNumber] = id;
+        }
+        setMapObj[seId] = setIds;
+        setIdsByExercise[seId] = idsBySetNumber;
+      }
+
+      // 1. Insert workout_sessions row.
+      enqueueWrite("createWorkoutSession", {
+        id: localSessionId,
         userId,
         programDayId,
         totalExercises,
+        startedAt: new Date().toISOString(),
       });
-      const seRows = await sessionService.createSessionExercises(
-        session.id,
-        sessionWorkout.exercises,
-      );
-      const exerciseMapObj: Record<string, string> = {};
-      for (const row of seRows) {
-        exerciseMapObj[row.program_day_exercise_id] = row.id;
-      }
-      const setMapObj: Record<string, string[]> = {};
+
+      // 2. Insert session_exercises rows. Depends on (1) via FK — sync queue
+      //    processes FIFO so the order is preserved.
+      enqueueWrite("createSessionExercises", {
+        sessionId: localSessionId,
+        // Serialize the SessionExercise[] shape we need to reconstruct the rows.
+        // Storing primitives only so AsyncStorage/redux-persist can round-trip cleanly.
+        exercises: sessionWorkout.exercises.map((ex) => ({
+          id: ex.id,
+          exerciseLibraryId: ex.exerciseLibraryId,
+          sectionKind: ex.sectionKind,
+          name: ex.name,
+          exerciseCategory: ex.exerciseCategory,
+        })),
+        prebuiltIds: exerciseMapObj,
+      });
+
+      // 3. Insert session_sets rows per exercise. Depends on (2) via FK.
       for (const ex of sessionWorkout.exercises) {
+        if (ex.sets.length === 0) continue;
         const seId = exerciseMapObj[ex.id];
-        if (!seId || ex.sets.length === 0) continue;
-        const setRows = await sessionService.createSessionSets(seId, ex.sets);
-        setMapObj[seId] = setRows
-          .sort((a, b) => a.set_number - b.set_number)
-          .map((r) => r.id);
+        enqueueWrite("createSessionSets", {
+          sessionExerciseId: seId,
+          sets: ex.sets.map((s) => ({
+            id: s.id,
+            setNumber: s.setNumber,
+            setKind: s.setKind,
+            targetWeight: s.targetWeight,
+            targetWeightUnit: s.targetWeightUnit,
+            targetReps: s.targetReps,
+            targetRepsMin: s.targetRepsMin,
+            targetRepsMax: s.targetRepsMax,
+            targetDuration: s.targetDuration,
+            restSeconds: s.restSeconds,
+            displayLabel: s.displayLabel,
+          })),
+          prebuiltIds: setIdsByExercise[seId],
+        });
       }
-      return { sessionId: session.id, exerciseMap: exerciseMapObj, setMap: setMapObj };
+
+      return { sessionId: localSessionId, exerciseMap: exerciseMapObj, setMap: setMapObj };
     };
 
     const hydrateFromState = (
@@ -187,6 +256,7 @@ export const useWorkoutSession = () => {
     ) => {
       dispatch(initSession({
         sessionId: id,
+        programDayId,
         exerciseMap: state.exerciseMap,
         setMap: state.setMap,
       }));
@@ -195,6 +265,24 @@ export const useWorkoutSession = () => {
       dispatch(hydrateExerciseComments(state.exerciseComments));
       dispatch(setEditMode(edit));
     };
+
+    // 0. If Redux already has a persisted session for this exact program day,
+    //    resume from local state without touching the network. Survives app
+    //    kill and works fully offline. This is the local-first happy path.
+    if (sessionId && sessionProgramDayId === programDayId && !editMode) {
+      // Re-fetch exercise stats (historical bests + last-logged sets) so the
+      // ruler / chip values reflect the latest data — these slices are not
+      // persisted on purpose. Best-effort; UI still works if the network fails.
+      try {
+        await dispatchHydratedExerciseData();
+      } catch (err) {
+        console.warn("[session] re-hydrate stats failed (offline?)", err);
+      }
+      // Make sure any queued session-create / log writes get retried.
+      flushQueue();
+      if (!sessionStartedAt) dispatch(startSessionTimer());
+      return "resumed";
+    }
 
     try {
       const existing = await sessionService.findExistingSession({ userId, programDayId });
@@ -218,11 +306,16 @@ export const useWorkoutSession = () => {
         if (!state) {
           // Corrupt row (no children) — self-heal: delete it and start fresh.
           console.warn("[session] corrupt in_progress row, recreating", existing.id);
-          await sessionService.deleteWorkoutSession(existing.id);
-          const fresh = await insertFresh();
-          dispatch(initSession(fresh));
+          try {
+            await sessionService.deleteWorkoutSession(existing.id);
+          } catch (err) {
+            console.warn("[session] delete corrupt session failed", err);
+          }
+          const fresh = insertFresh();
+          dispatch(initSession({ ...fresh, programDayId }));
           await dispatchHydratedExerciseData();
           dispatch(startSessionTimer());
+          flushQueue();
           return "started";
         }
         hydrateFromState(existing.id, state, false);
@@ -231,47 +324,41 @@ export const useWorkoutSession = () => {
         return "resumed";
       }
 
-      // Nothing exists — insert fresh.
-      let fresh;
-      try {
-        fresh = await insertFresh();
-      } catch (err) {
-        // Race condition: another device inserted between our findExisting and insert.
-        // The unique index rejected us. Re-query and resume that row.
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("workout_sessions_one_per_user_day") || msg.includes("duplicate key")) {
-          const winner = await sessionService.findExistingSession({ userId, programDayId });
-          if (winner?.status === "in_progress") {
-            const state = await sessionService.loadSessionState(winner.id);
-            if (state) {
-              hydrateFromState(winner.id, state, false);
-              await dispatchHydratedExerciseData();
-              dispatch(startSessionTimer());
-              return "resumed";
-            }
-          }
-          if (winner?.status === "completed") {
-            const state = await sessionService.loadSessionState(winner.id);
-            if (state) {
-              hydrateFromState(winner.id, state, editMode);
-              await dispatchHydratedExerciseData();
-              dispatch(startSessionTimer());
-              return editMode ? "edit_mode" : "resumed";
-            }
-            return "already_completed";
-          }
-        }
-        throw err;
-      }
-      dispatch(initSession(fresh));
+      // Nothing exists on the server — insert fresh locally + queue the inserts.
+      const fresh = insertFresh();
+      dispatch(initSession({ ...fresh, programDayId }));
       await dispatchHydratedExerciseData();
       dispatch(startSessionTimer());
+      flushQueue();
       return "started";
     } catch (err) {
-      console.error("Failed to start session:", err);
-      return "failed";
+      // Network failure on findExistingSession or loadSessionState (the only
+      // calls still made online) — fall back to a fresh local session. The
+      // unique constraint on (user_id, program_day_id) is handled by 23505 =
+      // success in the queue, so a parallel-device race is idempotent.
+      console.warn("[session] online lookup failed, starting locally", err);
+      const fresh = insertFresh();
+      dispatch(initSession({ ...fresh, programDayId }));
+      try {
+        await dispatchHydratedExerciseData();
+      } catch (statErr) {
+        console.warn("[session] hydrate stats failed (offline?)", statErr);
+      }
+      dispatch(startSessionTimer());
+      flushQueue();
+      return "started";
     }
-  }, [sessionWorkout, userId, totalExercises, dispatch]);
+  }, [
+    sessionWorkout,
+    userId,
+    totalExercises,
+    dispatch,
+    sessionId,
+    sessionProgramDayId,
+    sessionStartedAt,
+    enqueueWrite,
+    flushQueue,
+  ]);
 
   /**
    * Self-heal — guarantees the session maps (exerciseMap / setMap) are populated
@@ -298,6 +385,10 @@ export const useWorkoutSession = () => {
       }
       dispatch(initSession({
         sessionId,
+        // Keep whatever programDayId Redux already had — this rehydration
+        // path only runs for an existing session, so the day association
+        // doesn't change.
+        programDayId: sessionProgramDayId ?? "",
         exerciseMap: state.exerciseMap,
         setMap: state.setMap,
       }));
@@ -309,7 +400,7 @@ export const useWorkoutSession = () => {
       console.error("[session] ensureSessionHydrated failed", err);
       return null;
     }
-  }, [sessionId, exerciseMap, setMap, dispatch]);
+  }, [sessionId, sessionProgramDayId, exerciseMap, setMap, dispatch]);
 
   /** Navigate to the correct screen for an exercise. startSet is 0-based. */
   const navigateToExercise = useCallback(
@@ -434,9 +525,9 @@ export const useWorkoutSession = () => {
       );
 
       // Smart weight adjustment — suggest weights for the upcoming sets
-      // of this same exercise based on the user's feedback.
+      // of this same exercise based on the user's feedback. Standard+ only.
       const currentPlanned = ex.sets[setNumber];
-      if (currentPlanned && feedback && weight != null) {
+      if (hasStandard && currentPlanned && feedback && weight != null) {
         const futureSets = ex.sets.slice(setNumber + 1).map((s) => ({
           id: setMap[seId]?.[s.setNumber - 1] ?? "",
           setKind: s.setKind,
@@ -486,7 +577,7 @@ export const useWorkoutSession = () => {
         );
       }
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, isEditMode, ensureSessionHydrated, t],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, isEditMode, ensureSessionHydrated, t, hasStandard],
   );
 
   /** Complete an exercise. Returns PR detail when this exercise broke a max_weight PR. */
@@ -705,6 +796,15 @@ export const useWorkoutSession = () => {
       sessionService.completeSession(sessionParams),
     );
 
+    // Optimistically mark the day completed in Redux as soon as the server
+    // write is enqueued — not at the navigation step. Any exit path after
+    // finishSession (End Workout sheet, swipe-back, OS kill, mid-finish
+    // navigation) leaves the day correctly marked, surviving until the
+    // sync queue confirms the underlying UPDATE.
+    if (sessionWorkout?.programDayId) {
+      dispatch(markDayCompleted(sessionWorkout.programDayId));
+    }
+
     if (!userId) return null;
 
     // Streak + reward update first so the +50 event sees the correct
@@ -826,6 +926,7 @@ export const useWorkoutSession = () => {
     setsLogged,
     userId,
     currentDayDetail,
+    sessionWorkout,
     syncWrite,
     enqueueWrite,
     dispatch,
@@ -890,16 +991,13 @@ export const useWorkoutSession = () => {
     // Defensive: any backend failure inside finishSession must NOT block the
     // navigation. We always continue to SessionComplete; failed writes will
     // be retried via the sync queue.
+    // (markDayCompleted is dispatched inside finishSession itself, so it fires
+    // regardless of which exit path the user takes after finishing.)
     let result: Awaited<ReturnType<typeof finishSession>> = null;
     try {
       result = await finishSession();
     } catch (err) {
       console.warn("[useWorkoutSession] finishSession threw", err);
-    }
-
-    // Optimistically mark this day as completed in Redux
-    if (sessionWorkout.programDayId) {
-      dispatch(markDayCompleted(sessionWorkout.programDayId));
     }
 
     const elapsed = sessionStartedAt
@@ -931,9 +1029,18 @@ export const useWorkoutSession = () => {
       newPRs: result?.newPRs ?? 0,
       bonusPoints,
     });
+
+    // Clear the active session slice now that we've navigated away. The
+    // SessionComplete screen reads its data from route params, so wiping
+    // Redux can't blank it; this keeps tomorrow's session start clean.
+    dispatch(resetSession());
   }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch, sessionId, isEditMode]);
 
-  /** Add a dynamic set for an exercise (creates DB row + updates Redux) */
+  /**
+   * Add a dynamic set for an exercise. Local-first: generate the UUID,
+   * stash it in Redux immediately, and queue the row insert. Subsequent
+   * set-logging on this new id works offline against the same UUID.
+   */
   const addSet = useCallback(
     async (exerciseIndex: number) => {
       if (!sessionWorkout) return null;
@@ -946,26 +1053,29 @@ export const useWorkoutSession = () => {
       const existingSetIds = setMap[seId] ?? [];
       const newSetNumber = existingSetIds.length + 1;
       const templateSet = ex.sets[ex.sets.length - 1] ?? ex.sets[0];
+      const newSetId = uuidv4();
+      const template = {
+        setKind: templateSet?.setKind ?? "working",
+        targetWeight: templateSet?.targetWeight ?? null,
+        targetWeightUnit: templateSet?.targetWeightUnit ?? ex.weightUnit,
+        targetReps: templateSet?.targetReps ?? null,
+        targetRepsMin: templateSet?.targetRepsMin ?? null,
+        targetRepsMax: templateSet?.targetRepsMax ?? null,
+        targetDuration: templateSet?.targetDuration ?? null,
+        restSeconds: templateSet?.restSeconds ?? null,
+      };
 
-      try {
-        const row = await sessionService.createSingleSessionSet(seId, newSetNumber, {
-          setKind: templateSet?.setKind ?? "working",
-          targetWeight: templateSet?.targetWeight ?? null,
-          targetWeightUnit: templateSet?.targetWeightUnit ?? ex.weightUnit,
-          targetReps: templateSet?.targetReps ?? null,
-          targetRepsMin: templateSet?.targetRepsMin ?? null,
-          targetRepsMax: templateSet?.targetRepsMax ?? null,
-          targetDuration: templateSet?.targetDuration ?? null,
-          restSeconds: templateSet?.restSeconds ?? null,
-        });
-        dispatch(addSessionSet({ sessionExerciseId: seId, sessionSetId: row.id }));
-        return row.id;
-      } catch (err) {
-        console.error("Failed to add set:", err);
-        return null;
-      }
+      // Optimistic Redux update — UI sees the new set right away.
+      dispatch(addSessionSet({ sessionExerciseId: seId, sessionSetId: newSetId }));
+
+      await syncWrite(
+        "createSingleSessionSet",
+        { sessionExerciseId: seId, setNumber: newSetNumber, template, id: newSetId },
+        () => sessionService.createSingleSessionSet(seId, newSetNumber, template, newSetId),
+      );
+      return newSetId;
     },
-    [sessionWorkout, exerciseMap, setMap, dispatch],
+    [sessionWorkout, exerciseMap, setMap, dispatch, syncWrite],
   );
 
   /** Get current set count for an exercise from Redux */

@@ -10,6 +10,7 @@ import { uploadProgressPhotoThunk } from "@/app/stores/slice/photoSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import { CameraIcon } from "@/assets/icons";
 import { TrophyGold } from "@/assets/images";
+import { useRequireEntitlement } from "@/app/hooks/useRequireEntitlement";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -54,7 +55,15 @@ const SessionCompleteScreen = () => {
    // bonusPoints,
   } = route.params;
 
+  // Progress Photos is a Standard+ feature (locked spec, Rami 2026-06-12).
+  // Free users get bounced to the paywall by useRequireEntitlement.
+  const requireEntitlement = useRequireEntitlement();
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
+
+  const handleCaptureProgress = () => {
+    if (!requireEntitlement("standard")) return;
+    addPhotoSheetRef.current?.show();
+  };
 
   const handlePhotoSelected = async (photo: { uri: string }) => {
     const action = await dispatch(
@@ -152,7 +161,7 @@ const SessionCompleteScreen = () => {
         {/* Capture Progress */}
         <PressableScale
           style={styles.captureBtn}
-          onPress={() => addPhotoSheetRef.current?.show()}
+          onPress={handleCaptureProgress}
         >
           <GlassFill style={styles.captureBtnGlass} />
           <CameraIcon width={24} height={24} />

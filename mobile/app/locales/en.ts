@@ -169,6 +169,29 @@ const en = {
         description: "",
         placeholderTitle: "Paywall",
         placeholderSubtitle: "Coming soon",
+        loading: "Loading plans...",
+        retry: "Try again",
+        empty: "Plans are unavailable right now. Please try again shortly.",
+        tierToggle: {
+          standard: "Standard",
+          pro: "Pro",
+        },
+        period: {
+          monthly: "Monthly",
+          annual: "Annual",
+          perMonth: "/ month",
+          perYear: "/ year",
+        },
+        annualBadge: "Best value",
+        cta: "Start subscription",
+        ctaActive: "You're subscribed",
+        restore: "Restore purchases",
+        skip: "Maybe later",
+        success: "Subscription active",
+        errors: {
+          purchaseFailed: "Purchase failed. Please try again.",
+          restoreFailed: "Nothing to restore.",
+        },
       },
       calories: {
         title: "Calories",
@@ -299,6 +322,7 @@ const en = {
   profile: {
     fallbackName: "User",
     sections: {
+      subscription: "Subscription",
       appSettings: "App Settings",
       support: "Support",
       sessionManagement: "Session Management",
@@ -317,7 +341,15 @@ const en = {
     deleteAccountFailedTitle: "Couldn't delete account",
     version: "ERA v1.0.0",
     freeTrial: "ERA Free Trial",
+    tierLabel: {
+      free: "ERA Free",
+      standard: "ERA Standard",
+      pro: "ERA Pro",
+    },
     manageSubscription: "Manage Subscription",
+    upgradePlan: "Upgrade Plan",
+    upgradeFailed: "Couldn't open paywall. Please try again.",
+    freePlanCta: "Upgrade for full access",
     daysLeft: "{{count}} Days Left",
     eraPoints: "ERA points",
     dayStreak: "day streak",
@@ -450,6 +482,7 @@ const en = {
     subscription: {
       title: "Manage Subscription",
       active: "Active",
+      manageInStore: "Cancel or change plan",
       standard: {
         name: "ERA Standard",
         price: "NOK 99/month",
@@ -461,6 +494,7 @@ const en = {
           "Up to 5 friends in social competition",
           "Progress photos",
         ],
+        cta: "Upgrade to Standard",
       },
       pro: {
         name: "ERA PRO",
@@ -734,6 +768,9 @@ const en = {
       sessionSyncError: "Workout session is out of sync. Please restart this workout.",
       exerciseCompleted: "Exercise Completed",
       topSet: "Top Set",
+      weightLabel: "Weight",
+      startingWeightHint: "Choose starting weight",
+      nextSetHint: "Next set: {{weight}} {{unit}}",
       newPR: "New Personal Record",
       eraPoints: "+{{count}} ERA Points",
       previousBest: "Previous Best: {{value}}",

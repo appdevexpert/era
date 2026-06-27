@@ -1,16 +1,20 @@
 /**
  * Smart weight adjustment constants.
- * Extracted as named constants for future admin override from Supabase.
+ * Locked by Rami 2026-06-25: progression amounts tied to set feedback,
+ * universal across compound and isolation.
  */
 
-/** Weight increment for compound exercises (kg) */
-export const WEIGHT_STEP_COMPOUND = 2.5;
+/** Next-session delta when user rates the set "For lett" (too light) — kg. */
+export const WEIGHT_DELTA_LIGHT = 5;
 
-/** Weight increment for isolation exercises (kg) */
-export const WEIGHT_STEP_ISOLATION = 1.25;
+/** Next-session delta when user rates the set "Passer" (correct) — kg. */
+export const WEIGHT_DELTA_CORRECT = 2.5;
 
-/** Back-off weight = top set weight × this multiplier */
-export const BACKOFF_MULTIPLIER = 0.9;
+/** Next-session delta when user rates the set "For tungt" (too heavy) — kg. */
+export const WEIGHT_DELTA_HEAVY = -5;
+
+/** Back-off weight = top set weight × this multiplier. Rami 2026-06-12: 80%. */
+export const BACKOFF_MULTIPLIER = 0.8;
 
 /** Back-off reps = top set reps + this */
 export const BACKOFF_REPS_ADDITION = 2;

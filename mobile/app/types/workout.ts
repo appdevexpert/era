@@ -10,6 +10,10 @@ export interface WorkoutProgramRow {
   title_translations: TranslationMap;
   duration_weeks: number;
   days_per_week: number;
+  /** 'male' | 'female' | null — drives Top Set + Back-off gating (male advanced only). */
+  gender: string | null;
+  /** 'beginner' | 'intermediate' | 'advanced' | null — same gate. */
+  level: string | null;
 }
 
 export interface ProgramWeekRow {

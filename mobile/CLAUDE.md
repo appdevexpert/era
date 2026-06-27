@@ -23,6 +23,7 @@ Each major feature has a dedicated MD with schema, services, slices, screens, an
 
 All feature/reference docs live in `doc/`:
 
+- `doc/OFFLINE_ARCHITECTURE.md` — Local-first contract for every Supabase write. Read before adding any new mutation path. Covers client UUIDs, sync queue, 23505 idempotency, persisted session slice.
 - `doc/PR_FEATURE.md` — Personal Records: locked to `max_weight` only. PR detection logic, read services, prSlice, ProgressScreen / PrHistory / ExercisePrHistory wiring.
 - `doc/WORKOUT_SCHEMA_EXPLAINED.md` — Supabase workout schema walkthrough.
 - `doc/WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.

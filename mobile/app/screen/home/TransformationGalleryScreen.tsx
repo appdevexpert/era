@@ -16,6 +16,7 @@ import {
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
 import { TablerPlus } from "@/assets/icons";
+import { useRequireEntitlement } from "@/app/hooks/useRequireEntitlement";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useMemo, useRef } from "react";
@@ -89,8 +90,16 @@ const TransformationGalleryScreen = () => {
   const headerHeight = useHeaderHeight();
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
+  // Progress Photos is a Standard+ feature (locked spec, Rami 2026-06-12).
+  // Free users get bounced to the paywall by useRequireEntitlement.
+  const requireEntitlement = useRequireEntitlement();
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
   const photoPreviewSheetRef = useRef<PhotoPreviewBottomSheetRef>(null);
+
+  const handleAddPhoto = () => {
+    if (!requireEntitlement("standard")) return;
+    addPhotoSheetRef.current?.show();
+  };
 
   const photoRows = useSelector((s: RootState) => s.photo.photos);
   const photoStatus = useSelector((s: RootState) => s.photo.status);
@@ -151,7 +160,7 @@ const TransformationGalleryScreen = () => {
                 cell.kind === "add" ? (
                   <AddNewTile
                     key={`add-${colIdx}`}
-                    onPress={() => addPhotoSheetRef.current?.show()}
+                    onPress={handleAddPhoto}
                     label={t("progress.addNewPhoto")}
                   />
                 ) : (

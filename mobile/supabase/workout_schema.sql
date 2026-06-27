@@ -139,9 +139,20 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   program_start_date date,
+  -- RevenueCat entitlement mirror. Source of truth = RC SDK; client writes
+  -- these via profileService.saveSubscriptionState on every customerInfo
+  -- update. Allowed values match the locked entitlement IDs.
+  subscription_tier text not null default 'free',
+  subscription_expires_at timestamptz,
+  subscription_product_id text,
   constraint profiles_pkey primary key (id),
-  constraint profiles_id_fkey foreign key (id) references auth.users(id) on delete cascade
+  constraint profiles_id_fkey foreign key (id) references auth.users(id) on delete cascade,
+  constraint profiles_subscription_tier_check
+    check (subscription_tier in ('free', 'standard', 'pro'))
 );
+
+create index if not exists idx_profiles_subscription_tier
+  on public.profiles (subscription_tier);
 
 -- ------------------------------------------------------------
 -- goals (depends on: auth.users)

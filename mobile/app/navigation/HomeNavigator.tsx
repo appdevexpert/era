@@ -7,6 +7,7 @@ import PrHistoryScreen from "@/app/screen/home/PrHistoryScreen";
 import TransformationGalleryScreen from "@/app/screen/home/TransformationGalleryScreen";
 import NotificationScreen from "@/app/screen/home/NotificationScreen";
 import PrivacyPolicyScreen from "@/app/screen/home/PrivacyPolicyScreen";
+import PaywallScreen from "@/app/screen/home/PaywallScreen";
 import ProfileScreen from "@/app/screen/home/ProfileScreen";
 import SettingScreen from "@/app/screen/home/SettingScreen";
 import TermsOfServiceScreen from "@/app/screen/home/TermsOfServiceScreen";
@@ -157,6 +158,14 @@ const HomeNavigator = () => (
     <Stack.Screen
       name="Cycle2Begins"
       component={Cycle2BeginsScreen}
+    />
+    <Stack.Screen
+      name="Paywall"
+      component={PaywallScreen}
+      options={{
+        headerShown: false,
+        presentation: "fullScreenModal",
+      }}
     />
   </Stack.Navigator>
 );

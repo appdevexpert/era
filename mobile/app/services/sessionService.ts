@@ -21,29 +21,52 @@ const throwIfError = (error: { message?: string } | null, fallback: string) => {
   if (error) throw new Error(error.message ?? fallback);
 };
 
+/**
+ * Postgres returns code `23505` for a unique-violation. Combined with
+ * client-generated UUIDs, this is how every offline-safe insert proves
+ * idempotency — if the queued insert ran twice (e.g. response was lost
+ * mid-flight), the second attempt errors with 23505 and the caller can
+ * treat it as success.
+ */
+const isDuplicateKeyError = (
+  error: { code?: string; message?: string } | null | undefined,
+): boolean => {
+  if (!error) return false;
+  if (error.code === "23505") return true;
+  const msg = error.message ?? "";
+  return msg.includes("duplicate key") || msg.includes("23505");
+};
+
 /* ─── Session lifecycle ─── */
 
 export async function createWorkoutSession(params: {
+  /**
+   * Client-generated UUID. Required — the caller (useWorkoutSession) generates
+   * it locally so the session can be referenced immediately even while the
+   * insert is still queued / offline.
+   */
+  id: string;
   userId: string;
   programDayId: string;
   totalExercises: number;
-}) {
-  const { data, error } = await supabase
-    .from("workout_sessions")
-    .insert({
-      user_id: params.userId,
-      program_day_id: params.programDayId,
-      status: "in_progress",
-      started_at: new Date().toISOString(),
-      total_exercises: params.totalExercises,
-      exercises_completed: 0,
-      sets_logged: 0,
-    })
-    .select("id")
-    .single();
+  startedAt?: string;
+}): Promise<{ id: string }> {
+  const { error } = await supabase.from("workout_sessions").insert({
+    id: params.id,
+    user_id: params.userId,
+    program_day_id: params.programDayId,
+    status: "in_progress",
+    started_at: params.startedAt ?? new Date().toISOString(),
+    total_exercises: params.totalExercises,
+    exercises_completed: 0,
+    sets_logged: 0,
+  });
 
+  // 23505 = the row already exists (retry of a previously-succeeded write).
+  // Idempotent success: return the same id we tried to insert.
+  if (isDuplicateKeyError(error)) return { id: params.id };
   throwIfError(error, "Failed to create workout session");
-  return data!;
+  return { id: params.id };
 }
 
 /**
@@ -229,87 +252,127 @@ export async function deleteWorkoutSession(sessionId: string): Promise<void> {
   throwIfError(error, "Failed to delete workout session");
 }
 
+/**
+ * Insert session_exercises rows. Accepts client-generated UUIDs (via the
+ * `prebuiltIds` map keyed by program_day_exercise_id) so the caller can use
+ * those IDs immediately without waiting for the network. On retry, 23505
+ * is treated as success.
+ *
+ * Returns the same {id, program_day_exercise_id} shape the legacy callers
+ * expected, regardless of whether the insert actually ran or 23505'd.
+ */
 export async function createSessionExercises(
   sessionId: string,
   exercises: SessionExercise[],
-) {
-  const rows = exercises.map((ex, i) => ({
-    session_id: sessionId,
-    program_day_exercise_id: ex.id,
-    exercise_id: ex.exerciseLibraryId,
-    section_kind: ex.sectionKind,
-    sort_order: i + 1,
-    display_name_snapshot: ex.name,
-    category_snapshot: ex.exerciseCategory,
-    status: "pending",
-  }));
+  prebuiltIds: Record<string, string>,
+): Promise<{ id: string; program_day_exercise_id: string }[]> {
+  const rows = exercises.map((ex, i) => {
+    const id = prebuiltIds[ex.id];
+    if (!id) {
+      throw new Error(
+        `createSessionExercises: missing prebuilt id for exercise ${ex.id}`,
+      );
+    }
+    return {
+      id,
+      session_id: sessionId,
+      program_day_exercise_id: ex.id,
+      exercise_id: ex.exerciseLibraryId,
+      section_kind: ex.sectionKind,
+      sort_order: i + 1,
+      display_name_snapshot: ex.name,
+      category_snapshot: ex.exerciseCategory,
+      status: "pending",
+    };
+  });
 
-  const { data, error } = await supabase
-    .from("session_exercises")
-    .insert(rows)
-    .select("id, program_day_exercise_id");
+  const { error } = await supabase.from("session_exercises").insert(rows);
 
-  throwIfError(error, "Failed to create session exercises");
-  return data ?? [];
+  if (!error || isDuplicateKeyError(error)) {
+    return rows.map((r) => ({ id: r.id, program_day_exercise_id: r.program_day_exercise_id }));
+  }
+  throw new Error(error.message ?? "Failed to create session exercises");
 }
 
+/**
+ * Insert session_sets rows. `prebuiltIds` is indexed by set_number (1-based,
+ * matching `SessionExerciseSet.setNumber`) so the caller knows ahead of time
+ * which UUID belongs to which set. 23505 is treated as success on retry.
+ */
 export async function createSessionSets(
   sessionExerciseId: string,
   sets: SessionExerciseSet[],
-) {
-  const rows = sets.map((s) => ({
-    session_exercise_id: sessionExerciseId,
-    planned_set_id: s.id,
-    set_number: s.setNumber,
-    set_kind: s.setKind,
-    target_weight_value: s.targetWeight,
-    target_weight_unit: s.targetWeightUnit,
-    target_reps_exact: s.targetReps,
-    target_reps_min: s.targetRepsMin,
-    target_reps_max: s.targetRepsMax,
-    target_duration_seconds: s.targetDuration,
-    rest_seconds_planned: s.restSeconds,
-    display_label: s.displayLabel,
-    status: "planned",
-  }));
+  prebuiltIds: Record<number, string>,
+): Promise<{ id: string; set_number: number; planned_set_id: string | null }[]> {
+  const rows = sets.map((s) => {
+    const id = prebuiltIds[s.setNumber];
+    if (!id) {
+      throw new Error(
+        `createSessionSets: missing prebuilt id for set ${s.setNumber} on session_exercise ${sessionExerciseId}`,
+      );
+    }
+    return {
+      id,
+      session_exercise_id: sessionExerciseId,
+      planned_set_id: s.id,
+      set_number: s.setNumber,
+      set_kind: s.setKind,
+      target_weight_value: s.targetWeight,
+      target_weight_unit: s.targetWeightUnit,
+      target_reps_exact: s.targetReps,
+      target_reps_min: s.targetRepsMin,
+      target_reps_max: s.targetRepsMax,
+      target_duration_seconds: s.targetDuration,
+      rest_seconds_planned: s.restSeconds,
+      display_label: s.displayLabel,
+      status: "planned",
+    };
+  });
 
-  const { data, error } = await supabase
-    .from("session_sets")
-    .insert(rows)
-    .select("id, set_number, planned_set_id");
+  const { error } = await supabase.from("session_sets").insert(rows);
 
-  throwIfError(error, "Failed to create session sets");
-  return data ?? [];
+  if (!error || isDuplicateKeyError(error)) {
+    return rows.map((r) => ({
+      id: r.id,
+      set_number: r.set_number,
+      planned_set_id: r.planned_set_id,
+    }));
+  }
+  throw new Error(error.message ?? "Failed to create session sets");
 }
 
-/** Create a single dynamically-added set (no planned_set_id). */
+/**
+ * Create a single dynamically-added set (no planned_set_id). Accepts a
+ * client-supplied id so the caller can stash it in Redux + reference it
+ * immediately while the insert is in flight or queued.
+ */
 export async function createSingleSessionSet(
   sessionExerciseId: string,
   setNumber: number,
   template: Partial<SessionExerciseSet>,
-) {
-  const { data, error } = await supabase
-    .from("session_sets")
-    .insert({
-      session_exercise_id: sessionExerciseId,
-      planned_set_id: null,
-      set_number: setNumber,
-      set_kind: template.setKind ?? "working",
-      target_weight_value: template.targetWeight ?? null,
-      target_weight_unit: template.targetWeightUnit ?? "kg",
-      target_reps_exact: template.targetReps ?? null,
-      target_reps_min: template.targetRepsMin ?? null,
-      target_reps_max: template.targetRepsMax ?? null,
-      target_duration_seconds: template.targetDuration ?? null,
-      rest_seconds_planned: template.restSeconds ?? null,
-      display_label: null,
-      status: "planned",
-    })
-    .select("id, set_number")
-    .single();
+  id: string,
+): Promise<{ id: string; set_number: number }> {
+  const { error } = await supabase.from("session_sets").insert({
+    id,
+    session_exercise_id: sessionExerciseId,
+    planned_set_id: null,
+    set_number: setNumber,
+    set_kind: template.setKind ?? "working",
+    target_weight_value: template.targetWeight ?? null,
+    target_weight_unit: template.targetWeightUnit ?? "kg",
+    target_reps_exact: template.targetReps ?? null,
+    target_reps_min: template.targetRepsMin ?? null,
+    target_reps_max: template.targetRepsMax ?? null,
+    target_duration_seconds: template.targetDuration ?? null,
+    rest_seconds_planned: template.restSeconds ?? null,
+    display_label: null,
+    status: "planned",
+  });
 
-  throwIfError(error, "Failed to add session set");
-  return data!;
+  if (!error || isDuplicateKeyError(error)) {
+    return { id, set_number: setNumber };
+  }
+  throw new Error(error.message ?? "Failed to add session set");
 }
 
 /* ─── Set logging ─── */

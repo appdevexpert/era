@@ -1,6 +1,9 @@
 import GlassFill from "@/app/components/common/GlassFill";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import { useEntitlement } from "@/app/hooks/useEntitlement";
+import type { HomeStackParamList } from "@/app/navigation/types";
+import { presentCustomerCenter } from "@/app/services/revenueCatService";
 import { FluentPremium } from "@/assets/icons";
 import {
   BottomSheetBackdrop,
@@ -8,6 +11,8 @@ import {
   BottomSheetModal,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -20,7 +25,8 @@ export interface ManageSubscriptionBottomSheetRef {
 }
 
 interface ManageSubscriptionBottomSheetProps {
-  onUpgrade?: (planId: "pro" | "familie") => void;
+  /** Optional override — by default upgrades open the standalone Paywall route. */
+  onUpgrade?: (planId: "standard" | "pro") => void;
 }
 
 const PILL_INACTIVE = [
@@ -56,6 +62,9 @@ const ManageSubscriptionBottomSheet = forwardRef<
 >(function ManageSubscriptionBottomSheet({ onUpgrade }, ref) {
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const { tier } = useEntitlement();
 
   useImperativeHandle(ref, () => ({
     show: () => sheetRef.current?.present(),
@@ -76,13 +85,33 @@ const ManageSubscriptionBottomSheet = forwardRef<
       }) as unknown as string[],
     [t],
   );
-  const familieFeatures = useMemo(
-    () =>
-      t("profile.subscription.familie.features", {
-        returnObjects: true,
-      }) as unknown as string[],
-    [t],
+
+  /**
+   * Tap on an upgrade CTA. Defers to caller-provided `onUpgrade` if given,
+   * otherwise dismisses the sheet and pushes the standalone Paywall route
+   * — RC's hosted UI handles picking the actual product variant.
+   */
+  const handleUpgrade = useCallback(
+    (planId: "standard" | "pro") => {
+      if (onUpgrade) {
+        onUpgrade(planId);
+        return;
+      }
+      sheetRef.current?.dismiss();
+      navigation.navigate("Paywall");
+    },
+    [navigation, onUpgrade],
   );
+
+  /**
+   * Open RevenueCat's Customer Center so the user can cancel, change plan,
+   * or request a refund. Only shown to users with an active subscription —
+   * free users see the upgrade CTAs instead.
+   */
+  const handleManageInStore = useCallback(async () => {
+    sheetRef.current?.dismiss();
+    await presentCustomerCenter();
+  }, []);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -120,7 +149,8 @@ const ManageSubscriptionBottomSheet = forwardRef<
           bounces={false}
           overScrollMode="never"
         >
-          {/* ERA Standard — Active */}
+          {/* Standard plan — Active pill if user has standard (and not pro),
+              upgrade CTA otherwise. Pro users see the Pro card instead. */}
           <View style={styles.planCard}>
             <View style={styles.planHeaderRow}>
               <View style={styles.planTitleCol}>
@@ -134,27 +164,46 @@ const ManageSubscriptionBottomSheet = forwardRef<
                   {t("profile.subscription.standard.price")}
                 </Text>
               </View>
-              <View style={styles.activePill}>
-                <LinearGradient
-                  pointerEvents="none"
-                  colors={PILL_INACTIVE}
-                  start={{ x: 1, y: 0.5 }}
-                  end={{ x: 0, y: 0.5 }}
-                  style={styles.activePillFill}
-                />
-                <GlassFill effect="clear" style={styles.activePillFill} />
-                <Text style={styles.activeText}>
-                  {t("profile.subscription.active")}
-                </Text>
-              </View>
+              {tier === "standard" ? (
+                <View style={styles.activePill}>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={PILL_INACTIVE}
+                    start={{ x: 1, y: 0.5 }}
+                    end={{ x: 0, y: 0.5 }}
+                    style={styles.activePillFill}
+                  />
+                  <GlassFill effect="clear" style={styles.activePillFill} />
+                  <Text style={styles.activeText}>
+                    {t("profile.subscription.active")}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.divider} />
             {standardFeatures.map((f, i) => (
               <Bullet key={i} text={f} />
             ))}
+            {tier === "free" ? (
+              <PressableScale
+                onPress={() => handleUpgrade("standard")}
+                style={styles.ctaWrap}
+              >
+                <LinearGradient
+                  colors={CTA_GRADIENT}
+                  start={{ x: 1, y: 0.5 }}
+                  end={{ x: 0, y: 0.5 }}
+                  style={styles.cta}
+                >
+                  <Text style={styles.ctaText}>
+                    {t("profile.subscription.standard.cta")}
+                  </Text>
+                </LinearGradient>
+              </PressableScale>
+            ) : null}
           </View>
 
-          {/* ERA PRO */}
+          {/* Pro plan — Active pill if user has pro, upgrade CTA otherwise. */}
           <View style={styles.planCard}>
             <View style={styles.planHeaderRow}>
               <View style={styles.planTitleCol}>
@@ -168,60 +217,57 @@ const ManageSubscriptionBottomSheet = forwardRef<
                   {t("profile.subscription.pro.price")}
                 </Text>
               </View>
+              {tier === "pro" ? (
+                <View style={styles.activePill}>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={PILL_INACTIVE}
+                    start={{ x: 1, y: 0.5 }}
+                    end={{ x: 0, y: 0.5 }}
+                    style={styles.activePillFill}
+                  />
+                  <GlassFill effect="clear" style={styles.activePillFill} />
+                  <Text style={styles.activeText}>
+                    {t("profile.subscription.active")}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.divider} />
             {proFeatures.map((f, i) => (
               <Bullet key={i} text={f} />
             ))}
-            <PressableScale onPress={() => onUpgrade?.("pro")} style={styles.ctaWrap}>
-              <LinearGradient
-                colors={CTA_GRADIENT}
-                start={{ x: 1, y: 0.5 }}
-                end={{ x: 0, y: 0.5 }}
-                style={styles.cta}
+            {tier !== "pro" ? (
+              <PressableScale
+                onPress={() => handleUpgrade("pro")}
+                style={styles.ctaWrap}
               >
-                <Text style={styles.ctaText}>
-                  {t("profile.subscription.pro.cta")}
-                </Text>
-              </LinearGradient>
-            </PressableScale>
-          </View>
-
-          {/* ERA Familie */}
-          <View style={styles.planCard}>
-            <View style={styles.planHeaderRow}>
-              <View style={styles.planTitleCol}>
-                <View style={styles.planTitleRow}>
-                  <FluentPremium width={24} height={24} />
-                  <Text style={styles.planName}>
-                    {t("profile.subscription.familie.name")}
+                <LinearGradient
+                  colors={CTA_GRADIENT}
+                  start={{ x: 1, y: 0.5 }}
+                  end={{ x: 0, y: 0.5 }}
+                  style={styles.cta}
+                >
+                  <Text style={styles.ctaText}>
+                    {t("profile.subscription.pro.cta")}
                   </Text>
-                </View>
-                <Text style={styles.planPrice}>
-                  {t("profile.subscription.familie.price")}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            {familieFeatures.map((f, i) => (
-              <Bullet key={i} text={f} />
-            ))}
-            <PressableScale
-              onPress={() => onUpgrade?.("familie")}
-              style={styles.ctaWrap}
-            >
-              <LinearGradient
-                colors={CTA_GRADIENT}
-                start={{ x: 1, y: 0.5 }}
-                end={{ x: 0, y: 0.5 }}
-                style={styles.cta}
-              >
-                <Text style={styles.ctaText}>
-                  {t("profile.subscription.familie.cta")}
-                </Text>
-              </LinearGradient>
-            </PressableScale>
+                </LinearGradient>
+              </PressableScale>
+            ) : null}
           </View>
+          {/* Familie tier intentionally hidden — Khushali pushback 2026-06-26
+              (requires invite/member/permission flows that don't exist yet). */}
+
+          {/* Cancel / change plan — App Store compliance (guideline 3.1.2).
+              Only shown to users with an active subscription; free users
+              already have upgrade CTAs above. */}
+          {tier !== "free" ? (
+            <PressableScale onPress={handleManageInStore} style={styles.manageRow}>
+              <Text style={styles.manageRowText}>
+                {t("profile.subscription.manageInStore")}
+              </Text>
+            </PressableScale>
+          ) : null}
         </BottomSheetScrollView>
 
         {/* Bottom fade — content dissolves into the sheet background */}
@@ -378,5 +424,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.36,
     color: COLORS.neutral.white,
+  },
+  manageRow: {
+    alignSelf: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  manageRowText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.alpha.white72,
+    textDecorationLine: "underline",
   },
 });

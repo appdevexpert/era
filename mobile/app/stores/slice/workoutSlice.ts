@@ -350,7 +350,21 @@ const workoutSlice = createSlice({
       state.programId = action.payload.programId;
       state.overview = action.payload.overview;
       state.currentDayDetail = action.payload.currentDayDetail;
-      state.completedDayIds = action.payload.completedDayIds;
+      // Reconcile completedDayIds additively. The server snapshot is a
+      // partial view of what's confirmed; Redux holds the union of
+      // confirmed + in-flight (sync queue) completions. Overwriting here
+      // would silently erase a locally-optimistic completion whose
+      // workout_sessions UPDATE hasn't flushed yet — directly violating
+      // doc/OFFLINE_ARCHITECTURE Rule 2 (Redux is source of truth during
+      // the session). Completions are append-only from the user's POV,
+      // so union is semantically correct. Cycle reset clears the array
+      // via clearWorkoutCache.
+      state.completedDayIds = Array.from(
+        new Set([
+          ...state.completedDayIds,
+          ...action.payload.completedDayIds,
+        ]),
+      );
       state.loadedAt = action.payload.loadedAt;
       state.versionSignature = action.payload.versionSignature;
       state.assignment = action.payload.assignment;

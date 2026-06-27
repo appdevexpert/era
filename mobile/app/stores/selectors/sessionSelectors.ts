@@ -1,6 +1,8 @@
 import type { RootState } from "@/app/stores/store";
 
 export const selectSessionId = (state: RootState) => state.session.sessionId;
+export const selectSessionProgramDayId = (state: RootState) =>
+  state.session.programDayId;
 export const selectExerciseMap = (state: RootState) => state.session.exerciseMap;
 export const selectSetMap = (state: RootState) => state.session.setMap;
 export const selectSetsLogged = (state: RootState) => state.session.setsLogged;

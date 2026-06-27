@@ -1,5 +1,6 @@
 import ScreenFades from "@/app/components/common/ScreenFades";
 import ScreenHeader from "@/app/components/common/ScreenHeader";
+import { useRequireEntitlement } from "@/app/hooks/useRequireEntitlement";
 import LogMealBadge from "@/app/components/nutrition/LogMealBadge";
 import MealsTimeline from "@/app/components/nutrition/MealsTimeline";
 import {
@@ -91,6 +92,13 @@ const NutritionScreen = () => {
   const { t, i18n } = useTranslation();
   const dispatch = useAppDispatch();
   const logMealSheetRef = useRef<AddLogMealBottomSheetRef>(null);
+  // Meal logging is Standard+ — free users get bounced to the paywall.
+  const requireEntitlement = useRequireEntitlement();
+
+  const handleLogMeal = () => {
+    if (!requireEntitlement("standard")) return;
+    logMealSheetRef.current?.show();
+  };
 
   const status = useSelector(selectNutritionStatus);
   const selectedDate = useSelector(selectSelectedDate);
@@ -393,7 +401,7 @@ const NutritionScreen = () => {
         <View style={styles.mealsHeader}>
           <Text style={styles.sectionTitle}>{t("nutrition.mealsTitle")}</Text>
           <LogMealBadge
-            onPress={() => logMealSheetRef.current?.show()}
+            onPress={handleLogMeal}
             disabled={isReadOnlyDate}
           />
         </View>

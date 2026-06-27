@@ -1,3 +1,4 @@
+import EntitlementGate from "@/app/components/common/EntitlementGate";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
@@ -241,14 +242,16 @@ const CardioTimerScreen = () => {
                 </Text>
               </View>
             ) : null}
-            {topTime ? (
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{topTime}</Text>
-                <Text style={styles.statLabel}>
-                  {t("workout.ui.topSet")}
-                </Text>
-              </View>
-            ) : null}
+            <EntitlementGate requires="pro">
+              {topTime ? (
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{topTime}</Text>
+                  <Text style={styles.statLabel}>
+                    {t("workout.ui.topSet")}
+                  </Text>
+                </View>
+              ) : null}
+            </EntitlementGate>
           </View>
         ) : null}
 

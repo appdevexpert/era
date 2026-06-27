@@ -21,6 +21,10 @@ import {
   clearWorkoutCache,
 } from "@/app/stores/slice/workoutSlice";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
+import {
+  identifyRevenueCatUser,
+  resetRevenueCatUser,
+} from "@/app/services/revenueCatService";
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
 import { mapSupabaseUser, supabase } from "@/app/utils/auth";
@@ -151,10 +155,19 @@ const Navigation = () => {
           if (!isRecovery) {
             dispatch(login(mapSupabaseUser(session.user)));
             resolveHasGoals(session.user.id);
+            // Link RevenueCat to this Supabase user so purchases follow them
+            // across devices/reinstalls. Fire-and-forget — a failure here
+            // just means RC stays anonymous, which is harmless for free users.
+            identifyRevenueCatUser(session.user.id).catch((err) =>
+              console.warn("[revenueCat] identify failed", err),
+            );
           }
         } else if (event === "SIGNED_OUT") {
           dispatch(clearSession());
           dispatch(clearWorkoutCache());
+          resetRevenueCatUser().catch((err) =>
+            console.warn("[revenueCat] logout failed", err),
+          );
         }
       },
     );
@@ -163,6 +176,9 @@ const Navigation = () => {
       if (session?.user) {
         dispatch(login(mapSupabaseUser(session.user)));
         resolveHasGoals(session.user.id);
+        identifyRevenueCatUser(session.user.id).catch((err) =>
+          console.warn("[revenueCat] identify failed", err),
+        );
       }
     });
 
@@ -237,7 +253,8 @@ const Navigation = () => {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {showAuthStack ? (
           <Stack.Screen name="AuthStack" component={AuthNavigator} />
-        ) : hasGoals === false ? (
+        ) : 
+        hasGoals === false ? (
           <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
         ) : !hasWorkoutBootstrap ? (
           <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />

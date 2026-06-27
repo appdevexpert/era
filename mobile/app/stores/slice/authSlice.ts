@@ -12,6 +12,10 @@ import {
 import { deleteAccount } from "@/app/services/accountService";
 import { fetchUserGoalData } from "@/app/services/onboardingService";
 import { saveProgramStartDate } from "@/app/services/profileService";
+import {
+  identifyRevenueCatUser,
+  resetRevenueCatUser,
+} from "@/app/services/revenueCatService";
 import { reportBackgroundError } from "@/app/utils/sentry";
 import type { LoadingState } from "@/app/types";
 import { RESET_ALL } from "@/app/stores/resetAction";
@@ -84,7 +88,15 @@ export const signUpThunk = createAsyncThunk(
     const { data, error } = await signUp(email, password, name);
     if (error) return rejectWithValue(error.message);
     if (!data.user) return rejectWithValue("Sign up failed");
-    return mapSupabaseUser(data.user);
+    const user = mapSupabaseUser(data.user);
+    // Link this device's RC anonymous id to the Supabase user so any future
+    // purchases attach to the right account. Failures shouldn't block signup.
+    identifyRevenueCatUser(user.id).catch((err) =>
+      reportBackgroundError("auth.identifyRevenueCatUser.signUp", err, {
+        userId: user.id,
+      }),
+    );
+    return user;
   },
 );
 
@@ -105,6 +117,11 @@ export const signInThunk = createAsyncThunk<
     // onboarding because of a transient network blip; the next bootstrap
     // attempt will surface real issues.
     const { data: goalRow } = await fetchUserGoalData(user.id);
+    identifyRevenueCatUser(user.id).catch((err) =>
+      reportBackgroundError("auth.identifyRevenueCatUser.signIn", err, {
+        userId: user.id,
+      }),
+    );
     return { user, hasGoals: goalRow !== null };
   },
 );
@@ -122,6 +139,9 @@ export const signOutThunk = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     const { error } = await signOut();
     if (error) return rejectWithValue(error.message);
+    resetRevenueCatUser().catch((err) =>
+      reportBackgroundError("auth.resetRevenueCatUser", err),
+    );
   },
 );
 
@@ -146,6 +166,9 @@ export const deleteAccountThunk = createAsyncThunk(
           signOutError,
         );
       }
+      resetRevenueCatUser().catch((err) =>
+        reportBackgroundError("auth.resetRevenueCatUser.deleteAccount", err),
+      );
       dispatch({ type: RESET_ALL });
       await AsyncStorage.multiRemove(PERSISTED_REDUX_KEYS);
     } catch (err) {

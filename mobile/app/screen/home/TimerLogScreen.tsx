@@ -1,3 +1,4 @@
+import EntitlementGate from "@/app/components/common/EntitlementGate";
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
 import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";
@@ -211,14 +212,16 @@ const TimerLogScreen = () => {
                 </Text>
               </View>
             ) : null}
-            {topTime ? (
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{topTime}</Text>
-                <Text style={styles.statLabel}>
-                  {t("workout.ui.topSet")}
-                </Text>
-              </View>
-            ) : null}
+            <EntitlementGate requires="pro">
+              {topTime ? (
+                <View style={styles.statCard}>
+                  <Text style={styles.statValue}>{topTime}</Text>
+                  <Text style={styles.statLabel}>
+                    {t("workout.ui.topSet")}
+                  </Text>
+                </View>
+              ) : null}
+            </EntitlementGate>
           </View>
         ) : null}
 

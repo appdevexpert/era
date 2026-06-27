@@ -677,9 +677,13 @@ function formatTimeDuration(seconds: number): string {
 export function mapSessionWorkout(
   data: ProgramDayDetailData,
   language: string,
-  options: { isDeloadWeek?: boolean } = {},
+  options: { isDeloadWeek?: boolean; usesTopSetBackoff?: boolean } = {},
 ): SessionWorkout {
   const isDeload = options.isDeloadWeek === true;
+  // Rami 2026-06-25: Top Set + Back-off applies only to Male Advanced.
+  // For every other program (Male Beginner, Female Beginner, Female Golden Era)
+  // we flatten the planned sets: same weight across all sets, working kind only.
+  const usesTopSetBackoff = options.usesTopSetBackoff === true;
   const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
     (acc, set) => {
       const current = acc[set.program_day_exercise_id] ?? [];
@@ -745,7 +749,26 @@ export function mapSessionWorkout(
           }).slice(0, DELOAD_MAX_SETS)
         : rawSets;
 
-      const sets: SessionExerciseSet[] = deloadFiltered.map((s) => {
+      // Non-Male-Advanced programs: rewrite top_set/backoff → working and
+      // flatten the planned weight to the first set's value so every set
+      // in the exercise shows the same weight (Rami 2026-06-25).
+      const baseSets = !usesTopSetBackoff && !isDeload
+        ? (() => {
+            const firstWeight =
+              deloadFiltered.find((s) => s.target_weight_value != null)
+                ?.target_weight_value ?? null;
+            return deloadFiltered.map((s) => ({
+              ...s,
+              set_kind:
+                s.set_kind === "top_set" || s.set_kind === "backoff"
+                  ? "working"
+                  : (s.set_kind ?? "working"),
+              target_weight_value: firstWeight,
+            }));
+          })()
+        : deloadFiltered;
+
+      const sets: SessionExerciseSet[] = baseSets.map((s) => {
         const baseWeight = s.target_weight_value != null ? Number(s.target_weight_value) : null;
         const weight = isDeload && baseWeight != null
           ? Math.round((baseWeight * DELOAD_WEIGHT_MULTIPLIER) / 2.5) * 2.5
@@ -765,7 +788,9 @@ export function mapSessionWorkout(
         };
       });
 
-      const topSet = rawSets.find((s) => s.set_kind === "top_set");
+      const topSet = usesTopSetBackoff
+        ? rawSets.find((s) => s.set_kind === "top_set")
+        : undefined;
       const restSeconds =
         firstSet?.rest_seconds ?? exercise.default_rest_seconds ?? 60;
 
