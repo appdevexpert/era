@@ -14,7 +14,7 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import { formatWeightFromKg } from "@/app/utils/workoutFormatters";
 import type { SessionExercise, SessionWorkout } from "@/app/types/workout";
-import { selectCurrentDayDetail } from "@/app/stores/selectors/workoutSelectors";
+import { selectDayKindByProgramDayId } from "@/app/stores/selectors/workoutSelectors";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
   selectSessionId,
@@ -69,7 +69,7 @@ export interface CompletedExercisePRDetail {
   points: number;
 }
 
-export const useWorkoutSession = () => {
+export const useWorkoutSession = (programDayId?: string) => {
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
@@ -78,13 +78,56 @@ export const useWorkoutSession = () => {
   // Smart Weight Engine is a Standard+ feature — free users keep the raw
   // planned weight without auto-adjustment from feedback (PAYMENT_FEATURE.md).
   const { hasStandard } = useEntitlement();
-  const currentDayDetail = useSelector(selectCurrentDayDetail);
+  // Architectural rule: the session's day MUST be addressed by an explicit
+  // program_day_id. Reading workout.currentDayDetail directly is forbidden
+  // here because that field is bootstrap-time "today" and drifts across
+  // calendar rollover + day-strip taps (root cause of Rami 2026-06-21..27).
+  //
+  // Priority:
+  //   1. explicit `programDayId` arg — passed by WorkoutCountdownScreen
+  //      with the day the user just selected.
+  //   2. session.programDayId — once startSession runs, this is the source
+  //      of truth for the active session (covers WorkoutLog / RestTimer /
+  //      etc. which mount without an explicit arg).
+  //   3. nothing — return null and let the caller render a loading state.
+  //      We deliberately do NOT fall back to currentDayDetail; silent
+  //      fallback is the regression we're guarding against.
+  const targetDayId = useSelector((state: RootState) => {
+    return programDayId ?? state.session.programDayId ?? null;
+  });
+  const currentDayDetail = useSelector((state: RootState) => {
+    if (!targetDayId) return null;
+    const cached = state.workout.dayDetailsById[targetDayId];
+    if (cached) return cached;
+    // Bootstrap seeds currentDayDetail before it lands in dayDetailsById on
+    // the very first render after a cold load — accept it only when the day
+    // ids match. Any mismatch means stale data; refuse and wait.
+    if (state.workout.currentDayDetail?.day.id === targetDayId) {
+      return state.workout.currentDayDetail;
+    }
+    return null;
+  });
+  // Tripwire — surfaces the "no day in scope" case (means a caller forgot to
+  // pass programDayId AND there's no active session). Without this we'd
+  // silently render an empty session and the bug would be hard to spot.
+  if (__DEV__ && targetDayId == null) {
+    console.warn(
+      "[useWorkoutSession] No programDayId resolved (explicit arg + session.programDayId both empty). Returning empty session.",
+    );
+  }
   const user = useSelector(selectUser);
   const userId = user?.id ?? "";
 
   // Session state from Redux (survives navigation AND app kill — persisted)
   const sessionId = useSelector(selectSessionId);
   const sessionProgramDayId = useSelector(selectSessionProgramDayId);
+  // workout_kind for THIS session's day. Sourced from session.programDayId,
+  // not currentDayDetail — the latter tracks the home screen's "today" and
+  // can drift away from the active session after a calendar rollover or
+  // app rebuild.
+  const sessionDayKind = useSelector(
+    selectDayKindByProgramDayId(sessionProgramDayId),
+  );
   const exerciseMap = useSelector(selectExerciseMap);
   const setMap = useSelector(selectSetMap);
   const setsLogged = useSelector(selectSetsLogged);
@@ -801,8 +844,20 @@ export const useWorkoutSession = () => {
     // finishSession (End Workout sheet, swipe-back, OS kill, mid-finish
     // navigation) leaves the day correctly marked, surviving until the
     // sync queue confirms the underlying UPDATE.
-    if (sessionWorkout?.programDayId) {
-      dispatch(markDayCompleted(sessionWorkout.programDayId));
+    //
+    // Source is the session slice's own programDayId (set once at session
+    // start, persisted across app kills). Do NOT derive this from
+    // sessionWorkout / currentDayDetail — those track the home screen's
+    // "today" and can point at a different day after an app rebuild or a
+    // calendar rollover, which would leave the actual session's day
+    // unmarked locally until the user logs out and back in.
+    if (sessionProgramDayId) {
+      dispatch(markDayCompleted(sessionProgramDayId));
+    } else {
+      console.warn(
+        "[useWorkoutSession] finishSession ran with no sessionProgramDayId",
+        { sessionId },
+      );
     }
 
     if (!userId) return null;
@@ -874,9 +929,10 @@ export const useWorkoutSession = () => {
       sessionService.awardPoints(workoutAwardParams),
     );
 
-    // +150 if this day was a cardio day. workout_kind lives on program_days.
-    const dayKind = currentDayDetail?.day.workout_kind;
-    const cardioBonusPoints = dayKind === "cardio" ? 150 : 0;
+    // +150 if THIS session's day is a cardio day. Look up by the session's
+    // own programDayId — currentDayDetail can have moved to a different day
+    // by the time finishSession runs (e.g., after a calendar rollover).
+    const cardioBonusPoints = sessionDayKind === "cardio" ? 150 : 0;
     if (cardioBonusPoints > 0) {
       const cardioAwardParams = {
         userId,
@@ -925,8 +981,8 @@ export const useWorkoutSession = () => {
     exercisesCompleted,
     setsLogged,
     userId,
-    currentDayDetail,
-    sessionWorkout,
+    sessionProgramDayId,
+    sessionDayKind,
     syncWrite,
     enqueueWrite,
     dispatch,
@@ -1068,7 +1124,11 @@ export const useWorkoutSession = () => {
       // Optimistic Redux update — UI sees the new set right away.
       dispatch(addSessionSet({ sessionExerciseId: seId, sessionSetId: newSetId }));
 
-      await syncWrite(
+      // Fire-and-forget — syncWrite swallows errors and enqueues for retry,
+      // so awaiting the Supabase round-trip just delays the caller's
+      // resolved promise without affecting UI correctness. Returning right
+      // after the local dispatch keeps tap → render path tight.
+      void syncWrite(
         "createSingleSessionSet",
         { sessionExerciseId: seId, setNumber: newSetNumber, template, id: newSetId },
         () => sessionService.createSingleSessionSet(seId, newSetNumber, template, newSetId),

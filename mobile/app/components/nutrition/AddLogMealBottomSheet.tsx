@@ -745,13 +745,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   commentsInput: {
-    flex: 1,
+    // No `flex: 1` — iOS multiline TextInput in a column container with
+    // flex grow leaves the text frame at 0 height until focus drops,
+    // making typed text invisible (Rami 2026-06-19).
     fontFamily: FONTS.regular,
     fontSize: 14,
     lineHeight: 18.2,
     color: "#F0F0F0",
     textAlignVertical: "top",
-    minHeight: 24,
+    minHeight: 60,
+    maxHeight: 120,
     padding: 0,
   },
   micButtonWrap: {

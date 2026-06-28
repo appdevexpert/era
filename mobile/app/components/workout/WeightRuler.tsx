@@ -2,7 +2,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useRef, useState } from "react";
+import { memo, useCallback, useRef, useState } from "react";
 import {
   Dimensions,
   type LayoutChangeEvent,
@@ -162,7 +162,11 @@ const WeightRuler = ({
   );
 };
 
-export default WeightRuler;
+// Memoized — every render of WorkoutLogScreen (e.g. when setMap updates after
+// addSet) otherwise re-renders this scrubbable SVG ruler. Props are all
+// primitives + a stable useCallback, so the default shallow comparison is
+// enough to skip the work.
+export default memo(WeightRuler);
 
 /* ─── Styles ─── */
 

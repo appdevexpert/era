@@ -2,7 +2,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useRef } from "react";
+import { memo, useCallback, useRef } from "react";
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import Animated, {
   runOnJS,
@@ -124,7 +124,11 @@ const RepsPicker = ({
   );
 };
 
-export default RepsPicker;
+// Memoized — every render of WorkoutLogScreen (e.g. when setMap updates after
+// addSet) otherwise re-renders this scrubbable list and burns a frame on
+// scroll-position recalc. Props are all primitives + a stable useCallback,
+// so the default shallow comparison is enough.
+export default memo(RepsPicker);
 
 const styles = StyleSheet.create({
   container: {

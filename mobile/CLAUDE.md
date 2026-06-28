@@ -321,6 +321,7 @@ Some product rules are explicit decisions that should NOT be undone by future re
 - **ERA points + streak** — Locked point values (50/15/100/150/25/200) and streak rules (workout-only, rest preserves, missed breaks). (See `memory/project_era_points_streak_spec.md`.)
 - **Week progression** — Calendar-driven auto-shift, NOT completion-gated. (See `memory/project_week_progression_model.md`.)
 - **Local-first writes** — Redux first, Supabase sync with retry queue. Never block UI on network. Never silently drop writes. (See `memory/feedback_local_first.md` and Data Write Pattern in `claude.local.md`.)
+- **Session day resolution** — `useWorkoutSession` resolves the day strictly from `programDayId` arg → `session.programDayId`. It must NEVER fall back to `state.workout.currentDayDetail`, which is bootstrap-time "today" and drifts across calendar rollover + day-strip taps. Any new caller of `useWorkoutSession` must pass the explicit `programDayId` (or rely on `startSession` to set it via `initSession`). Root cause of the 2026-06-21..27 day-mixing regression. See `app/hooks/useWorkoutSession.ts` header comment.
 
 ## Validation
 

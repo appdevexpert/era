@@ -22,9 +22,8 @@ import { RootState, useAppDispatch } from "@/app/stores/store";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import { verticalScale } from "@/app/utils/responsive";
 import {
-  FluentPremium,
   InfoCircleGold,
-  MedalBadge,
+  //MedalBadge,
   ProfileBackChevron,
   SettingChevronRight,
   SettingChevronRightDanger,
@@ -134,8 +133,6 @@ const ProfileScreen = () => {
     if (!isLoggingOut && !isDeleting) dispatch(signOutThunk());
   };
 
-  const handleOpenPaywall = () => navigation.navigate("Paywall");
-
   const handleDeleteAccount = () => {
     if (isLoggingOut || isDeleting) return;
     Alert.alert(
@@ -203,16 +200,6 @@ const ProfileScreen = () => {
           <StatCard value={String(completedWorkouts)} label={t("profile.workouts")} />
         </View>
 
-        <SectionTitle>{t("profile.sections.subscription")}</SectionTitle>
-        <SettingsCard>
-          <SettingsRow
-            icon={<FluentPremium width={24} height={24} />}
-            label={t("profile.upgradePlan")}
-            right={<Chevron />}
-            onPress={handleOpenPaywall}
-          />
-        </SettingsCard>
-
         <SectionTitle>{t("profile.sections.appSettings")}</SectionTitle>
         <SettingsCard>
           <SettingsRow
@@ -256,14 +243,14 @@ const ProfileScreen = () => {
             onPress={() => navigation.navigate("PrivacyPolicy")}
           />
           {/* Dev-only shortcut to test the cycle 1 → cycle 2 celebration flow. */}
-          {__DEV__ && (
-            <SettingsRow
+         
+            {/* <SettingsRow
               icon={<MedalBadge width={24} height={24} />}
               label={t("twelveWeekCompletion.devTestButton")}
               right={<Chevron />}
               onPress={() => navigation.navigate("TwelveWeekCompletion")}
-            />
-          )}
+            /> */}
+
         </SettingsCard>
 
         <SectionTitle>{t("profile.sections.sessionManagement")}</SectionTitle>

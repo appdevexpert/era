@@ -378,6 +378,10 @@ const ExerciseListScreen = () => {
       firstExerciseName: firstExercise?.name ?? "",
       mode,
       startExerciseIndex: startIdx,
+      // Pin the session to the day the user just selected. Without this the
+      // hook would fall back to workout.currentDayDetail (bootstrap-time
+      // "today") and run a Saturday session for a Monday tap.
+      programDayId: activeDayDetail.day.id,
     });
   }, [
     buttonMode,

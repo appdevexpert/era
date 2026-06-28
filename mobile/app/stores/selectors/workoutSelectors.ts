@@ -14,6 +14,22 @@ export const selectWorkoutOverview = (state: RootState) => state.workout.overvie
 export const selectCurrentDayDetail = (state: RootState) =>
   state.workout.currentDayDetail;
 
+/**
+ * Looks up workout_kind for a given programDayId from the cached overview.
+ * Used by finishSession to attribute the cardio bonus to the SESSION'S day,
+ * not whatever day currentDayDetail is currently pointing at — those can
+ * drift apart after an app rebuild or calendar rollover.
+ */
+export const selectDayKindByProgramDayId =
+  (programDayId: string | null) =>
+  (state: RootState): string | null => {
+    if (!programDayId) return null;
+    return (
+      state.workout.overview?.days.find((d) => d.id === programDayId)
+        ?.workout_kind ?? null
+    );
+  };
+
 export const selectHasWorkoutBootstrap = (state: RootState) =>
   Boolean(
     state.auth.user?.id &&

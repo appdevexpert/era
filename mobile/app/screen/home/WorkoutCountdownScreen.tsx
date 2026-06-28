@@ -125,8 +125,6 @@ const WorkoutCountdownScreen = () => {
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutCountdown">>();
   const navigation = useNavigation();
   const { t } = useTranslation();
-  const { ready, startSession, navigateToExercise, navigateToSessionComplete } = useWorkoutSession();
-
   const {
     weekLabel,
     dayLabel,
@@ -134,7 +132,12 @@ const WorkoutCountdownScreen = () => {
     firstExerciseName,
     mode = "fresh",
     startExerciseIndex = 0,
+    programDayId,
   } = route.params;
+  // Pin the hook to the user-selected day so startSession initialises the
+  // session for the right program_day (not bootstrap-time currentDayDetail).
+  const { ready, startSession, navigateToExercise, navigateToSessionComplete } =
+    useWorkoutSession(programDayId);
 
   const { remaining: countdown } = useWallClockCountdown({
     totalSeconds: COUNTDOWN_SECONDS,

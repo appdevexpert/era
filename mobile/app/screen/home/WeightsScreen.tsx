@@ -11,7 +11,7 @@ import { FONTS } from "@/app/constants/fonts";
 import { useExerciseSummaries } from "@/app/hooks/useExerciseSummaries";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { getProgramDayDetail } from "@/app/services/workoutService";
-import { selectCurrentDayDetail, selectWorkoutOverview } from "@/app/stores/selectors/workoutSelectors";
+import { selectWorkoutOverview } from "@/app/stores/selectors/workoutSelectors";
 import type { RootState } from "@/app/stores/store";
 import type { ExerciseSummaryView, ProgramDayDetailData } from "@/app/types/workout";
 import { getLocalizedText } from "@/app/utils/localization";
@@ -34,10 +34,38 @@ const WeightsScreen = () => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<NavigationProp<HomeStackParamList>>();
-  const reduxDayDetail = useSelector(selectCurrentDayDetail);
   const overview = useSelector(selectWorkoutOverview);
   const programStartDate = useSelector((s: RootState) => s.auth.programStartDate);
   const completedDayIds = useSelector((s: RootState) => s.workout.completedDayIds);
+
+  // Today's program_day.id derived from the calendar — never reads
+  // workout.currentDayDetail, which is bootstrap-time "today" and drifts.
+  const todaysDayId = useMemo(() => {
+    if (!overview || !programStartDate) return null;
+    const pos = computeCurrentPosition({
+      programStartDate,
+      totalWeeks: overview.program.duration_weeks,
+    });
+    const day = overview.days.find((d) => {
+      const w = overview.weeks.find((wk) => wk.id === d.week_id);
+      return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+    });
+    return day?.id ?? null;
+  }, [overview, programStartDate]);
+
+  // Today's detail comes from the dayDetailsById cache populated by
+  // loadWorkoutBootstrap / loadProgramDayDetail / prefetchAllDays. Falls
+  // back to the bootstrap-seeded currentDayDetail only when the ids match
+  // (cold-start window before the cache is hydrated).
+  const reduxDayDetail = useSelector((s: RootState) => {
+    if (!todaysDayId) return null;
+    const cached = s.workout.dayDetailsById[todaysDayId];
+    if (cached) return cached;
+    if (s.workout.currentDayDetail?.day.id === todaysDayId) {
+      return s.workout.currentDayDetail;
+    }
+    return null;
+  });
 
   // Anchor for the program week the user is browsing. Defaults to the
   // current calendar week; chevrons in PhaseWeekHeader navigate 1..12.

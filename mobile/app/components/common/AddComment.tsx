@@ -135,13 +135,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   input: {
-    flex: 1,
+    // Multiline iOS bug: `flex: 1` on a multiline TextInput inside a column
+    // container leaves the text frame at 0 height until focus is dropped,
+    // which is what Rami saw on 2026-06-19 ("typed text is invisible until
+    // you exit and re-enter the field"). Use explicit minHeight + maxHeight
+    // so the input has a real frame from first paint.
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
+    lineHeight: 20,
     color: COLORS.neutral.white,
     padding: 0,
-    minHeight: 40,
+    minHeight: 60,
+    maxHeight: 120,
   },
   recordingArea: {
     flex: 1,
