@@ -1,5 +1,6 @@
 import EntitlementGate from "@/app/components/common/EntitlementGate";
 import SuccessBanner from "@/app/components/progress/SuccessBanner";
+import ProChartLockedCard from "@/app/components/workout/ProChartLockedCard";
 import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/WeightProgressChart";
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
@@ -66,7 +67,10 @@ const WeightStatsCard = ({
 
       {/* Full graph view is Standard+ — free users see the current/heaviest
           numbers above but not the historical chart. */}
-      <EntitlementGate requires="standard">
+      <EntitlementGate
+        requires="standard"
+        fallback={<ProChartLockedCard requiredTier="standard" />}
+      >
         <WeightProgressChart
           data={chartData}
           xTickLabels={chartXTickLabels}

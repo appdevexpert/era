@@ -147,13 +147,13 @@ const en = {
         title: "Weight",
         eyebrow: "CURRENT BODY METRICS",
         heading: "What’s your weight?",
-        description: "This us helps adjust workouts to fit your body.",
+        description: "This helps us adjust workouts to fit your body.",
       },
       height: {
         title: "Height",
         eyebrow: "CURRENT BODY METRICS",
         heading: "What’s your Height?",
-        description: "This us helps adjust workouts to fit your body.",
+        description: "This helps us adjust workouts to fit your body.",
         bmi: {
           label: "Your BMI",
           below: "Your BMI is below normal range - you need to gain weight for a healthier you.",
@@ -324,8 +324,18 @@ const en = {
     sections: {
       subscription: "Subscription",
       appSettings: "App Settings",
+      notifications: "Notifications",
       support: "Support",
       sessionManagement: "Session Management",
+    },
+    notifications: {
+      dailyReminder: "Daily Reminder",
+      streakWarning: "Streak Warning",
+      prAlerts: "PR Alerts",
+      weeklySummary: "Weekly Summary",
+      permissionDeniedTitle: "Notifications are turned off",
+      permissionDeniedBody: "Enable them in system settings to get reminders, streak warnings, and PR alerts.",
+      openSystemSettings: "Open System Settings",
     },
     language: "Language",
     weightUnit: "Weight Unit",
@@ -706,6 +716,18 @@ const en = {
       title: "No history yet",
       subtitle: "Log this exercise to start building your history.",
     },
+    chartLocked: {
+      pro: {
+        title: "Pro feature",
+        body: "Unlock the 12-week progression chart and see how your numbers climb week over week.",
+        cta: "Unlock with Pro",
+      },
+      standard: {
+        title: "Standard feature",
+        body: "Unlock your weight progression chart and track your trend week over week.",
+        cta: "Unlock with Standard",
+      },
+    },
   },
   workout: {
     ui: {
@@ -738,6 +760,9 @@ const en = {
       noWorkoutLogged: "No workout was logged for this day.",
       skipped: "Skipped",
       setsLabel: "sets",
+      maxWeightLabel: "max weight",
+      maxRepsLabel: "max reps",
+      maxDurationLabel: "max duration",
       comment: "Comment",
       loadingWorkout: "Loading workout...",
       unableToLoadWorkout: "Unable to load workout.",
@@ -832,6 +857,35 @@ const en = {
     title: "Language",
     english: "English",
     norwegian: "Norsk",
+  },
+  notificationContent: {
+    dailyReminder: {
+      title: "Time to train",
+      body: "Your workout is waiting. Let's go!",
+    },
+    streakWarning: {
+      title: "Don't break your streak",
+      body: "Log a workout today to keep your streak alive.",
+    },
+    prAlert: {
+      title: "New PR!",
+      body: "{{exercise}} — {{weight}}",
+    },
+  },
+  notificationPermission: {
+    title: "Stay on track with ERA",
+    subtitle: "Enable notifications to get workout reminders, streak warnings, and personal record celebrations.",
+    hint: "You can change this in settings any time.",
+    enableButton: "Enable Notifications",
+    maybeLater: "Maybe Later",
+    preview: {
+      now: "now",
+      minutesAgo: "{{minutes}}m ago",
+      prTitle: "New PR! 🎉",
+      prBody: "Bench Press — 100 kg",
+      reminderTitle: "Time to train",
+      reminderBody: "Your workout is waiting. Let's go!",
+    },
   },
 };
 

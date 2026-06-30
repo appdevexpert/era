@@ -4,7 +4,10 @@ import { FONTS } from "@/app/constants/fonts";
 import PointsOptimizeBottomSheet, {
   type PointsOptimizeBottomSheetRef,
 } from "@/app/components/workout/PointsOptimizeBottomSheet";
-import { selectRecentPointEvents } from "@/app/stores/selectors/rewardSelectors";
+import {
+  selectRecentPointEvents,
+  selectTotalPoints,
+} from "@/app/stores/selectors/rewardSelectors";
 import { selectUser } from "@/app/stores/selectors/authSelectors";
 import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
 import { useAppDispatch } from "@/app/stores/store";
@@ -101,6 +104,7 @@ const PointsScreen = () => {
   const { t } = useTranslation();
   const optimizeSheetRef = useRef<PointsOptimizeBottomSheetRef>(null);
   const recentEvents = useSelector(selectRecentPointEvents);
+  const totalPoints = useSelector(selectTotalPoints);
   const user = useSelector(selectUser);
   const dispatch = useAppDispatch();
 
@@ -183,7 +187,7 @@ const PointsScreen = () => {
                 x={0}
                 y={38}
               >
-                3240
+                {totalPoints}
               </SvgText>
             </Svg>
           </View>

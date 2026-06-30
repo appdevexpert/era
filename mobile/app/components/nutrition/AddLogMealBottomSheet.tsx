@@ -12,7 +12,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import Animated, {
   Easing,
@@ -407,7 +407,13 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                 <View style={[styles.field, styles.flex1]}>
                   <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.units")}</Text>
                   <PressableScale
-                    onPress={() => setUnitsOpen((open) => !open)}
+                    onPress={() => {
+                      // Drop the keyboard before showing the inline list — otherwise
+                      // the list opens behind the still-up keyboard when the user
+                      // is coming from the Serving Size input.
+                      Keyboard.dismiss();
+                      setUnitsOpen((open) => !open);
+                    }}
                     style={[styles.input, styles.dropdownInput, unitsOpen && styles.dropdownInputOpen]}
                   >
                     <Text style={[styles.dropdownText, !units && styles.placeholderText]}>

@@ -88,7 +88,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
         index={-1}
         enablePanDownToClose
         snapPoints={["50%"]}
-        keyboardBehavior="interactive"
+        keyboardBehavior="fillParent"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
         backgroundStyle={styles.sheetBg}

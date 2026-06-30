@@ -335,21 +335,41 @@ async function getExerciseCount(programDayId: string, sectionIds: string[]) {
   return result.count ?? 0;
 }
 
-/** Get program_day_ids of all completed workout sessions for a user. */
-export async function getCompletedSessionDayIds(
+/**
+ * One summary row per completed program day for a user — the program_day_id
+ * plus the duration of the latest completed session for that day. A day can
+ * have multiple completed sessions if the user re-played it; we keep only the
+ * most recent (matches getCompletedSessionDetail's "latest by completed_at"
+ * semantics).
+ */
+export type CompletedSessionSummary = {
+  programDayId: string;
+  durationMinutes: number;
+};
+
+export async function getCompletedSessionSummaries(
   userId: string,
-): Promise<string[]> {
+): Promise<CompletedSessionSummary[]> {
   const { data, error } = await supabase
     .from("workout_sessions")
-    .select("program_day_id")
+    .select("program_day_id, duration_seconds, completed_at")
     .eq("user_id", userId)
     .eq("status", "completed")
-    .not("program_day_id", "is", null);
+    .not("program_day_id", "is", null)
+    .order("completed_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return (data ?? [])
-    .map((row) => row.program_day_id as string)
-    .filter(Boolean);
+
+  const latestByDay = new Map<string, CompletedSessionSummary>();
+  for (const row of data ?? []) {
+    const programDayId = row.program_day_id as string | null;
+    if (!programDayId || latestByDay.has(programDayId)) continue;
+    latestByDay.set(programDayId, {
+      programDayId,
+      durationMinutes: Math.round((row.duration_seconds ?? 0) / 60),
+    });
+  }
+  return Array.from(latestByDay.values());
 }
 
 /**

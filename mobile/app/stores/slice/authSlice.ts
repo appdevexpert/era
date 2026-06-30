@@ -44,6 +44,13 @@ interface AuthState {
    */
   hasSeenGetStarted: boolean;
   /**
+   * True once we've shown the native notification permission dialog after
+   * a successful login on this install. Same lifecycle as hasSeenGetStarted
+   * — persists across logout, resets on account delete. Drives the one-time
+   * popup trigger in Navigation.tsx.
+   */
+  hasAskedNotificationPermission: boolean;
+  /**
    * True while the user is in the middle of a password-recovery deep link
    * flow. Persisted so an app crash mid-recovery doesn't bounce the user
    * back to the wrong stack — they reopen the app, the flag is still set,
@@ -63,6 +70,7 @@ const initialState: AuthState = {
   programStartDate: null,
   hasGoals: null,
   hasSeenGetStarted: false,
+  hasAskedNotificationPermission: false,
   isRecovery: false,
 
   loadingStatus: "idle",
@@ -235,6 +243,9 @@ const authSlice = createSlice({
     setHasSeenGetStarted: (state, action: PayloadAction<boolean>) => {
       state.hasSeenGetStarted = action.payload;
     },
+    setHasAskedNotificationPermission: (state, action: PayloadAction<boolean>) => {
+      state.hasAskedNotificationPermission = action.payload;
+    },
     completeOnboarding: (state) => { state.isOnboarded = true; },
     setPlanGenerationLocal: (state) => {
       state.isPlanGenerated = true;
@@ -351,6 +362,7 @@ export const {
   login, logout, clearSession, updateUser, clearError,
   completeOnboarding, setPlanGenerationLocal, setProgramStartDate, resetPlanGeneration,
   setRecovery, setHasGoals, setHasSeenGetStarted,
+  setHasAskedNotificationPermission,
 } = authSlice.actions;
 
 export default authSlice.reducer;

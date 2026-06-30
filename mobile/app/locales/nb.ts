@@ -324,8 +324,18 @@ const nb = {
     sections: {
       subscription: "Abonnement",
       appSettings: "App-innstillinger",
+      notifications: "Varsler",
       support: "Støtte",
       sessionManagement: "Øktbehandling",
+    },
+    notifications: {
+      dailyReminder: "Daglig påminnelse",
+      streakWarning: "Streak-advarsel",
+      prAlerts: "PR-varsler",
+      weeklySummary: "Ukentlig oppsummering",
+      permissionDeniedTitle: "Varsler er slått av",
+      permissionDeniedBody: "Slå dem på i systeminnstillinger for å få påminnelser, streak-advarsler og PR-varsler.",
+      openSystemSettings: "Åpne systeminnstillinger",
     },
     language: "Språk",
     weightUnit: "Vektenhet",
@@ -706,6 +716,18 @@ const nb = {
       title: "Ingen historikk ennå",
       subtitle: "Logg denne øvelsen for å begynne å bygge historikk.",
     },
+    chartLocked: {
+      pro: {
+        title: "Pro-funksjon",
+        body: "Lås opp 12-ukers utviklingsgrafen og se hvordan tallene dine klatrer uke for uke.",
+        cta: "Lås opp med Pro",
+      },
+      standard: {
+        title: "Standard-funksjon",
+        body: "Lås opp vektutviklingsgrafen din og følg trenden uke for uke.",
+        cta: "Lås opp med Standard",
+      },
+    },
   },
   workout: {
     ui: {
@@ -738,6 +760,9 @@ const nb = {
       noWorkoutLogged: "Ingen treningsøkt ble logget for denne dagen.",
       skipped: "Hoppet over",
       setsLabel: "sett",
+      maxWeightLabel: "maks vekt",
+      maxRepsLabel: "maks reps",
+      maxDurationLabel: "maks varighet",
       comment: "Kommentar",
       loadingWorkout: "Laster treningsøkt...",
       unableToLoadWorkout: "Kunne ikke laste treningsøkten.",
@@ -832,6 +857,35 @@ const nb = {
     title: "Språk",
     english: "English",
     norwegian: "Norsk",
+  },
+  notificationContent: {
+    dailyReminder: {
+      title: "Tid for trening",
+      body: "Treningen venter. Kom igjen!",
+    },
+    streakWarning: {
+      title: "Ikke bryt streaken",
+      body: "Logg en økt i dag for å holde streaken i live.",
+    },
+    prAlert: {
+      title: "Ny PR!",
+      body: "{{exercise}} — {{weight}}",
+    },
+  },
+  notificationPermission: {
+    title: "Hold deg på sporet med ERA",
+    subtitle: "Slå på varsler for å få treningspåminnelser, streak-advarsler og PR-feiringer.",
+    hint: "Du kan endre dette i innstillinger når som helst.",
+    enableButton: "Slå på varsler",
+    maybeLater: "Kanskje senere",
+    preview: {
+      now: "nå",
+      minutesAgo: "{{minutes}} min siden",
+      prTitle: "Ny PR! 🎉",
+      prBody: "Benkpress — 100 kg",
+      reminderTitle: "Tid for trening",
+      reminderBody: "Treningen venter. Kom igjen!",
+    },
   },
 };
 

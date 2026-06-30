@@ -3,7 +3,7 @@ import { setProgramStartDate, signOutThunk } from "./authSlice";
 import { loadRewardBootstrap } from "./rewardSlice";
 import { loadWeightBootstrap } from "./weightSlice";
 import {
-  getCompletedSessionDayIds,
+  getCompletedSessionSummaries,
   getProgramDayDetail,
   getProgramDayDetailFast,
   getProgramVersion,
@@ -30,6 +30,8 @@ export type WorkoutBootstrapData = {
   overview: WorkoutOverviewData;
   currentDayDetail: ProgramDayDetailData;
   completedDayIds: string[];
+  /** program_day_id → minutes for the latest completed session of each day. */
+  completedDayDurations: Record<string, number>;
   loadedAt: string;
   versionSignature: string | null;
   assignment: AssignmentRow | null;
@@ -52,6 +54,14 @@ interface WorkoutState {
   dayDetailsById: Record<string, ProgramDayDetailData>;
   /** program_day_ids of days with completed workout sessions */
   completedDayIds: string[];
+  /**
+   * Cached actual session length (in minutes) per completed program day.
+   * Populated from the bootstrap fetch and updated optimistically when
+   * finishSession runs, so the Today's Workout card and the ExerciseList
+   * stats row can render the real duration synchronously — no estimated → actual
+   * flicker, no per-screen network round-trip.
+   */
+  completedDayDurations: Record<string, number>;
   loadedAt: string | null;
   /**
    * "<MAX(updated_at)>:<total row count>" snapshot of the server at the time
@@ -73,6 +83,7 @@ const initialState: WorkoutState = {
   currentDayDetail: null,
   dayDetailsById: {},
   completedDayIds: [],
+  completedDayDurations: {},
   loadedAt: null,
   versionSignature: null,
   assignment: null,
@@ -135,10 +146,15 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       }
     }
 
-    // Fetch completed day IDs from workout_sessions
-    const completedDayIds = userId
-      ? await getCompletedSessionDayIds(userId)
+    // Fetch one summary row per completed program day (latest session per day).
+    // Drives both completedDayIds and completedDayDurations downstream.
+    const completedSummaries = userId
+      ? await getCompletedSessionSummaries(userId)
       : [];
+    const completedDayIds = completedSummaries.map((s) => s.programDayId);
+    const completedDayDurations = Object.fromEntries(
+      completedSummaries.map((s) => [s.programDayId, s.durationMinutes] as const),
+    );
 
     // Hydrate reward + weight slices in the background. Failure here
     // shouldn't block the workout screen from rendering, but it MUST surface
@@ -187,6 +203,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       overview,
       currentDayDetail,
       completedDayIds,
+      completedDayDurations,
       loadedAt: new Date().toISOString(),
       versionSignature,
       assignment,
@@ -301,6 +318,54 @@ export const prefetchAllDays = createAsyncThunk<
 });
 
 /**
+ * Re-anchors `state.workout.currentDayDetail` to the calendar-current day when
+ * the cached "today" pointer has drifted past midnight (or the device timezone
+ * changed). `currentDayDetail` is set once at bootstrap and is otherwise frozen
+ * — without this refresh, every selector that falls back to it (e.g.
+ * `useWorkoutSession`'s currentDayDetail resolver) keeps reading yesterday's
+ * day_detail forever.
+ *
+ * Fast — uses dayDetailsById cache when available; only fetches when a brand
+ * new day isn't in the per-day cache yet.
+ */
+export const refreshTodayIfStale = createAsyncThunk<
+  void,
+  void,
+  { state: RootState }
+>("workout/refreshTodayIfStale", async (_, { getState, dispatch }) => {
+  const root = getState();
+  const workout = root.workout;
+  const programStartDate = root.auth.programStartDate;
+  const overview = workout.overview;
+  if (!overview || !programStartDate) return;
+
+  const pos = computeCurrentPosition({
+    programStartDate,
+    totalWeeks: overview.program.duration_weeks,
+  });
+  const todayDay = overview.days.find((d) => {
+    const w = overview.weeks.find((wk) => wk.id === d.week_id);
+    return w?.week_number === pos.weekNumber && d.day_number === pos.dayNumber;
+  });
+  if (!todayDay) return;
+  if (workout.currentDayDetail?.day.id === todayDay.id) return;
+
+  const cached = workout.dayDetailsById[todayDay.id];
+  if (cached) {
+    dispatch(setCurrentDayDetail(cached));
+    return;
+  }
+  try {
+    const detail = await dispatch(loadProgramDayDetail(todayDay.id)).unwrap();
+    dispatch(setCurrentDayDetail(detail));
+  } catch (error) {
+    reportBackgroundError("workout.refreshTodayIfStale", error, {
+      programDayId: todayDay.id,
+    });
+  }
+});
+
+/**
  * Asks the server for the latest program change-signature and refetches the
  * full workout bootstrap only when the signature differs from the cached one.
  * The signature ("<MAX(updated_at)>:<row count>") moves on insert / update /
@@ -337,6 +402,31 @@ const workoutSlice = createSlice({
         state.completedDayIds.push(action.payload);
       }
     },
+    /**
+     * Optimistically cache the actual minute count for a freshly completed
+     * day so the Today's Workout card + ExerciseList stats render the real
+     * duration immediately, instead of the estimated value the plan ships with.
+     */
+    setCompletedDayDuration: (
+      state,
+      action: PayloadAction<{ programDayId: string; durationMinutes: number }>,
+    ) => {
+      state.completedDayDurations[action.payload.programDayId] =
+        action.payload.durationMinutes;
+    },
+    /**
+     * Replace the cached "today" day_detail pointer. Fired by
+     * `refreshTodayIfStale` after a calendar rollover / timezone change so
+     * selectors that fall back to `currentDayDetail` (e.g.
+     * `useWorkoutSession`) don't keep reading yesterday's day.
+     */
+    setCurrentDayDetail: (
+      state,
+      action: PayloadAction<ProgramDayDetailData>,
+    ) => {
+      state.currentDayDetail = action.payload;
+      state.dayDetailsById[action.payload.day.id] = action.payload;
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(loadWorkoutBootstrap.pending, (state) => {
@@ -365,6 +455,14 @@ const workoutSlice = createSlice({
           ...action.payload.completedDayIds,
         ]),
       );
+      // Same local-first rationale as completedDayIds: an in-flight finishSession
+      // may have written a duration that hasn't yet round-tripped to the server.
+      // Server values seed any unseen keys; local values override on conflict so
+      // the optimistic minute count isn't clobbered by a stale server view.
+      state.completedDayDurations = {
+        ...action.payload.completedDayDurations,
+        ...state.completedDayDurations,
+      };
       state.loadedAt = action.payload.loadedAt;
       state.versionSignature = action.payload.versionSignature;
       state.assignment = action.payload.assignment;
@@ -388,6 +486,11 @@ const workoutSlice = createSlice({
   },
 });
 
-export const { clearWorkoutCache, markDayCompleted } = workoutSlice.actions;
+export const {
+  clearWorkoutCache,
+  markDayCompleted,
+  setCompletedDayDuration,
+  setCurrentDayDetail,
+} = workoutSlice.actions;
 
 export default workoutSlice.reducer;

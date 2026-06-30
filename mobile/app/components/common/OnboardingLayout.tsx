@@ -73,7 +73,7 @@ const OnboardingLayout = ({
       <View style={styles.screen}>
         {/* Nav Header */}
         <View style={styles.navHeader}>
-          <BackButton onPress={onBack} />
+          <BackButton onPress={onBack} disabled={!onBack} />
 
           <View
             style={styles.progressBarContainer}

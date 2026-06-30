@@ -46,7 +46,10 @@ import {
   resetSession,
 } from "@/app/stores/slice/sessionSlice";
 import { uuidv4 } from "@/app/utils/uuid";
-import { markDayCompleted } from "@/app/stores/slice/workoutSlice";
+import {
+  markDayCompleted,
+  setCompletedDayDuration,
+} from "@/app/stores/slice/workoutSlice";
 import {
   appendPointEvent,
   loadRewardBootstrap,
@@ -57,6 +60,7 @@ import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMapp
 import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import * as sessionService from "@/app/services/sessionService";
+import { firePRAlert } from "@/app/utils/notifications";
 import { suggestFutureSetWeights } from "@/app/utils/setSuggestion";
 
 /** PR detail shaped for PRScreen route params — returned by completeExerciseResult. */
@@ -142,6 +146,9 @@ export const useWorkoutSession = (programDayId?: string) => {
   const weightUnitPref = useSelector(
     (state: RootState) => state.preferences.weightUnit,
   );
+  const prAlertsEnabled = useSelector(
+    (state: RootState) => state.preferences.notifications.prAlerts,
+  );
   const isDeloadWeek = useSelector(
     (state: RootState) => state.workout.assignment?.is_deload_week === true,
   );
@@ -180,6 +187,20 @@ export const useWorkoutSession = (programDayId?: string) => {
 
     const editMode = options?.editMode === true;
     const programDayId = sessionWorkout.programDayId;
+
+    // Hard-reset any stale session left over from a different day. Hits the
+    // calendar-rollover / timezone-change case where Tuesday's session_id +
+    // completedSets + exerciseMap survive in persisted Redux while the user
+    // is opening Wednesday's workout. Without this wipe, an in_progress / completed
+    // row hit on `findExistingSession` below would hydrateFromState() with the
+    // wrong day's session_exercises and the WorkoutLog screen would render
+    // yesterday's exercises with yesterday's prefilled set values.
+    if (
+      sessionProgramDayId &&
+      sessionProgramDayId !== programDayId
+    ) {
+      dispatch(resetSession());
+    }
 
     const hydrateExerciseData = async () => {
       const exerciseLibraryIds = sessionWorkout.exercises.map((ex) => ex.exerciseLibraryId);
@@ -798,6 +819,14 @@ export const useWorkoutSession = (programDayId?: string) => {
                   previousBestKg > 0 ? `${previousBestKg} ${weightUnit}` : "—",
                 points,
               };
+
+              // Local push for the PR. Gated on the user's Profile toggle —
+              // the in-app celebration screen still fires regardless.
+              if (prAlertsEnabled) {
+                firePRAlert(ex.name, `${weightKg} ${weightUnit}`).catch((err) =>
+                  console.warn("[useWorkoutSession] firePRAlert failed", err),
+                );
+              }
             }
           }
         } catch (err) {
@@ -807,7 +836,7 @@ export const useWorkoutSession = (programDayId?: string) => {
 
       return { prDetail };
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite, completedExerciseIds, ensureSessionHydrated, t],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, exerciseStatsMap, userId, sessionId, dispatch, syncWrite, completedExerciseIds, ensureSessionHydrated, t, prAlertsEnabled],
   );
 
   /**
@@ -853,6 +882,16 @@ export const useWorkoutSession = (programDayId?: string) => {
     // unmarked locally until the user logs out and back in.
     if (sessionProgramDayId) {
       dispatch(markDayCompleted(sessionProgramDayId));
+      // Cache the actual minute count alongside the completion flag so the
+      // Today's Workout card + ExerciseList stats render real duration
+      // instantly on the next render, instead of falling back to the plan's
+      // estimated_minutes until a Supabase refetch resolves.
+      dispatch(
+        setCompletedDayDuration({
+          programDayId: sessionProgramDayId,
+          durationMinutes: Math.round(durationSeconds / 60),
+        }),
+      );
     } else {
       console.warn(
         "[useWorkoutSession] finishSession ran with no sessionProgramDayId",
@@ -995,16 +1034,21 @@ export const useWorkoutSession = (programDayId?: string) => {
       const ex = sessionWorkout.exercises[exerciseIndex];
       if (!ex) return;
 
+      // Use the live set count from Redux (reflects + button additions),
+      // not the planned setCount snapshot from session bootstrap.
+      const seId = exerciseMap[ex.id];
+      const liveSetCount = seId ? setMap[seId]?.length ?? ex.setCount : ex.setCount;
+
       navigation.replace("RestTimer", {
         exerciseIndex: exerciseIndex + 1,
         totalExercises,
         currentSet: nextSet,
-        totalSets: ex.setCount,
+        totalSets: liveSetCount,
         nextExerciseName: ex.name,
         restDuration: ex.restSeconds || 60,
       });
     },
-    [navigation, sessionWorkout, totalExercises],
+    [navigation, sessionWorkout, totalExercises, exerciseMap, setMap],
   );
 
   /** Navigate to session complete — marks session done in Supabase first */

@@ -22,7 +22,11 @@ import { RootState, useAppDispatch } from "@/app/stores/store";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import { verticalScale } from "@/app/utils/responsive";
 import {
+  ChartGold,
+  FireGold,
+  IconBolt,
   InfoCircleGold,
+  MedalPrRed,
   //MedalBadge,
   ProfileBackChevron,
   SettingChevronRight,
@@ -42,9 +46,23 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
+import {
+  setNotificationPermissionStatus,
+  setNotificationToggle,
+  type NotificationKind,
+} from "@/app/stores/slice/preferencesSlice";
+import {
+  cancelDailyReminder,
+  cancelStreakWarning,
+  getPermissionStatus,
+  openSystemSettings,
+  scheduleDailyReminder,
+  scheduleStreakWarning,
+} from "@/app/utils/notifications";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -80,6 +98,12 @@ const ProfileScreen = () => {
   const { tier, productId, daysRemaining } = useEntitlement();
 
   const user = useSelector(selectUser);
+  const notificationPrefs = useSelector(
+    (state: RootState) => state.preferences.notifications,
+  );
+  const notificationPermissionStatus = useSelector(
+    (state: RootState) => state.preferences.notificationPermissionStatus,
+  );
   const authStatus = useSelector((state: RootState) => state.auth.loadingStatus);
   const authError = useSelector((state: RootState) => state.auth.error);
   const programStartDate = useSelector(
@@ -100,6 +124,28 @@ const ProfileScreen = () => {
       dispatch(loadRewardBootstrap(user.id));
     }
   }, [dispatch, user?.id, rewardStatus]);
+
+  // Re-sync notification permission whenever Profile is mounted. Covers the
+  // case where the user toggled the system permission from outside the app
+  // (via "Open System Settings") — Redux would otherwise still show the
+  // stale "denied" state and keep showing the banner.
+  useEffect(() => {
+    getPermissionStatus().then((status) => {
+      dispatch(setNotificationPermissionStatus(status));
+    });
+  }, [dispatch]);
+
+  const handleNotificationToggle = (kind: NotificationKind, value: boolean) => {
+    dispatch(setNotificationToggle({ kind, value }));
+    // Only the time-based notifications have something to schedule/cancel
+    // at the OS level. prAlerts and weeklySummary are pure preference flags
+    // consumed elsewhere (workout session + Phase 2 push backend).
+    if (kind === "dailyReminder") {
+      (value ? scheduleDailyReminder() : cancelDailyReminder()).catch(() => {});
+    } else if (kind === "streakWarning") {
+      (value ? scheduleStreakWarning() : cancelStreakWarning()).catch(() => {});
+    }
+  };
 
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -228,6 +274,53 @@ const ProfileScreen = () => {
           />
         </SettingsCard>
 
+        <SectionTitle>{t("profile.sections.notifications")}</SectionTitle>
+        {notificationPermissionStatus === "denied" ? (
+          <SettingsCard>
+            <View style={styles.permissionDeniedBlock}>
+              <Text style={styles.permissionDeniedTitle}>
+                {t("profile.notifications.permissionDeniedTitle")}
+              </Text>
+              <Text style={styles.permissionDeniedBody}>
+                {t("profile.notifications.permissionDeniedBody")}
+              </Text>
+            </View>
+            <SettingsRow
+              icon={<InfoCircleGold width={24} height={24} />}
+              label={t("profile.notifications.openSystemSettings")}
+              right={<Chevron />}
+              onPress={openSystemSettings}
+            />
+          </SettingsCard>
+        ) : (
+          <SettingsCard>
+            <NotificationToggleRow
+              icon={<IconBolt width={24} height={24} />}
+              label={t("profile.notifications.dailyReminder")}
+              value={notificationPrefs.dailyReminder}
+              onChange={(v) => handleNotificationToggle("dailyReminder", v)}
+            />
+            <NotificationToggleRow
+              icon={<FireGold width={24} height={24} />}
+              label={t("profile.notifications.streakWarning")}
+              value={notificationPrefs.streakWarning}
+              onChange={(v) => handleNotificationToggle("streakWarning", v)}
+            />
+            <NotificationToggleRow
+              icon={<MedalPrRed width={24} height={24} />}
+              label={t("profile.notifications.prAlerts")}
+              value={notificationPrefs.prAlerts}
+              onChange={(v) => handleNotificationToggle("prAlerts", v)}
+            />
+            <NotificationToggleRow
+              icon={<ChartGold width={24} height={24} />}
+              label={t("profile.notifications.weeklySummary")}
+              value={notificationPrefs.weeklySummary}
+              onChange={(v) => handleNotificationToggle("weeklySummary", v)}
+            />
+          </SettingsCard>
+        )}
+
         <SectionTitle>{t("profile.sections.support")}</SectionTitle>
         <SettingsCard>
           <SettingsRow
@@ -308,6 +401,32 @@ const SectionTitle = ({ children }: { children: string }) => (
   <Text style={styles.sectionTitle}>{children.toUpperCase()}</Text>
 );
 
+const NotificationToggleRow = ({
+  icon,
+  label,
+  value,
+  onChange,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) => (
+  <SettingsRow
+    icon={icon}
+    label={label}
+    right={
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: "rgba(255,255,255,0.15)", true: COLORS.primary.dark }}
+        thumbColor={COLORS.neutral.white}
+        ios_backgroundColor="rgba(255,255,255,0.15)"
+      />
+    }
+  />
+);
+
 const StatCard = ({ value, label }: { value: string; label: string }) => (
   <View style={styles.statCard}>
     <Text style={styles.statValue}>{value}</Text>
@@ -367,6 +486,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.56,
     color: "rgba(240, 240, 240, 0.6)",
     marginBottom: -8,
+  },
+  permissionDeniedBlock: {
+    paddingVertical: 8,
+    gap: 4,
+  },
+  permissionDeniedTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    fontWeight: "500",
+    color: COLORS.neutral.white,
+  },
+  permissionDeniedBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "rgba(240, 240, 240, 0.6)",
   },
   errorText: {
     marginTop: verticalScale(2),

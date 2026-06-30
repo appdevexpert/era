@@ -113,13 +113,14 @@ const GetStarted = () => {
         </Svg>
       </View>
 
-      {/* Quote Card */}
-      <View style={styles.quoteCard}>
-        <Text style={styles.quoteText}>{t("getStarted.quote")}</Text>
-      </View>
+      {/* Bottom stack: quote card + slide button */}
+      <View style={[styles.bottomStack, { paddingBottom: insets.bottom + 20 }]}>
+        {/* Quote Card */}
+        <View style={styles.quoteCard}>
+          <Text style={styles.quoteText}>{t("getStarted.quote")}</Text>
+        </View>
 
-      {/* Slide-to-start Button */}
-      <View style={[styles.buttonContainer, { bottom: insets.bottom + 20 }]}>
+        {/* Slide-to-start Button */}
         <View style={styles.button}>
           <GlassFill style={styles.buttonGlass} />
 
@@ -170,17 +171,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
     color: COLORS.neutral.black,
   },
-  quoteCard: {
+  bottomStack: {
     position: "absolute",
-    bottom: 160,
-    left: 20,
-    right: 20,
-    height: 98,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  quoteCard: {
     backgroundColor: COLORS.alpha.surface08,
     borderRadius: 24,
     padding: 16,
     alignItems: "center",
     justifyContent: "flex-end",
+    marginBottom: 20
   },
   quoteText: {
     color: COLORS.alpha.white80,

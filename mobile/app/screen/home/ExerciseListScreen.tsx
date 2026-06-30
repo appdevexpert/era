@@ -161,7 +161,9 @@ const ExerciseRow = ({
 /* ─── Completed exercise row (with logged set chips + chevron) ─── */
 
 const formatSetChip = (set: CompletedSetView): string => {
-  if (set.weight != null) return `${set.weight}${set.weightUnit} X ${set.reps ?? 0}`;
+  // Treat weight 0 as bodyweight — exercises like pull-ups/dips log a set
+  // with no external load, which should render as "BW X 6", not "0KG X 6".
+  if (set.weight != null && set.weight > 0) return `${set.weight}${set.weightUnit} X ${set.reps ?? 0}`;
   if (set.duration != null) return `${set.duration} SEC`;
   return `BW X ${set.reps ?? 0}`;
 };
@@ -262,6 +264,13 @@ const ExerciseListScreen = () => {
   //   3. null → trigger the lean loadProgramDayDetail fetch
   const cachedDayDetail = useSelector((state: RootState) =>
     requestedDayId ? state.workout.dayDetailsById[requestedDayId] : undefined,
+  );
+  // Pulled synchronously from Redux so completed days render their real
+  // session length on first paint — no estimated → actual flicker while the
+  // getCompletedSessionDetail network call resolves. Bootstrap seeds this
+  // from Supabase; finishSession writes through it optimistically.
+  const cachedCompletedDurationMinutes = useSelector((state: RootState) =>
+    requestedDayId ? state.workout.completedDayDurations[requestedDayId] : undefined,
   );
   const activeDayDetail =
     cachedDayDetail ??
@@ -545,8 +554,10 @@ const ExerciseListScreen = () => {
                 <StatCard value={String(workout.exerciseCount)} label={t("workout.ui.exercisesLabel")} />
                 <StatCard
                   value={String(
-                    dayStatus === "completed" && completedSession
-                      ? completedSession.durationMinutes
+                    dayStatus === "completed"
+                      ? cachedCompletedDurationMinutes ??
+                        completedSession?.durationMinutes ??
+                        workout.estimatedMinutes
                       : workout.estimatedMinutes,
                   )}
                   label={t("workout.ui.minutesLabel")}

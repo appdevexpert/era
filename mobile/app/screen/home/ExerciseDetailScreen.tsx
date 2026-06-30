@@ -31,6 +31,52 @@ const StatCard = ({ value, label }: { value: string; label: string }) => (
   </View>
 );
 
+/**
+ * Picks the second stat to display next to "X sets" on the exercise detail
+ * screen. We deliberately don't show minutes here — per-exercise time isn't
+ * tracked (the previous fallback to `sessionDurationMinutes` was the whole
+ * session's length, which is misleading on a single-exercise card). Instead:
+ *
+ *   - weighted exercises (any set with weight > 0)  → heaviest weight lifted
+ *   - duration exercises (set.duration set)         → longest hold/run
+ *   - bodyweight / reps-only                        → most reps in a set
+ *
+ * Returns `null` when none of the sets carry usable numbers — caller renders
+ * the card as a dash.
+ */
+const pickTopStat = (
+  sets: CompletedSetView[],
+): { value: string; labelKey: "maxWeightLabel" | "maxRepsLabel" | "maxDurationLabel" } | null => {
+  const weighted = sets.filter((s) => s.weight != null && s.weight > 0);
+  if (weighted.length > 0) {
+    const top = weighted.reduce((max, s) =>
+      (s.weight ?? 0) > (max.weight ?? 0) ? s : max,
+    );
+    return {
+      value: `${top.weight}${top.weightUnit ? ` ${top.weightUnit.toUpperCase()}` : ""}`,
+      labelKey: "maxWeightLabel",
+    };
+  }
+
+  const durationOnly = sets.filter(
+    (s) => s.duration != null && (s.weight == null || s.weight === 0),
+  );
+  if (durationOnly.length > 0) {
+    const longest = durationOnly.reduce((max, s) =>
+      (s.duration ?? 0) > (max.duration ?? 0) ? s : max,
+    );
+    return { value: `${longest.duration} SEC`, labelKey: "maxDurationLabel" };
+  }
+
+  const repsBased = sets.filter((s) => s.reps != null && s.reps > 0);
+  if (repsBased.length > 0) {
+    const topReps = Math.max(...repsBased.map((s) => s.reps ?? 0));
+    return { value: String(topReps), labelKey: "maxRepsLabel" };
+  }
+
+  return null;
+};
+
 const SetCard = ({ set, language }: { set: CompletedSetView; language: string }) => {
   const { t } = useTranslation();
   const lang = language.startsWith("nb") ? "nb" : "en";
@@ -46,7 +92,7 @@ const SetCard = ({ set, language }: { set: CompletedSetView; language: string })
             {t("workout.ui.setLabel", { number: set.setNumber })}
           </Text>
           <View style={styles.setValueRow}>
-            {set.weight != null ? (
+            {set.weight != null && set.weight > 0 ? (
               <>
                 <Text style={styles.setValue}>{set.weight} {set.weightUnit}</Text>
                 <Text style={styles.setX}>x</Text>
@@ -100,6 +146,8 @@ const ExerciseDetailScreen = () => {
 
   if (!exercise) return null;
 
+  const topStat = pickTopStat(exercise.sets);
+
   return (
     <View style={styles.root}>
       <ScrollView
@@ -119,8 +167,8 @@ const ExerciseDetailScreen = () => {
             label={t("workout.ui.setsLabel")}
           />
           <StatCard
-            value={String(route.params.sessionDurationMinutes || exercise.durationMinutes || "—")}
-            label={t("workout.ui.minutesLabel")}
+            value={topStat?.value ?? "—"}
+            label={t(`workout.ui.${topStat?.labelKey ?? "maxWeightLabel"}`)}
           />
         </View>
 

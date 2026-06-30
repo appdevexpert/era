@@ -21,6 +21,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import BottomSheet from "@gorhom/bottom-sheet";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import Toast from "react-native-toast-message";
@@ -29,6 +30,7 @@ import type { RootState } from "@/app/stores/store";
 import Animated, {
   Extrapolation,
   interpolate,
+  runOnJS,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -246,6 +248,23 @@ const WorkoutLogScreen = () => {
     await navigateToSessionComplete();
   }, [navigateToSessionComplete]);
 
+  // Left-edge swipe → End Workout sheet. We disable the native iOS swipe-back
+  // (HomeNavigator sets gestureEnabled:false) because preventDefault inside
+  // `beforeRemove` can't catch a native UIKit pop. This JS pan replaces the
+  // gesture's feel: same edge, same direction, but it opens the End sheet
+  // instead of popping. Sheet's End / Keep Going buttons resolve intent.
+  const showEndWorkoutSheet = useCallback(() => {
+    endWorkoutSheetRef.current?.show();
+  }, []);
+  const edgeSwipeBack = Gesture.Pan()
+    .activeOffsetX(15)
+    .failOffsetY([-15, 15])
+    .onEnd((e) => {
+      if (e.translationX > 40) {
+        runOnJS(showEndWorkoutSheet)();
+      }
+    });
+
   const COLLAPSE_DISTANCE = 60;
 
   const scrollY = useSharedValue(0);
@@ -391,6 +410,13 @@ const WorkoutLogScreen = () => {
         ref={endWorkoutSheetRef}
         onEnd={handleEndWorkout}
       />
+
+      {/* Left-edge swipe-back replacement. Thin transparent strip on top so
+          the underlying scroll/ruler/picker gestures are untouched outside
+          the leftmost 20px. */}
+      <GestureDetector gesture={edgeSwipeBack}>
+        <View style={styles.edgeSwipeArea} pointerEvents="box-only" />
+      </GestureDetector>
     </View>
   );
 };
@@ -446,5 +472,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 10,
+  },
+  edgeSwipeArea: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
   },
 });

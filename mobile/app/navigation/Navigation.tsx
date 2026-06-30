@@ -1,18 +1,25 @@
-import { useEffect, useRef } from "react";
-import { AppState, Linking } from "react-native";
+import { useCallback, useEffect, useRef } from "react";
+import { AppState, Linking, Modal } from "react-native";
 import {
   AuthNavigator,
   HomeNavigator,
   OnboardingNavigator,
   PlanGenerationNavigator,
 } from "@/app/navigation";
+import NotificationPermission from "@/app/screen/notificationPermission/NotificationPermission";
 import {
   completePlanGeneration,
   login,
   clearSession,
+  setHasAskedNotificationPermission,
   setHasGoals,
   setRecovery,
 } from "@/app/stores/slice/authSlice";
+import { setNotificationPermissionStatus } from "@/app/stores/slice/preferencesSlice";
+import {
+  ensureAndroidChannel,
+  getPermissionStatus,
+} from "@/app/utils/notifications";
 import { selectHasWorkoutBootstrap } from "@/app/stores/selectors/workoutSelectors";
 import { loadGoalDataFromSupabase } from "@/app/stores/slice/onboardingSlice";
 import { fetchUserGoalData } from "@/app/services/onboardingService";
@@ -101,6 +108,9 @@ const Navigation = () => {
   const isPlanGenerated = useSelector((state: RootState) => state.auth.isPlanGenerated);
   const isRecovery = useSelector((state: RootState) => state.auth.isRecovery);
   const hasGoals = useSelector((state: RootState) => state.auth.hasGoals);
+  const hasAskedNotificationPermission = useSelector(
+    (state: RootState) => state.auth.hasAskedNotificationPermission,
+  );
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
 
   // Handle deep links (password recovery)
@@ -230,6 +240,19 @@ const Navigation = () => {
     }
   }, [dispatch, hasWorkoutBootstrap, isLoggedIn, isPlanGenerated]);
 
+  // Keep Redux's mirror of the OS notification permission in sync. The
+  // explicit permission ask happens inside NotificationPermissionScreen, not
+  // here — this effect just refreshes the cached status on app open so the
+  // Profile toggles + the routing decision (whether to show the permission
+  // screen) reflect reality.
+  useEffect(() => {
+    ensureAndroidChannel().catch(() => {});
+    if (!isLoggedIn) return;
+    getPermissionStatus().then((status) => {
+      dispatch(setNotificationPermissionStatus(status));
+    });
+  }, [dispatch, isLoggedIn]);
+
   /**
    * Auth-first decision tree:
    *   - Not logged in, in recovery, OR `hasGoals` not yet known → AuthStack.
@@ -248,21 +271,48 @@ const Navigation = () => {
    */
   const showAuthStack = isRecovery || !isLoggedIn || hasGoals === null;
 
+  // First-login notification permission modal. Renders as an iOS pageSheet
+  // / Android slide-up over whichever stack the user just landed in
+  // (Onboarding for new users, Home for returning ones). The modal closes
+  // automatically once the user picks Enable / Maybe Later — both paths
+  // dispatch setHasAskedNotificationPermission(true) inside the screen,
+  // which flips this flag and unmounts the modal.
+  const showNotificationPermissionModal =
+    !showAuthStack && !hasAskedNotificationPermission;
+
+  // Swipe-down (iOS) or Android-back dismiss is treated as "Maybe Later" —
+  // otherwise the modal would immediately re-open because the gate flag
+  // would still be false.
+  const handleNotificationModalDismiss = useCallback(() => {
+    dispatch(setHasAskedNotificationPermission(true));
+  }, [dispatch]);
+
   return (
-    <NavigationContainer ref={navigationRef} linking={showAuthStack ? linking : undefined}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {showAuthStack ? (
-          <Stack.Screen name="AuthStack" component={AuthNavigator} />
-        ) : 
-        hasGoals === false ? (
-          <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
-        ) : !hasWorkoutBootstrap ? (
-          <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
-        ) : (
-          <Stack.Screen name="HomeStack" component={HomeNavigator} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer ref={navigationRef} linking={showAuthStack ? linking : undefined}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {showAuthStack ? (
+            <Stack.Screen name="AuthStack" component={AuthNavigator} />
+          ) :
+          hasGoals === false ? (
+            <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
+          ) : !hasWorkoutBootstrap ? (
+            <Stack.Screen name="PlanGenerationStack" component={PlanGenerationNavigator} />
+          ) : (
+            <Stack.Screen name="HomeStack" component={HomeNavigator} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+      <Modal
+        visible={showNotificationPermissionModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onDismiss={handleNotificationModalDismiss}
+        onRequestClose={handleNotificationModalDismiss}
+      >
+        <NotificationPermission />
+      </Modal>
+    </>
   );
 };
 

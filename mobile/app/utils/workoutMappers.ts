@@ -120,11 +120,31 @@ export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
   return iconKeys.slice(0, 4);
 };
 
+/**
+ * Returns the count of `main_exercises` rows for the given day, derived from
+ * its cached detail. Same filter as mapExerciseList — keeps both screens
+ * counting the same thing. Returns `null` when the day isn't cached yet so
+ * callers can fall back to the bootstrap's stale `currentDayExerciseCount`.
+ */
+function getMainExerciseCount(detail: ProgramDayDetailData | undefined): number | null {
+  if (!detail) return null;
+  const mainSectionIds = new Set(
+    detail.sections
+      .filter((section) => section.section_kind === "main_exercises")
+      .map((section) => section.id),
+  );
+  return detail.exercises.filter((exercise) =>
+    mainSectionIds.has(exercise.section_id),
+  ).length;
+}
+
 export function mapWorkoutHome(
   data: WorkoutOverviewData,
   language: string,
   programStartDate?: string | null,
   completedDayIds?: string[],
+  completedDayDurations?: Record<string, number>,
+  dayDetailsById?: Record<string, ProgramDayDetailData>,
 ): WorkoutHomeView {
   const config = programStartDate
     ? { programStartDate, totalWeeks: data.program.duration_weeks }
@@ -239,15 +259,33 @@ export function mapWorkoutHome(
   }
 
   // Step D: Build output — calendarWeek for program info, currentDay for workout content
+  const isCurrentDayCompleted = completed.has(currentDay.id);
+  const actualDurationMinutes = completedDayDurations?.[currentDay.id];
+  // Prefer the user's actual session length once today's workout is done.
+  // Falls back to the plan's estimate while the day is still pending.
+  const displayDurationMinutes =
+    isCurrentDayCompleted && actualDurationMinutes != null
+      ? actualDurationMinutes
+      : currentDay.estimated_minutes;
+  // data.currentDayExerciseCount is captured at bootstrap for the program's
+  // first non-rest day (see workoutService.getWorkoutOverview), so it goes
+  // stale the moment the user moves past Day 1. Recompute from the resolved
+  // day's cached detail when available — falling back to the bootstrap value
+  // only when the per-day cache hasn't been populated yet (rare: pre-bootstrap
+  // first render). Both ExerciseListScreen and this card now count the same
+  // main_exercises rows, so the two screens always agree.
+  const resolvedExerciseCount =
+    getMainExerciseCount(dayDetailsById?.[currentDay.id]) ??
+    data.currentDayExerciseCount;
   return {
     programId: data.program.id,
     currentDayId: currentDay.id,
-    isCompleted: completed.has(currentDay.id),
+    isCompleted: isCurrentDayCompleted,
     title: getLocalizedText(data.program.title_translations, language, data.program.title),
     subtitle: getLocalizedText(currentDay.subtitle_translations, language, currentDay.subtitle ?? ""),
     workoutName: getLocalizedText(currentDay.title_translations, language, currentDay.title),
-    exerciseCount: data.currentDayExerciseCount,
-    duration: formatWorkoutDuration(currentDay.estimated_minutes),
+    exerciseCount: resolvedExerciseCount,
+    duration: formatWorkoutDuration(displayDurationMinutes),
     tags: currentDay.target_muscles.slice(0, 4).map((muscle) => localizeMuscle(muscle, language)),
     targetMuscles: currentDay.target_muscles,
     programType: calendarWeek

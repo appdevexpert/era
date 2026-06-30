@@ -21,17 +21,21 @@ import {
   selectWorkoutError,
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
-import { loadWorkoutBootstrap } from "@/app/stores/slice/workoutSlice";
+import {
+  loadWorkoutBootstrap,
+  refreshTodayIfStale,
+} from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import { mapMusclesToIcons, mapWorkoutHome } from "@/app/utils/workoutMappers";
+import { getToday } from "@/app/utils/programSchedule";
 import { horizontalScale, verticalScale } from "@/app/utils/responsive";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCycleCompletionTrigger } from "@/app/hooks/useCycleCompletionTrigger";
 
 const WorkoutScreen = () => {
@@ -45,9 +49,54 @@ const WorkoutScreen = () => {
   const overview = useSelector(selectWorkoutOverview);
   const programStartDate = useSelector((state: RootState) => state.auth.programStartDate);
   const completedDayIds = useSelector((state: RootState) => state.workout.completedDayIds);
+  const completedDayDurations = useSelector(
+    (state: RootState) => state.workout.completedDayDurations,
+  );
+  // Per-day cache feeds mapWorkoutHome the resolved day's real exercise count
+  // (overview.currentDayExerciseCount is pinned to Day 1 at bootstrap and goes
+  // stale the moment "today" rolls past it).
+  const dayDetailsById = useSelector(
+    (state: RootState) => state.workout.dayDetailsById,
+  );
+  // Tracks local calendar date so the workout memo + `currentDayDetail` re-anchor
+  // when the user crosses midnight (or changes timezone) without backgrounding
+  // the app. Without this, mapWorkoutHome's `getToday()` call is captured inside
+  // a memo whose deps never change on a rollover and the home card keeps
+  // resolving yesterday's program_day_id.
+  const [todayStr, setTodayStr] = useState(getToday());
+  useFocusEffect(
+    useCallback(() => {
+      const now = getToday();
+      if (now !== todayStr) setTodayStr(now);
+      dispatch(refreshTodayIfStale());
+    }, [dispatch, todayStr]),
+  );
   const workout = useMemo(
-    () => (overview ? mapWorkoutHome(overview, i18n.language, programStartDate, completedDayIds) : null),
-    [i18n.language, overview, programStartDate, completedDayIds],
+    () => {
+      // `todayStr` is read indirectly via mapWorkoutHome → getToday(); listing
+      // it in deps forces recompute on calendar/timezone rollover even though
+      // ESLint can't trace the read through the helper.
+      void todayStr;
+      return overview
+        ? mapWorkoutHome(
+            overview,
+            i18n.language,
+            programStartDate,
+            completedDayIds,
+            completedDayDurations,
+            dayDetailsById,
+          )
+        : null;
+    },
+    [
+      i18n.language,
+      overview,
+      programStartDate,
+      completedDayIds,
+      completedDayDurations,
+      dayDetailsById,
+      todayStr,
+    ],
   );
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);

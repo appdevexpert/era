@@ -2,6 +2,7 @@ import EntitlementGate from "@/app/components/common/EntitlementGate";
 import ScreenFades from "@/app/components/common/ScreenFades";
 import ExerciseHistoryScreenSkeleton from "@/app/components/skeleton/ExerciseHistoryScreenSkeleton";
 import SessionHistoryCard from "@/app/components/workout/SessionHistoryCard";
+import ProChartLockedCard from "@/app/components/workout/ProChartLockedCard";
 import WeightProgressChart, { type ChartPoint } from "@/app/components/workout/WeightProgressChart";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -113,7 +114,7 @@ const StatsCard = ({
 
       {/* 12-week progression chart per exercise is Pro-only. Standard users
           still see the session history list below; only the chart is gated. */}
-      <EntitlementGate requires="pro">
+      <EntitlementGate requires="pro" fallback={<ProChartLockedCard />}>
         {chart.length > 0 ? (
           <WeightProgressChart
             data={chart}

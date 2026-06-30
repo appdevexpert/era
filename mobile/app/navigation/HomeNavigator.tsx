@@ -110,6 +110,12 @@ const HomeNavigator = () => (
       component={WorkoutLogScreen}
       options={({ route }) => ({
         animation: route.params?.slideFrom === "left" ? "slide_from_left" : "slide_from_right",
+        // iOS swipe-back is handled natively by UIKit and pops the screen
+        // before `beforeRemove` can preventDefault. Disable the native
+        // gesture and let the screen render its own edge-swipe handler
+        // that opens the End Workout bottom sheet instead.
+        gestureEnabled: false,
+        fullScreenGestureEnabled: false,
       })}
     />
     <Stack.Screen

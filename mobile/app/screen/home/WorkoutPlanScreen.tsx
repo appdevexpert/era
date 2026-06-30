@@ -9,6 +9,7 @@ import {
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
 import { loadWorkoutBootstrap, prefetchAllDays } from "@/app/stores/slice/workoutSlice";
+import { setHasSeenPlanAdjustmentSheet } from "@/app/stores/slice/preferencesSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
   WorkoutPlanRolledOverView,
@@ -251,6 +252,9 @@ const WorkoutPlanScreen = () => {
   const overview = useSelector(selectWorkoutOverview);
   const programStartDate = useSelector((state: RootState) => state.auth.programStartDate);
   const completedDayIds = useSelector((state: RootState) => state.workout.completedDayIds);
+  const hasSeenPlanAdjustmentSheet = useSelector(
+    (state: RootState) => state.preferences.hasSeenPlanAdjustmentSheet,
+  );
   const plan = useMemo(
     () => (overview ? mapWorkoutPlan(overview, i18n.language, programStartDate, completedDayIds) : null),
     [i18n.language, overview, programStartDate, completedDayIds],
@@ -262,7 +266,6 @@ const WorkoutPlanScreen = () => {
   const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
 
   const adjustmentSheetRef = useRef<AdjustmentInfoBottomSheetRef>(null);
-  const hasAutoShown = useRef(false);
 
   useEffect(() => {
     if (!hasWorkoutBootstrap && workoutStatus === "idle") {
@@ -279,19 +282,21 @@ const WorkoutPlanScreen = () => {
     }
   }, [dispatch, hasWorkoutBootstrap]);
 
-  // Auto-show adjustment sheet on first visit if mid-week start
+  // Auto-show adjustment sheet ONCE per user when plan started mid-week
+  // (hasAdjustment is false for Monday-start, so it never triggers there).
+  // Persisted via preferences.hasSeenPlanAdjustmentSheet so it does not
+  // re-appear on every screen visit.
   useEffect(() => {
-    if (plan?.hasAdjustment && !hasAutoShown.current) {
-      hasAutoShown.current = true;
-      // Small delay to let the sheet mount
-      setTimeout(() => {
-        adjustmentSheetRef.current?.show(
-          t("workout.ui.adjustmentTitle"),
-          t("workout.ui.adjustmentMessage"),
-        );
-      }, 600);
-    }
-  }, [plan?.hasAdjustment, t]);
+    if (!plan?.hasAdjustment || hasSeenPlanAdjustmentSheet) return;
+    const timer = setTimeout(() => {
+      adjustmentSheetRef.current?.show(
+        t("workout.ui.adjustmentTitle"),
+        t("workout.ui.adjustmentMessage"),
+      );
+      dispatch(setHasSeenPlanAdjustmentSheet(true));
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [dispatch, hasSeenPlanAdjustmentSheet, plan?.hasAdjustment, t]);
 
   const handleInfoPress = useCallback(() => {
     adjustmentSheetRef.current?.show(

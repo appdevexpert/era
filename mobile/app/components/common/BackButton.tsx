@@ -4,9 +4,10 @@ import { ChevronBack } from '@/assets/icons'
 
 interface BackButtonProps {
   onPress?: () => void
+  disabled?: boolean
 }
 
-const BackButton = ({ onPress }: BackButtonProps) => {
+const BackButton = ({ onPress, disabled }: BackButtonProps) => {
   const navigation = useNavigation()
 
   const handlePress = () => {
@@ -20,6 +21,7 @@ const BackButton = ({ onPress }: BackButtonProps) => {
   return (
     <IconButton
       onPress={handlePress}
+      disabled={disabled}
       size={32}
       glassEffect="clear"
       scheme="light"
