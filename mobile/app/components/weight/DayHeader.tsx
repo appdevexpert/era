@@ -4,19 +4,21 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 interface DayHeaderProps {
-  title: string;
+  /** Full weekday name — e.g. "Monday" / "Mandag". Rendered as the display title. */
+  dayName: string;
+  /** Section / day-type label — e.g. "Push - Heavy". Rendered uppercase in gold. */
   subtitle: string;
   exerciseCount: number;
 }
 
-const DayHeader = ({ title, subtitle, exerciseCount }: DayHeaderProps) => {
+const DayHeader = ({ dayName, subtitle, exerciseCount }: DayHeaderProps) => {
   const { t } = useTranslation();
 
   return (
     <View style={styles.row}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+      <View style={styles.copy}>
+        <Text style={styles.title}>{dayName}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       <Text style={styles.count}>
         {t("weights.exerciseCount", { count: exerciseCount })}
@@ -33,6 +35,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     gap: 12,
   },
+  copy: {
+    flex: 1,
+    gap: 6,
+  },
   title: {
     fontFamily: FONTS.display,
     fontSize: 20,
@@ -41,7 +47,6 @@ const styles = StyleSheet.create({
     color: "#F0F0F0",
   },
   subtitle: {
-    marginTop: 6,
     fontFamily: FONTS.regular,
     fontSize: 12,
     lineHeight: 14.4,

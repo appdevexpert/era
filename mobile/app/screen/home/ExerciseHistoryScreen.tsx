@@ -195,7 +195,7 @@ const ExerciseHistoryScreen = () => {
   const exerciseName = route.params?.title ?? "";
   const eyebrow = route.params?.subtitle ?? "";
 
-  const { data, loading , error } = useExerciseHistory({
+  const { data, loading, error } = useExerciseHistory({
     exerciseId,
     exerciseName,
   });

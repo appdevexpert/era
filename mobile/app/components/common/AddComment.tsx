@@ -1,7 +1,7 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { MicLargeIcon } from "@/assets/icons";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import WaveAudio from "@/app/components/common/WaveAudio";
@@ -11,29 +11,43 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from "expo-speech-recognition";
-import { BottomSheetTextInput } from "@gorhom/bottom-sheet";
 
 type AddCommentProps = {
   value: string;
   onChangeText: (text: string) => void;
-  /**
-   * Render `BottomSheetTextInput` instead of `TextInput`. Required when this
-   * component lives inside a gorhom BottomSheet so the keyboard avoidance and
-   * focus handling stay wired up correctly on iOS.
-   */
-  inSheet?: boolean;
 };
 
 const localeFor = (lang: string) => (lang?.toLowerCase().startsWith("nb") ? "nb-NO" : "en-US");
 
-const AddComment = ({ value, onChangeText, inSheet = false }: AddCommentProps) => {
+/**
+ * Comment field with mic-driven speech-to-text.
+ *
+ * Uses plain RN `TextInput` — NOT gorhom's `BottomSheetTextInput` — even when
+ * mounted inside a `BottomSheetModal`. Reason: `BottomSheetTextInput` writes
+ * to gorhom's internal `animatedKeyboardState` shared value on focus/blur,
+ * and that write races the sheet's dismiss animation on iOS when the sheet
+ * is closed while the input is focused → NaN in a worklet → native crash.
+ *
+ * `keyboardBehavior="extend"` on the parent sheet is triggered by OS keyboard
+ * notifications, not by input focus events — so it still works with plain
+ * TextInput. No behavior loss, entire crash class gone.
+ */
+const AddComment = ({ value, onChangeText }: AddCommentProps) => {
   const { t, i18n } = useTranslation();
   const [recognizing, setRecognizing] = useState(false);
   const baseTextRef = useRef("");
-  const InputComponent = inSheet ? BottomSheetTextInput : TextInput;
 
   useSpeechRecognitionEvent("start", () => setRecognizing(true));
   useSpeechRecognitionEvent("end", () => setRecognizing(false));
+
+  // Auto-stop recognition when the field unmounts (screen navigation, sheet
+  // teardown, exercise change with a remount key). Prevents the mic from
+  // silently staying active after the user leaves the comment field.
+  useEffect(() => {
+    return () => {
+      ExpoSpeechRecognitionModule.stop();
+    };
+  }, []);
   useSpeechRecognitionEvent("result", (event) => {
     const transcript = event.results?.[0]?.transcript ?? "";
     if (!transcript) return;
@@ -80,21 +94,24 @@ const AddComment = ({ value, onChangeText, inSheet = false }: AddCommentProps) =
       <View style={styles.inputCard}>
         {recognizing ? (
           <View style={styles.recordingArea}>
-            <WaveAudio isRecording={recognizing}  />
+            <WaveAudio isRecording={recognizing} />
             <Text style={styles.transcript} numberOfLines={3}>
               {value || t("workout.ui.listening")}
             </Text>
           </View>
         ) : (
-          <InputComponent
-            style={styles.input}
-            placeholder={t("workout.ui.commentPlaceholder")}
-            placeholderTextColor={COLORS.alpha.white50}
-            value={value}
-            onChangeText={onChangeText}
-            multiline
-            textAlignVertical="top"
-          />
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={t("workout.ui.commentPlaceholder")}
+              placeholderTextColor={COLORS.alpha.white50}
+              value={value}
+              onChangeText={onChangeText}
+              multiline
+              scrollEnabled
+              textAlignVertical="top"
+            />
+          </View>
         )}
         <PressableScale
           style={[styles.micButton, recognizing && styles.micButtonActive]}
@@ -126,7 +143,6 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   inputCard: {
-    minHeight: 100,
     backgroundColor: COLORS.neutral.black3,
     borderRadius: 16,
     borderWidth: 1,
@@ -134,25 +150,23 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
+  inputWrapper: {
+    height: 60,
+    overflow: "hidden",
+  },
   input: {
-    // Multiline iOS bug: `flex: 1` on a multiline TextInput inside a column
-    // container leaves the text frame at 0 height until focus is dropped,
-    // which is what Rami saw on 2026-06-19 ("typed text is invisible until
-    // you exit and re-enter the field"). Use explicit minHeight + maxHeight
-    // so the input has a real frame from first paint.
+    flex: 1,
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
     lineHeight: 20,
     color: COLORS.neutral.white,
     padding: 0,
-    minHeight: 60,
-    maxHeight: 120,
   },
   recordingArea: {
-    flex: 1,
+    height: 60,
     gap: 8,
-    minHeight: 40,
+    justifyContent: "center",
   },
   transcript: {
     fontFamily: FONTS.regular,

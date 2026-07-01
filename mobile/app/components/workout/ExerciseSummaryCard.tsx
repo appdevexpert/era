@@ -49,6 +49,11 @@ const ExerciseSummaryCard = ({
   onPress,
 }: ExerciseSummaryCardProps) => {
   const { format, toDisplay, label } = useWeightUnit();
+  // displayValue "" is the mapper's "no data" signal — hide the weight slot
+  // entirely instead of showing "0 kg" or a lone em dash. undefined means
+  // "fall back to the kg render".
+  const weightText = displayValue !== undefined ? displayValue : format(weightKg);
+  const showWeight = weightText.length > 0;
   const inner = (
     <>
       <View style={styles.left}>
@@ -56,9 +61,11 @@ const ExerciseSummaryCard = ({
         <Text style={styles.name}>{name}</Text>
         {meta ? <Text style={styles.meta}>{meta}</Text> : null}
       </View>
-      <View style={styles.right}>
+      <View
+        style={[styles.right, !showWeight && !delta ? styles.rightSingle : null]}
+      >
         <ChevronRight width={16} height={16} color="rgba(240,240,240,0.5)" />
-        <Text style={styles.weight}>{displayValue ?? format(weightKg)}</Text>
+        {showWeight ? <Text style={styles.weight}>{weightText}</Text> : null}
         {delta ? (
           <Text
             style={[
@@ -133,6 +140,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignSelf: "stretch",
     gap: 10,
+  },
+  rightSingle: {
+    justifyContent: "center",
   },
   weight: {
     fontFamily: FONTS.display,

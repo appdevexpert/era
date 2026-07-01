@@ -18,7 +18,7 @@ import { computeInterSessionSeed } from "@/app/utils/setSuggestion";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import BottomSheet from "@gorhom/bottom-sheet";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -145,8 +145,10 @@ const WorkoutLogScreen = () => {
     void ensureSessionHydrated();
   }, [ensureSessionHydrated]);
 
-  // Exercise completed bottom sheet
-  const sheetRef = useRef<BottomSheet>(null);
+  // Exercise completed bottom sheet (portal-rendered modal — see
+  // ExerciseCompletedBottomSheet header comment for why it's a Modal and not
+  // a persistent BottomSheet).
+  const sheetRef = useRef<BottomSheetModal>(null);
   const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
   const lastSetLogged = useRef(false);
   // Set true right before any programmatic leave (CompleteSet → RestTimer,
@@ -191,19 +193,19 @@ const WorkoutLogScreen = () => {
   /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
     if (lastSetLogged.current) {
-      sheetRef.current?.expand();
+      sheetRef.current?.present();
       return;
     }
     if (!ensureWeightLogged()) return;
     lastSetLogged.current = true;
     logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
-    sheetRef.current?.expand();
+    sheetRef.current?.present();
   }, [ensureWeightLogged, weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult]);
 
   /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
     async (_comment: string) => {
-      sheetRef.current?.close();
+      sheetRef.current?.dismiss();
       // PR detection runs inside completeExerciseResult — await it so we know
       // whether to push the PR celebration screen on top of the next destination.
       const result = await completeExerciseResult(exIdx, _comment);

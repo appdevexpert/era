@@ -115,11 +115,16 @@ export function mapExerciseSummaries(
     // weight card behavior (which shows last logged kg, not planned kg).
     const durationToShow = summary?.lastDurationSec ?? firstSetDuration ?? null;
 
+    // undefined → card falls back to format(weightKg) rendering ("60 kg").
+    // ""        → truly no data (never logged, no planned weight, no
+    //             duration) — card hides the weight slot entirely instead of
+    //             flashing a big "—" placeholder in the primary weight
+    //             position.
     const displayValue = isDurationOnly
       ? formatDuration(durationToShow, language)
       : hasWeight
-        ? undefined // card falls back to "${weightKg} kg"
-        : "—";
+        ? undefined
+        : "";
 
     const muscles: MuscleGroup[] = mapMusclesToIcons(lib?.primary_muscles ?? []);
 

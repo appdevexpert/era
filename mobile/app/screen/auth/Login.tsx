@@ -309,6 +309,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: StyleSheet.hairlineWidth,
+    marginTop: verticalScale(42),
     backgroundColor: 'rgba(240, 240, 240, 0.28)',
   },
   socialTitle: {

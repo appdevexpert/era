@@ -14,7 +14,7 @@ import { useRequireEntitlement } from "@/app/hooks/useRequireEntitlement";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Dimensions, Image, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import Toast from "react-native-toast-message";
@@ -60,6 +60,12 @@ const SessionCompleteScreen = () => {
   const requireEntitlement = useRequireEntitlement();
   const addPhotoSheetRef = useRef<AddPhotoBottomSheetRef>(null);
 
+  // Local bump so the ERA Points stat card stays in sync with the +25 toast
+  // when the user captures a progress photo from this screen. The route param
+  // is a static snapshot from session end and can't grow on its own.
+  const [bonusPoints, setBonusPoints] = useState(0);
+  const displayedEraPoints = eraPoints + bonusPoints;
+
   const handleCaptureProgress = () => {
     if (!requireEntitlement("standard")) return;
     addPhotoSheetRef.current?.show();
@@ -74,6 +80,7 @@ const SessionCompleteScreen = () => {
     );
     if (uploadProgressPhotoThunk.fulfilled.match(action)) {
       const { pointsAwarded } = action.payload;
+      if (pointsAwarded > 0) setBonusPoints((prev) => prev + pointsAwarded);
       Toast.show({
         type: "success",
         text2:
@@ -147,7 +154,7 @@ const SessionCompleteScreen = () => {
         <View style={styles.statsRow}>
           <StatCard
             label={t("workout.ui.eraPointsLabel")}
-            value={`+${eraPoints}`}
+            value={`+${displayedEraPoints}`}
           />
           <StatCard
             label={t("workout.ui.newPRs")}

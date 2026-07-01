@@ -32,6 +32,11 @@ const WEEKDAY_LABELS = {
   nb: ["Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"],
 };
 
+const WEEKDAY_LABELS_FULL = {
+  en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  nb: ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"],
+};
+
 const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
   en: {
     abs: "Abs",
@@ -80,6 +85,12 @@ const padDayNumber = (value: number) => String(value).padStart(2, "0");
 
 export const getWeekdayLabel = (weekday: number | null, language: string) => {
   const labels = WEEKDAY_LABELS[normalizeLanguage(language)];
+  const index = typeof weekday === "number" ? weekday - 1 : 0;
+  return labels[index] ?? labels[0];
+};
+
+export const getWeekdayLabelFull = (weekday: number | null, language: string) => {
+  const labels = WEEKDAY_LABELS_FULL[normalizeLanguage(language)];
   const index = typeof weekday === "number" ? weekday - 1 : 0;
   return labels[index] ?? labels[0];
 };
@@ -286,6 +297,7 @@ export function mapWorkoutHome(
     workoutName: getLocalizedText(currentDay.title_translations, language, currentDay.title),
     exerciseCount: resolvedExerciseCount,
     duration: formatWorkoutDuration(displayDurationMinutes),
+    durationMinutes: displayDurationMinutes ?? 0,
     tags: currentDay.target_muscles.slice(0, 4).map((muscle) => localizeMuscle(muscle, language)),
     targetMuscles: currentDay.target_muscles,
     programType: calendarWeek
@@ -434,6 +446,7 @@ function buildRolledOverSections({
     return [{
       phase: getLocalizedText(phaseWeek.focus_translations, language, phaseWeek.focus ?? ""),
       afterWeekNumber: lastWeekOfPhase,
+      sourceWeekNumber: partialWeekNumber,
       isCurrent: activeAdjustedWeekNumber === partialWeekNumber,
       days,
     }];

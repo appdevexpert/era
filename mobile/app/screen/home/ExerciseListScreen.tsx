@@ -362,9 +362,6 @@ const ExerciseListScreen = () => {
   const handlePrimaryAction = useCallback(() => {
     if (!workout || !activeDayDetail) return;
 
-    const firstExercise = workout.sections
-      .flatMap((s) => s.exercises)
-      .find((e) => e.name);
     const weekLabel = t("workout.ui.weekLabel", {
       number: activeDayDetail.week.week_number ?? 1,
     });
@@ -377,6 +374,13 @@ const ExerciseListScreen = () => {
           )
         : 0;
 
+    // Pick the exercise the countdown is actually about to start with. On
+    // resume this is the first incomplete exercise (e.g. #4 of 5); on a
+    // fresh start it's the first exercise in the day.
+    const flatExercises = workout.sections.flatMap((s) => s.exercises);
+    const startingExerciseName =
+      flatExercises[startIdx]?.name ?? flatExercises[0]?.name ?? "";
+
     const mode: "fresh" | "resume" | "edit" =
       buttonMode === "start" ? "fresh" : buttonMode === "resume" ? "resume" : "edit";
 
@@ -384,7 +388,7 @@ const ExerciseListScreen = () => {
       weekLabel,
       dayLabel,
       dayTitle: workout.title,
-      firstExerciseName: firstExercise?.name ?? "",
+      firstExerciseName: startingExerciseName,
       mode,
       startExerciseIndex: startIdx,
       // Pin the session to the day the user just selected. Without this the
@@ -459,7 +463,10 @@ const ExerciseListScreen = () => {
     useCallback(() => {
       if (!user?.id || !summaryProgramDayId || !summaryEnabled) return;
       let cancelled = false;
-      setSummaryLoaded(false);
+      // Do NOT reset summaryLoaded on re-focus — that unmounts the button
+      // and flickers when returning from ExerciseDetail via gesture. Cold
+      // mount already starts with summaryLoaded=false; subsequent focuses
+      // update sessionSummary in place so the label transitions smoothly.
       getDaySessionSummary({ userId: user.id, programDayId: summaryProgramDayId })
         .then((summary) => {
           if (cancelled) return;

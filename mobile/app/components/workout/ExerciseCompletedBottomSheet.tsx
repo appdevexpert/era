@@ -3,14 +3,15 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { forwardRef, useCallback, useEffect, useMemo, useState } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/app/stores/store";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
+import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 
 type SetSummary = {
   weight: string;
@@ -20,8 +21,8 @@ type SetSummary = {
 };
 
 type ExerciseCompletedBottomSheetProps = {
-  /** Sheet subscribes to Redux completedSets[exerciseLibraryId] directly so the latest set
-   *  shows up even when expand() fires before the parent re-renders. */
+  /** Sheet subscribes to Redux `completedSets[exerciseLibraryId]` directly so the
+   *  latest set shows up even when present() fires before the parent re-renders. */
   exerciseLibraryId: string | undefined;
   /** Previously-saved per-exercise comment, used to prefill the textarea on revisit. */
   initialComment?: string;
@@ -51,7 +52,16 @@ const SetCard = ({ set }: { set: SetSummary }) => {
   );
 };
 
-const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBottomSheetProps>(
+/**
+ * Shown after the last set of an exercise is logged. Rendered as a
+ * `BottomSheetModal` (portal), so it lives outside `WorkoutLogScreen`'s
+ * layout tree and doesn't fight the parent ScrollView for keyboard insets.
+ *
+ * `AddComment` uses plain `TextInput` (not `BottomSheetTextInput`), which
+ * removes gorhom's `animatedKeyboardState` shared-value writes on focus/blur
+ * — the source of the close-crash race with the sheet's dismiss worklet.
+ */
+const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseCompletedBottomSheetProps>(
   function ExerciseCompletedBottomSheet({ exerciseLibraryId, initialComment = "", onContinue }, ref) {
     const { t } = useTranslation();
     const [comment, setComment] = useState(initialComment);
@@ -82,34 +92,42 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
       onContinue(comment);
     }, [comment, onContinue]);
 
+    // The sheet stays mounted across dismissals, so AddComment's unmount
+    // cleanup can't cover a swipe-down / continue press. Stop the mic
+    // explicitly when the sheet dismisses.
+    const handleDismiss = useCallback(() => {
+      ExpoSpeechRecognitionModule.stop();
+    }, []);
+
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
         enablePanDownToClose
-        snapPoints={["50%"]}
-        keyboardBehavior="fillParent"
+        snapPoints={["70%", "90%"]}
+        keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
+        onDismiss={handleDismiss}
       >
         <BottomSheetView style={styles.content}>
           <View style={styles.titleWrap}>
             <Text style={styles.title}>{t("workout.ui.exerciseCompleted")}</Text>
           </View>
 
-          {/* Set summary cards */}
           <View style={styles.setsRow}>
             {sets.map((set) => (
               <SetCard key={set.setNumber} set={set} />
             ))}
           </View>
 
-          {/* Add Comments */}
-          <AddComment value={comment} onChangeText={setComment} inSheet />
+          <AddComment
+            key={exerciseLibraryId ?? "empty"}
+            value={comment}
+            onChangeText={setComment}
+          />
 
-          {/* Continue button */}
           <PressableScale style={styles.continueBtn} onPress={handleContinue}>
             <LinearGradient
               colors={[
@@ -125,7 +143,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheet, ExerciseCompletedBo
             <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
           </PressableScale>
         </BottomSheetView>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   },
 );

@@ -22,6 +22,10 @@ import {
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
 import {
+  selectExercisesCompleted,
+  selectSessionProgramDayId,
+} from "@/app/stores/selectors/sessionSelectors";
+import {
   loadWorkoutBootstrap,
   refreshTodayIfStale,
 } from "@/app/stores/slice/workoutSlice";
@@ -101,6 +105,40 @@ const WorkoutScreen = () => {
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
+
+  // Drive the strength ring on the WorkoutCard. Layered signals:
+  //   1. Today's day completed → full ring (celebration state).
+  //   2. Active session for today → live exercises-completed fraction.
+  //   3. Program-level baseline: completed days across the whole program /
+  //      total program days. Keeps a small fill visible whenever the week is
+  //      active, so a fresh open mid-program still shows progress.
+  // The session and baseline signals are combined with max() so the ring never
+  // moves backward when starting a new session.
+  const sessionProgramDayId = useSelector(selectSessionProgramDayId);
+  const sessionExercisesCompleted = useSelector(selectExercisesCompleted);
+  const workoutProgress = useMemo(() => {
+    if (!workout || !overview) return 0;
+    if (workout.isCompleted) return 1;
+
+    const totalDays = overview.program.duration_weeks * 7;
+    const programBase = totalDays > 0 ? completedDayIds.length / totalDays : 0;
+
+    if (
+      sessionProgramDayId &&
+      sessionProgramDayId === workout.currentDayId &&
+      workout.exerciseCount > 0
+    ) {
+      const sessionFrac = sessionExercisesCompleted / workout.exerciseCount;
+      return Math.min(1, Math.max(programBase, sessionFrac));
+    }
+    return Math.min(1, programBase);
+  }, [
+    workout,
+    overview,
+    sessionProgramDayId,
+    sessionExercisesCompleted,
+    completedDayIds,
+  ]);
   const displayName = user?.name || user?.email?.split("@")[0] || t("profile.fallbackName");
   const avatarInitial = displayName.charAt(0).toUpperCase();
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
@@ -143,12 +181,11 @@ const WorkoutScreen = () => {
     });
   }, [weekByDate]);
 
-  // Weekly aggregates for the stat cards inside the streak sheet.
-  // (Read straight from completedDayIds count for the current week; exercises/
-  // minutes come from the workout overview — placeholder until the streak
-  // sheet has a dedicated query.)
+  // Stat cards inside the streak sheet mirror today's workout — read the raw
+  // minutes off the same mapped view-model the golden card renders, so the
+  // two numbers can never drift (estimated vs actual, calendar rollover, etc.).
   const streakSheetExercises = workout?.exerciseCount ?? 0;
-  const streakSheetMinutes = overview?.currentDay.estimated_minutes ?? 0;
+  const streakSheetMinutes = workout?.durationMinutes ?? 0;
   const streakSheetPoints = totalPoints;
 
   useEffect(() => {
@@ -267,6 +304,7 @@ const WorkoutScreen = () => {
             duration={workout.duration}
             exerciseCount={workout.exerciseCount}
             completed={workout.isCompleted}
+            progress={workoutProgress}
             onCardPress={openWorkoutPlan}
             onStartPress={startWorkout}
             programDay={workout.programDay}

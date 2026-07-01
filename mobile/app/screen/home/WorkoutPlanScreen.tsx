@@ -237,7 +237,9 @@ const RolledOverSection = ({ section, isLast, onDayPress, onInfoPress }: { secti
 
       <PressableScale style={styles.infoRow} onPress={onInfoPress}>
         <InfoCircleGold width={18} height={18} />
-        <Text style={styles.infoText}>{t("workout.ui.weekAdjustedNote")}</Text>
+        <Text style={styles.infoText}>
+          {t("workout.ui.weekAdjustedNote", { week: section.sourceWeekNumber })}
+        </Text>
       </PressableScale>
     </View>
   );
@@ -298,10 +300,10 @@ const WorkoutPlanScreen = () => {
     return () => clearTimeout(timer);
   }, [dispatch, hasSeenPlanAdjustmentSheet, plan?.hasAdjustment, t]);
 
-  const handleInfoPress = useCallback(() => {
+  const handleInfoPress = useCallback((sourceWeekNumber: number) => {
     adjustmentSheetRef.current?.show(
       t("workout.ui.adjustmentWeek4Title"),
-      t("workout.ui.adjustmentWeek4Message"),
+      t("workout.ui.adjustmentWeek4Message", { week: sourceWeekNumber }),
     );
   }, [t]);
 
@@ -349,7 +351,7 @@ const WorkoutPlanScreen = () => {
                       section={matchingRolledOver}
                       isLast={isLastWeek}
                       onDayPress={handleDayPress}
-                      onInfoPress={handleInfoPress}
+                      onInfoPress={() => handleInfoPress(matchingRolledOver.sourceWeekNumber)}
                     />
                   ) : null}
                 </React.Fragment>

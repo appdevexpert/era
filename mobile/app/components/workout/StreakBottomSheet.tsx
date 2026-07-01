@@ -4,11 +4,16 @@ import { FireRing } from "@/assets/icons";
 import WeekDaySelector, { type DayItem } from "@/app/components/workout/WeekDaySelector";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { forwardRef } from "react";
+import { forwardRef, useCallback } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
-import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
+import {
+  BottomSheetBackdrop,
+  BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 
 type StreakBottomSheetProps = {
   streak: number;
@@ -25,11 +30,25 @@ const StreakBottomSheet = forwardRef<BottomSheetModal, StreakBottomSheetProps>(
   function StreakBottomSheet({ streak, days, exercises, minutes, points, onViewPoints }, ref) {
     const { t } = useTranslation();
 
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.6}
+          pressBehavior="close"
+        />
+      ),
+      [],
+    );
+
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={["78%"]}
         enablePanDownToClose
+        backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >

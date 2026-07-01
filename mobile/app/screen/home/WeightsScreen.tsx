@@ -21,6 +21,7 @@ import {
   getToday,
   getWeekdayFromDate,
 } from "@/app/utils/programSchedule";
+import { getWeekdayLabelFull } from "@/app/utils/workoutMappers";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
@@ -214,15 +215,16 @@ const WeightsScreen = () => {
     });
   }, [overview, programStartDate, completedDayIds, effectiveWeekNumber]);
 
-  const dayTitle = detail
-    ? getLocalizedText(detail.day.title_translations, i18n.language, detail.day.title)
-    : "";
+  // Header shows the calendar weekday (e.g. "Monday") over the day's title
+  // (e.g. "Push - Heavy") — matches the Figma. `day.weekday` is 1..7; fall
+  // back to computing from day_number when null so mid-week starts still
+  // render the right weekday.
+  const weekdayNumber =
+    detail?.day.weekday ??
+    (detail ? ((detail.day.day_number - 1) % 7) + 1 : null);
+  const dayName = detail ? getWeekdayLabelFull(weekdayNumber, i18n.language) : "";
   const daySubtitle = detail
-    ? getLocalizedText(
-        detail.day.subtitle_translations,
-        i18n.language,
-        detail.day.subtitle ?? "",
-      )
+    ? getLocalizedText(detail.day.title_translations, i18n.language, detail.day.title)
     : "";
 
   const totalWeeks = overview?.program.duration_weeks ?? 12;
@@ -266,7 +268,7 @@ const WeightsScreen = () => {
             />
 
             <DayHeader
-              title={dayTitle}
+              dayName={dayName}
               subtitle={daySubtitle}
               exerciseCount={exercises.length}
             />

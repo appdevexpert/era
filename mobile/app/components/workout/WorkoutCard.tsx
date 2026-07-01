@@ -1,8 +1,9 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
-import { StatStopwatch, StatStretching, StrengthIcon as StrengthIconSvg } from "@/assets/icons";
+import { StatStopwatch, StatStretching } from "@/assets/icons";
 import { WorkoutCard as WorkoutCardBg } from "@/assets/images";
 import GlassFill from "@/app/components/common/GlassFill";
+import StrengthProgressRing from "@/app/components/workout/StrengthProgressRing";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image, StyleSheet, Text, View } from "react-native";
@@ -23,6 +24,8 @@ interface WorkoutCardProps {
   programWeek?: string;
   programDay?: string;
   completed?: boolean;
+  /** 0-1 completion for the strength ring. Overridden to 1 when completed. */
+  progress?: number;
   onCardPress?: () => void;
   onStartPress?: () => void;
 }
@@ -37,9 +40,11 @@ const WorkoutCard = ({
   programWeek = "",
   programDay = "",
   completed = false,
+  progress = 0,
   onCardPress,
   onStartPress,
 }: WorkoutCardProps) => {
+  const ringProgress = completed ? 1 : progress;
   const { t } = useTranslation();
 
   return (
@@ -87,7 +92,7 @@ const WorkoutCard = ({
 
         {/* Program info — positioned at bottom-left of card */}
         <View style={styles.programInfo}>
-          <StrengthIconSvg width={36} height={36} />
+          <StrengthProgressRing progress={ringProgress} size={36} />
           <View style={styles.programMeta}>
             <Text style={styles.programTitle}>
               {completed

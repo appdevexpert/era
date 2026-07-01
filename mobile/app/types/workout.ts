@@ -115,6 +115,10 @@ export interface WorkoutHomeView {
   workoutName: string;
   exerciseCount: number;
   duration: string;
+  /** Raw minutes backing `duration` — actual completed length when the day is
+   * done, else the plan estimate. Used by consumers (e.g. streak sheet) that
+   * need the number, not the formatted string. */
+  durationMinutes: number;
   tags: string[];
   targetMuscles: string[];
   programType: string;
@@ -163,6 +167,10 @@ export interface WorkoutPlanWeekView {
 export interface WorkoutPlanRolledOverView {
   phase: string;
   afterWeekNumber: number;
+  /** The partial week these rolled-over days originally belong to (e.g. 1, 5, 9).
+   * Drives the "Initial Days of Week N are adjusted here" caption so it reflects
+   * the actual source week, not a hardcoded "1". */
+  sourceWeekNumber: number;
   isCurrent: boolean;
   days: WorkoutPlanWeekView["days"];
 }

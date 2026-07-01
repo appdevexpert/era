@@ -9,7 +9,7 @@ import type { HomeStackParamList } from "@/app/navigation/types";
 import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
 import { useWallClockStopwatch } from "@/app/hooks/useWallClockStopwatch";
-import BottomSheet from "@gorhom/bottom-sheet";
+import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -114,8 +114,10 @@ const TimerLogScreen = () => {
     resetStopwatchInternal();
   }, [resetStopwatchInternal]);
 
-  // Exercise completed bottom sheet
-  const sheetRef = useRef<BottomSheet>(null);
+  // Exercise completed bottom sheet (portal-rendered modal — see
+  // ExerciseCompletedBottomSheet header comment for why it's a Modal and not
+  // a persistent BottomSheet).
+  const sheetRef = useRef<BottomSheetModal>(null);
   const lastSetLogged = useRef(false);
 
   /** Complete Set (not last) → log duration + rest timer */
@@ -131,20 +133,20 @@ const TimerLogScreen = () => {
   /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
     if (lastSetLogged.current) {
-      sheetRef.current?.expand();
+      sheetRef.current?.present();
       return;
     }
     lastSetLogged.current = true;
     const durationSec = Math.floor(stopwatchMs / 1000);
     logSetResult(exIdx, activeSet, null, null, null, durationSec);
     resetStopwatch();
-    sheetRef.current?.expand();
+    sheetRef.current?.present();
   }, [stopwatchMs, activeSet, exIdx, logSetResult, resetStopwatch]);
 
   /** Sheet "Continue" → complete exercise + move to next or session complete */
   const handleSheetContinue = useCallback(
     (_comment: string) => {
-      sheetRef.current?.close();
+      sheetRef.current?.dismiss();
       completeExerciseResult(exIdx, _comment);
 
       const nextIdx = exIdx + 1;
