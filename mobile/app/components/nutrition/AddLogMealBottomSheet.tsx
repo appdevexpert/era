@@ -1,8 +1,8 @@
+import AddComment from "@/app/components/common/AddComment";
 import GlassFill from "@/app/components/common/GlassFill";
-import IconButton from "@/app/components/common/IconButton";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
 import { FONTS } from "@/app/constants/fonts";
-import { ChevronBack, MicLargeIcon, TablerPlus } from "@/assets/icons";
+import { ChevronBack, TablerPlus } from "@/assets/icons";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -21,6 +21,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
 
 export interface AddLogMealBottomSheetRef {
   show: () => void;
@@ -313,6 +314,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
+        onDismiss={() => ExpoSpeechRecognitionModule.stop()}
       >
         <BottomSheetScrollView
           contentContainerStyle={styles.scrollContent}
@@ -469,25 +471,10 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
               </PressableScale>
             </View>
 
-            {/* Comments */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{t("nutrition.logMealSheet.addComments")}</Text>
-              <View style={styles.commentsBox}>
-                <BottomSheetTextInput
-                  value={comments}
-                  onChangeText={setComments}
-                  placeholder={t("nutrition.logMealSheet.commentsPlaceholder")}
-                  placeholderTextColor="rgba(240,240,240,0.5)"
-                  multiline
-                  style={styles.commentsInput}
-                />
-                <View style={styles.micButtonWrap}>
-                  <IconButton size={40} tint="none">
-                    <MicLargeIcon width={24} height={24} />
-                  </IconButton>
-                </View>
-              </View>
-            </View>
+            {/* Comments — uses shared AddComment (plain TextInput + mic).
+                See AddComment.tsx header for the reason we don't use
+                BottomSheetTextInput here. */}
+            <AddComment value={comments} onChangeText={setComments} />
           </View>
 
           {/* Save button + error */}
@@ -740,33 +727,6 @@ const styles = StyleSheet.create({
   },
 
   // Comments
-  commentsBox: {
-    backgroundColor: "#111111",
-    borderWidth: 1,
-    borderColor: "#1E1E1E",
-    borderRadius: 16,
-    minHeight: 100,
-    padding: 16,
-    gap: 16,
-    justifyContent: "space-between",
-  },
-  commentsInput: {
-    // No `flex: 1` — iOS multiline TextInput in a column container with
-    // flex grow leaves the text frame at 0 height until focus drops,
-    // making typed text invisible (Rami 2026-06-19).
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    lineHeight: 18.2,
-    color: "#F0F0F0",
-    textAlignVertical: "top",
-    minHeight: 60,
-    maxHeight: 120,
-    padding: 0,
-  },
-  micButtonWrap: {
-    alignSelf: "flex-end",
-  },
-
   // Save button
   saveButtonWrap: {
     paddingHorizontal: 20,
