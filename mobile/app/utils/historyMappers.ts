@@ -251,7 +251,8 @@ const buildSections = (
   metricKind: "weight" | "duration",
   t: Translator,
 ): ExerciseHistoryWeekSection[] => {
-  // Sort newest first; we'll group by week and within each section by date desc.
+  // Group by week. Week sections are ordered newest-week-first below; the set
+  // order *within* each week is decided by the per-week sort in the map.
   const ordered = [...sets].sort((a, b) => {
     if (a.week_number !== b.week_number) return b.week_number - a.week_number;
     const aTime = a.completed_at ?? "";
@@ -270,13 +271,14 @@ const buildSections = (
   return [...byWeek.entries()]
     .sort((a, b) => b[0] - a[0])
     .map<ExerciseHistoryWeekSection>(([weekNumber, weekSets]) => {
-      // Entries: oldest-to-newest delta is shown against the *previous* entry
-      // in chronological order. Display order is newest-first.
+      // Display sets in the order they were logged: oldest session first, and
+      // within a session by set_number (set 1 → 2 → 3). Delta is shown against
+      // the previous entry in this same logged order.
       const chronological = [...weekSets].sort((a, b) => {
         const aTime = a.completed_at ?? "";
         const bTime = b.completed_at ?? "";
         if (aTime !== bTime) return aTime < bTime ? -1 : 1;
-        return 0;
+        return a.set_number - b.set_number;
       });
 
       const entries: ExerciseHistoryEntry[] = chronological.map((s, idx) => {
@@ -313,9 +315,7 @@ const buildSections = (
         };
       });
 
-      // Reverse so the most recent set appears first within the week section.
-      entries.reverse();
-
+      // No reverse: keep logged order so set 1 sits at the top of the section.
       const firstDate = chronological[0]?.completed_at ?? null;
 
       return {

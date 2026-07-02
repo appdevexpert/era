@@ -407,6 +407,8 @@ export interface ExerciseHistoryView {
 
 export interface SessionSetHistoryRow {
   id: string;
+  /** 1-based order the set was logged within its exercise (drives display order). */
+  set_number: number;
   logged_weight_value: number | null;
   logged_reps: number | null;
   logged_duration_seconds: number | null;

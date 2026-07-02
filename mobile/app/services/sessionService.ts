@@ -1456,7 +1456,7 @@ export async function fetchExerciseHistoryDetail(params: {
   const { data, error } = await supabase
     .from("session_sets")
     .select(
-      `id, logged_weight_value, logged_reps, logged_duration_seconds, is_personal_record, is_best_set, completed_at,
+      `id, set_number, logged_weight_value, logged_reps, logged_duration_seconds, is_personal_record, is_best_set, completed_at,
        session_exercises!inner ( exercise_id, session_id,
          workout_sessions!inner ( id, user_id, completed_at, program_day_id,
            program_days!inner ( day_number,
@@ -1466,12 +1466,14 @@ export async function fetchExerciseHistoryDetail(params: {
     .eq("session_exercises.exercise_id", params.exerciseId)
     .or("logged_weight_value.not.is.null,logged_duration_seconds.not.is.null")
     .eq("status", "completed")
-    .order("completed_at", { ascending: false });
+    .order("completed_at", { ascending: false })
+    .order("set_number", { ascending: true });
 
   throwIfError(error, "Failed to fetch exercise history");
 
   type Row = {
     id: string;
+    set_number: number;
     logged_weight_value: number | string | null;
     logged_reps: number | null;
     logged_duration_seconds: number | null;
@@ -1496,6 +1498,7 @@ export async function fetchExerciseHistoryDetail(params: {
 
   const sets: SessionSetHistoryRow[] = ((data ?? []) as unknown as Row[]).map((row) => ({
     id: row.id,
+    set_number: row.set_number,
     logged_weight_value: row.logged_weight_value == null ? null : Number(row.logged_weight_value),
     logged_reps: row.logged_reps,
     logged_duration_seconds: row.logged_duration_seconds,

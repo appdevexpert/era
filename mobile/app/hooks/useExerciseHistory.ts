@@ -112,6 +112,9 @@ export function useExerciseHistory({
       raw.sets.filter((s) => s.session_id === sessionId).map((s) => `${s.session_id}:${s.id}`),
     );
 
+    // All live rows share one timestamp so they tie on completed_at and the
+    // history list orders them purely by set_number (logged order).
+    const liveTimestamp = new Date().toISOString();
     const liveRows: SessionSetHistoryRow[] = [];
     for (const [setNumStr, s] of Object.entries(liveSetsForExercise)) {
       // Synthetic id keyed by (session, exercise, setNumber). If a real row
@@ -121,12 +124,13 @@ export function useExerciseHistory({
       if (knownSetIdsBySession.has(`${sessionId}:${syntheticId}`)) continue;
       liveRows.push({
         id: syntheticId,
+        set_number: Number(setNumStr),
         logged_weight_value: s.weight,
         logged_reps: s.reps,
         logged_duration_seconds: s.duration,
         is_personal_record: false,
         is_best_set: false,
-        completed_at: new Date().toISOString(),
+        completed_at: liveTimestamp,
         week_number: liveWeek,
         day_number: liveDay,
         session_id: sessionId,
