@@ -8,11 +8,10 @@ import {
   BottomSheetBackdropProps,
   BottomSheetModal,
   BottomSheetScrollView,
-  BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import Animated, {
   Easing,
@@ -306,9 +305,9 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
     return (
       <BottomSheetModal
         ref={sheetRef}
-        snapPoints={["92%"]}
+        snapPoints={["92%", "100%"]}
         enablePanDownToClose
-        keyboardBehavior="interactive"
+        keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
         backdropComponent={renderBackdrop}
@@ -383,11 +382,18 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                 </View>
               ) : null}
 
+              {/* Plain RN TextInput — NOT gorhom's BottomSheetTextInput — on
+                  purpose. BottomSheetTextInput writes gorhom's internal
+                  animatedKeyboardState shared value on focus/blur, which races
+                  the sheet dismiss animation on iOS → NaN in a worklet → native
+                  crash. Same reasoning as AddComment.tsx. Focusing also closes
+                  the units dropdown so it can't sit open behind the keyboard. */}
               <View style={styles.field}>
                 <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.itemName")}</Text>
-                <BottomSheetTextInput
+                <TextInput
                   value={itemName}
                   onChangeText={setItemName}
+                  onFocus={() => setUnitsOpen(false)}
                   placeholder={t("nutrition.logMealSheet.itemNamePlaceholder")}
                   placeholderTextColor="rgba(240,240,240,0.5)"
                   style={styles.input}
@@ -397,9 +403,10 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
               <View style={styles.row}>
                 <View style={[styles.field, styles.flex1]}>
                   <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.servingSize")}</Text>
-                  <BottomSheetTextInput
+                  <TextInput
                     value={servingSize}
                     onChangeText={setServingSize}
+                    onFocus={() => setUnitsOpen(false)}
                     placeholder={t("nutrition.logMealSheet.servingSizePlaceholder")}
                     placeholderTextColor="rgba(240,240,240,0.5)"
                     keyboardType="numeric"

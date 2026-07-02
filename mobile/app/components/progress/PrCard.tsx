@@ -29,7 +29,9 @@ const PrCard = ({ entry }: PrCardProps) => {
       <View style={styles.topRow}>
         <View style={styles.topLeft}>
           <Text style={styles.category}>{entry.category}</Text>
-          <Text style={styles.name}>{entry.name}</Text>
+          <Text style={styles.name} numberOfLines={2}>
+            {entry.name}
+          </Text>
         </View>
         <View style={styles.topRight}>
           <View style={styles.latestRow}>
@@ -70,7 +72,7 @@ const styles = StyleSheet.create({
     borderColor: "#1E1E1E",
     borderRadius: 16,
     padding: 16,
-    gap: 20,
+    gap: 16,
     alignItems: "center",
     overflow: "hidden",
   },
@@ -93,6 +95,9 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#F0F0F0",
     lineHeight: 24,
+    // Reserve 2 lines so short names ("Squat") occupy the same height as
+    // wrapped ones ("Bulgarian Split Squat") → uniform card height, no void.
+    minHeight: 48,
   },
   latestRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: GOLD },

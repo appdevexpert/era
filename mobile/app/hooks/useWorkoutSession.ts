@@ -590,18 +590,27 @@ export const useWorkoutSession = (programDayId?: string) => {
 
       // Smart weight adjustment — suggest weights for the upcoming sets
       // of this same exercise based on the user's feedback. Standard+ only.
-      const currentPlanned = ex.sets[setNumber];
-      if (hasStandard && currentPlanned && feedback && weight != null) {
-        const futureSets = ex.sets.slice(setNumber + 1).map((s) => ({
-          id: setMap[seId]?.[s.setNumber - 1] ?? "",
-          setKind: s.setKind,
-        }));
+      //
+      // Work off the LIVE set array (setIds), NOT ex.sets: the latter is the
+      // static planned-set list from bootstrap and never includes sets the user
+      // adds mid-exercise via the "+" button. Resolving each kind by index
+      // (planned → ex.sets[i]; added → the last planned set's kind, which is
+      // exactly the template addSet() clones) lets the feedback delta carry into
+      // manually-added sets too — and into the set after a just-logged added one.
+      const liveSetIds = setIds ?? [];
+      const lastPlannedKind = ex.sets[ex.sets.length - 1]?.setKind ?? "working";
+      const kindForIndex = (i: number) => ex.sets[i]?.setKind ?? lastPlannedKind;
+      if (hasStandard && feedback && weight != null && setNumber < liveSetIds.length) {
+        const futureSets = liveSetIds
+          .slice(setNumber + 1)
+          .map((id, offset) => ({ id, setKind: kindForIndex(setNumber + 1 + offset) }))
+          .filter((s) => s.id);
         const suggestions = suggestFutureSetWeights({
           loggedWeight: weight,
           feedback,
           exerciseCategory: ex.exerciseCategory,
-          currentSetKind: currentPlanned.setKind,
-          futureSets: futureSets.filter((s) => s.id),
+          currentSetKind: kindForIndex(setNumber),
+          futureSets,
         });
         if (Object.keys(suggestions).length > 0) {
           dispatch(setSuggestedWeights(suggestions));

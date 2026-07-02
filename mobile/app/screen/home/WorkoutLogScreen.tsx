@@ -102,8 +102,26 @@ const WorkoutLogScreen = () => {
     return seed ?? undefined;
   });
   const interSessionSeed = hasStandard ? interSessionSeedRaw : undefined;
+  // A manually-added set (index beyond the planned list) has no planned
+  // targetWeight, so without this it would snap to the exercise default
+  // (initialWeight). Carry forward the most recent logged set's weight in this
+  // session instead, so an added set starts where the previous set left off.
+  // The smart +/- feedback delta already arrives via `suggestedWeight`; this is
+  // just the fallback for when no suggestion was produced (e.g. no feedback).
+  const isAddedSet = !!currentEx && startSet >= currentEx.sets.length;
+  const lastCompletedWeight = useSelector((state: RootState) => {
+    if (!currentEx || !isAddedSet) return undefined;
+    const logged = state.session.completedSets[currentEx.exerciseLibraryId];
+    if (!logged) return undefined;
+    const indices = Object.keys(logged).map(Number);
+    if (indices.length === 0) return undefined;
+    return logged[Math.max(...indices)]?.weight ?? undefined;
+  });
   const plannedWeightForSet =
-    currentEx?.sets[startSet]?.targetWeight ?? currentEx?.initialWeight ?? 0;
+    currentEx?.sets[startSet]?.targetWeight
+    ?? lastCompletedWeight
+    ?? currentEx?.initialWeight
+    ?? 0;
   // Canonical kg. The ruler displays/edits in the user's preferred unit; we
   // convert at the edge so the session log keeps storing kg.
   const [weightKg, setWeightKg] = useState(
