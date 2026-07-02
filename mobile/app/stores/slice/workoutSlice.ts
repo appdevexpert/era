@@ -72,6 +72,16 @@ interface WorkoutState {
   versionSignature: string | null;
   /** Active user_program_assignments row — drives cycle 2 + deload UI. */
   assignment: AssignmentRow | null;
+  /**
+   * Monotonic counter bumped once per finishSession (fresh completion OR an
+   * edit-mode re-log). Screens that fetch cross-session set history
+   * (WeightsScreen via useExerciseSummaries) depend on this so they refetch
+   * the moment a session's writes land — otherwise their one-time fetch stays
+   * stale after the live session overlay (session.completedSets) is cleared,
+   * and the new weights only appear on the next cold app start. Not persisted:
+   * a cold start remounts and refetches anyway, so it resets to 0 safely.
+   */
+  summariesRevision: number;
 }
 
 const initialState: WorkoutState = {
@@ -87,6 +97,7 @@ const initialState: WorkoutState = {
   loadedAt: null,
   versionSignature: null,
   assignment: null,
+  summariesRevision: 0,
 };
 
 type LoadWorkoutBootstrapArgs = {
@@ -415,6 +426,14 @@ const workoutSlice = createSlice({
         action.payload.durationMinutes;
     },
     /**
+     * Signal that a workout session finished and its set writes are committed.
+     * Drives a one-shot refetch of exercise-summary history on WeightsScreen so
+     * the freshly logged weights replace the now-cleared live session overlay.
+     */
+    bumpSummariesRevision: (state) => {
+      state.summariesRevision += 1;
+    },
+    /**
      * Replace the cached "today" day_detail pointer. Fired by
      * `refreshTodayIfStale` after a calendar rollover / timezone change so
      * selectors that fall back to `currentDayDetail` (e.g.
@@ -491,6 +510,7 @@ export const {
   markDayCompleted,
   setCompletedDayDuration,
   setCurrentDayDetail,
+  bumpSummariesRevision,
 } = workoutSlice.actions;
 
 export default workoutSlice.reducer;

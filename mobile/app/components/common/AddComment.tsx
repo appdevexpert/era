@@ -15,6 +15,12 @@ import {
 type AddCommentProps = {
   value: string;
   onChangeText: (text: string) => void;
+  /** Fired when the text field gains focus. Parents inside scrollable bottom
+   *  sheets use this to scroll the field above the keyboard (gorhom's auto
+   *  scroll only fires for BottomSheetTextInput, which we intentionally avoid). */
+  onFocus?: () => void;
+  /** Fired when the text field loses focus. */
+  onBlur?: () => void;
 };
 
 const localeFor = (lang: string) => (lang?.toLowerCase().startsWith("nb") ? "nb-NO" : "en-US");
@@ -32,7 +38,7 @@ const localeFor = (lang: string) => (lang?.toLowerCase().startsWith("nb") ? "nb-
  * notifications, not by input focus events — so it still works with plain
  * TextInput. No behavior loss, entire crash class gone.
  */
-const AddComment = ({ value, onChangeText }: AddCommentProps) => {
+const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) => {
   const { t, i18n } = useTranslation();
   const [recognizing, setRecognizing] = useState(false);
   const baseTextRef = useRef("");
@@ -107,6 +113,8 @@ const AddComment = ({ value, onChangeText }: AddCommentProps) => {
               placeholderTextColor={COLORS.alpha.white50}
               value={value}
               onChangeText={onChangeText}
+              onFocus={onFocus}
+              onBlur={onBlur}
               multiline
               scrollEnabled
               textAlignVertical="top"

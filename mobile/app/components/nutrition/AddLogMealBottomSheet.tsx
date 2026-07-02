@@ -8,6 +8,7 @@ import {
   BottomSheetBackdropProps,
   BottomSheetModal,
   BottomSheetScrollView,
+  BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +16,7 @@ import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import PressableScale from "@/app/components/common/PressableScale";
 import Animated, {
   Easing,
+  useAnimatedKeyboard,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -139,6 +141,24 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
   function AddLogMealBottomSheet({ onSave }, ref) {
     const { t } = useTranslation();
     const sheetRef = useRef<BottomSheetModal>(null);
+    const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+    // Whether the Comments field (the bottom-most input) currently has focus, and
+    // the last measured content height — used to keep the field pinned above the
+    // keyboard while it rises (see handleContentSizeChange).
+    const commentFocused = useRef(false);
+    const lastContentHeight = useRef(0);
+    // Keyboard height as a reanimated shared value. It tracks the real OS
+    // keyboard animation and works under Android edgeToEdge (where `adjustResize`
+    // is disabled). Drives a spacer at the bottom of the scroll content so the
+    // bottom-most field can be scrolled clear of the keyboard.
+    // Translucent bar flags → correct keyboard height under Android edgeToEdge.
+    const keyboard = useAnimatedKeyboard({
+      isStatusBarTranslucentAndroid: true,
+      isNavigationBarTranslucentAndroid: true,
+    });
+    const keyboardSpacerStyle = useAnimatedStyle(() => ({
+      height: keyboard.height.value,
+    }));
 
     const [selectedTag, setSelectedTag] = useState<MealTag | null>(null);
     const [itemName, setItemName] = useState("");
@@ -262,6 +282,31 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       hide: () => sheetRef.current?.dismiss(),
     }));
 
+    // Keep the bottom of the form pinned to the keyboard while it rises. The
+    // reanimated spacer grows the content height frame-by-frame as the keyboard
+    // opens; each growth we snap the scroll to the end so the Comments field
+    // travels up *with* the keyboard as one motion (no jump-after-delay). Guarded
+    // to growth only, so an interactive drag-down to dismiss isn't fought.
+    const handleContentSizeChange = useCallback((_w: number, height: number) => {
+      const grew = height > lastContentHeight.current;
+      lastContentHeight.current = height;
+      if (commentFocused.current && grew) {
+        scrollRef.current?.scrollToEnd({ animated: false });
+      }
+    }, []);
+
+    // Comments is the bottom-most field. On focus, immediately scroll it into
+    // view (covers the keyboard-already-open case); the content-size handler
+    // above keeps it pinned as the keyboard finishes rising (cold-open case).
+    const handleCommentFocus = useCallback(() => {
+      commentFocused.current = true;
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, []);
+
+    const handleCommentBlur = useCallback(() => {
+      commentFocused.current = false;
+    }, []);
+
     const renderBackdrop = useCallback(
       (props: BottomSheetBackdropProps) => (
         <BottomSheetBackdrop
@@ -305,7 +350,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
     return (
       <BottomSheetModal
         ref={sheetRef}
-        snapPoints={["92%", "100%"]}
+        snapPoints={["92%"]}
         enablePanDownToClose
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
@@ -316,9 +361,11 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
         onDismiss={() => ExpoSpeechRecognitionModule.stop()}
       >
         <BottomSheetScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onContentSizeChange={handleContentSizeChange}
         >
           {/* Header */}
           <View style={styles.titleSection}>
@@ -481,7 +528,12 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
             {/* Comments — uses shared AddComment (plain TextInput + mic).
                 See AddComment.tsx header for the reason we don't use
                 BottomSheetTextInput here. */}
-            <AddComment value={comments} onChangeText={setComments} />
+            <AddComment
+              value={comments}
+              onChangeText={setComments}
+              onFocus={handleCommentFocus}
+              onBlur={handleCommentBlur}
+            />
           </View>
 
           {/* Save button + error */}
@@ -494,6 +546,9 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
               loading={saving}
             />
           </View>
+
+          {/* Grows with the keyboard so scrollToEnd can lift the comment above it. */}
+          <Animated.View style={keyboardSpacerStyle} />
         </BottomSheetScrollView>
       </BottomSheetModal>
     );

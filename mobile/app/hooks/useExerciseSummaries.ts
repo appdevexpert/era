@@ -21,8 +21,12 @@ interface UseExerciseSummariesResult {
  * Loads each card on WeightsScreen for the given day detail.
  *
  * Two data layers, following the app's local-first pattern:
- *   1. Supabase fetch (bootstrap): fetched once per exerciseId set. Provides
- *      cross-session `lastKg` / `previousKg` (i.e. "history").
+ *   1. Supabase fetch (bootstrap): fetched per exerciseId set, and re-fetched
+ *      whenever a session finishes (workout.summariesRevision bump). Provides
+ *      cross-session `lastKg` / `previousKg` (i.e. "history"). The refetch is
+ *      what lets a just-finished workout's weights persist after layer 2's
+ *      live overlay is cleared — instead of reverting to the pre-session fetch
+ *      until the next cold app start.
  *   2. Redux `state.session.completedSets`: the sets logged during the current
  *      workout session. Subscribed via useSelector — every set the user logs
  *      dispatches `logCompletedSet` which re-runs this hook automatically.
@@ -44,6 +48,12 @@ export function useExerciseSummaries(
   const { i18n } = useTranslation();
   const completedSets = useSelector(
     (state: RootState) => state.session.completedSets,
+  );
+  // Bumped once per finishSession. Refetches the fetched-history layer the
+  // moment a session's writes land, so the fresh weights survive after the
+  // live completedSets overlay is cleared (no wait for a cold app start).
+  const summariesRevision = useSelector(
+    (state: RootState) => state.workout.summariesRevision,
   );
 
   const exerciseIds = useMemo(
@@ -79,7 +89,7 @@ export function useExerciseSummaries(
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, exerciseIdsKey]);
+  }, [user?.id, exerciseIdsKey, summariesRevision]);
 
   // Overlay this session's live sets on top of the fetched history.
   const mergedSummaries = useMemo(() => {

@@ -47,6 +47,7 @@ import {
 } from "@/app/stores/slice/sessionSlice";
 import { uuidv4 } from "@/app/utils/uuid";
 import {
+  bumpSummariesRevision,
   markDayCompleted,
   setCompletedDayDuration,
 } from "@/app/stores/slice/workoutSlice";
@@ -907,6 +908,12 @@ export const useWorkoutSession = (programDayId?: string) => {
         { sessionId },
       );
     }
+
+    // Tell WeightsScreen's exercise-summary fetch to refresh now that this
+    // session's set writes are committed. Its live overlay (session.completedSets)
+    // is about to be cleared on the SessionComplete screen; without this the
+    // one-time fetch would show stale weights until the next cold app start.
+    dispatch(bumpSummariesRevision());
 
     if (!userId) return null;
 
