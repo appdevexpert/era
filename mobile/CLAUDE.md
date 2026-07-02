@@ -31,6 +31,7 @@ All feature/reference docs live in `doc/`:
 - `doc/NOTIFICATIONS.md` — Local + push notification stack. First-login modal gate, daily/streak/PR locals, Phase 2 weekly summary push plan. Read before adding any notification type.
 - `doc/12_WEEK_PROGRAM.md`, `doc/12_WEEK_PROGRAM_CLIENT.md` — 12-week program structure references.
 - `doc/MID_PROGRAM_SWITCH_DECISION.md` — Open product question: what happens when a user changes `goals.level` mid-cycle (root cause of Rami feedback #6). Awaiting Rami confirmation before implementation.
+- `doc/CLEAN_BUILD.md` — `clean-build` branch reference. Two build-time feature flags disable paywall/RevenueCat and expo-notifications for internal builds. Includes what changes when each flag flips, and how to re-enable.
 
 **Rule:** Every new feature/reference markdown doc MUST be created inside `mobile/doc/`. Do NOT create new `*.md` docs at the `mobile/` root. The only `.md` files allowed at `mobile/` root are `CLAUDE.md`, `claude.local.md`, and `README.md`. When you add a new doc, also add a one-line entry for it under this list so future sessions can find it.
 
