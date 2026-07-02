@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { FEATURE_FLAGS } from "@/app/config/featureFlags";
 import {
   type EntitlementSnapshot,
   type EntitlementTier,
@@ -8,6 +9,20 @@ import {
 } from "@/app/services/revenueCatService";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// When paywall is disabled at build time, unlock everything by pretending
+// the user is on the highest tier. Downstream gates (useRequireEntitlement,
+// EntitlementGate) all key off hasPro/hasStandard so this single override
+// bypasses the entire tier system.
+const UNLOCKED_RESULT: UseEntitlementResult = {
+  tier: "pro",
+  isFree: false,
+  hasStandard: true,
+  hasPro: true,
+  expiresAt: null,
+  productId: null,
+  daysRemaining: null,
+};
 
 export interface UseEntitlementResult {
   tier: EntitlementTier;
@@ -33,9 +48,13 @@ export interface UseEntitlementResult {
 export const useEntitlement = (): UseEntitlementResult => {
   const [snapshot, setSnapshot] = useState<EntitlementSnapshot>(getCachedSnapshot);
 
-  useEffect(() => subscribeSnapshot(setSnapshot), []);
+  useEffect(() => {
+    if (!FEATURE_FLAGS.ENABLE_PAYWALL) return;
+    return subscribeSnapshot(setSnapshot);
+  }, []);
 
   return useMemo(() => {
+    if (!FEATURE_FLAGS.ENABLE_PAYWALL) return UNLOCKED_RESULT;
     const { tier, expiresAt, productId } = snapshot;
     const daysRemaining = expiresAt
       ? Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / MS_PER_DAY))

@@ -7,6 +7,7 @@ import {
   PlanGenerationNavigator,
 } from "@/app/navigation";
 import NotificationPermission from "@/app/screen/notificationPermission/NotificationPermission";
+import { FEATURE_FLAGS } from "@/app/config/featureFlags";
 import {
   completePlanGeneration,
   login,
@@ -278,7 +279,9 @@ const Navigation = () => {
   // dispatch setHasAskedNotificationPermission(true) inside the screen,
   // which flips this flag and unmounts the modal.
   const showNotificationPermissionModal =
-    !showAuthStack && !hasAskedNotificationPermission;
+    FEATURE_FLAGS.ENABLE_NOTIFICATIONS &&
+    !showAuthStack &&
+    !hasAskedNotificationPermission;
 
   // Swipe-down (iOS) or Android-back dismiss is treated as "Maybe Later" —
   // otherwise the modal would immediately re-open because the gate flag

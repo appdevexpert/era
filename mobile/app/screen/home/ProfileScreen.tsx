@@ -6,6 +6,7 @@ import ScreenFades from "@/app/components/common/ScreenFades";
 import SegmentedPill from "@/app/components/common/SegmentedPill";
 import SettingsCard from "@/app/components/common/SettingsCard";
 import SettingsRow from "@/app/components/common/SettingsRow";
+import { FEATURE_FLAGS } from "@/app/config/featureFlags";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { useEntitlement } from "@/app/hooks/useEntitlement";
@@ -223,6 +224,7 @@ const ProfileScreen = () => {
           name={displayName}
           uid={uid}
           metaLine={metaLine}
+          showSubscription={FEATURE_FLAGS.ENABLE_PAYWALL}
           subscriptionLabel={t(`profile.tierLabel.${tier}`)}
           manageLabel={t(tier === "free" ? "profile.upgradePlan" : "profile.manageSubscription")}
           daysLeftLabel={
@@ -274,6 +276,8 @@ const ProfileScreen = () => {
           />
         </SettingsCard>
 
+        {FEATURE_FLAGS.ENABLE_NOTIFICATIONS && (
+          <>
         <SectionTitle>{t("profile.sections.notifications")}</SectionTitle>
         {notificationPermissionStatus === "denied" ? (
           <SettingsCard>
@@ -319,6 +323,8 @@ const ProfileScreen = () => {
               onChange={(v) => handleNotificationToggle("weeklySummary", v)}
             />
           </SettingsCard>
+        )}
+          </>
         )}
 
         <SectionTitle>{t("profile.sections.support")}</SectionTitle>

@@ -20,6 +20,7 @@ import Purchases, {
 } from "react-native-purchases";
 import RevenueCatUI from "react-native-purchases-ui";
 import { ENV } from "@/app/config/env";
+import { FEATURE_FLAGS } from "@/app/config/featureFlags";
 import { saveSubscriptionState } from "@/app/services/profileService";
 
 export const ENTITLEMENT_STANDARD = "standard";
@@ -92,6 +93,7 @@ const updateCachedSnapshot = (info: CustomerInfo | null) => {
  * `subscribeSnapshot` consumer, and seeds the cache from the first fetch.
  */
 export const configureRevenueCat = () => {
+  if (!FEATURE_FLAGS.ENABLE_PAYWALL) return;
   if (configured) return;
   const apiKey = resolveApiKey();
   if (!apiKey) {
@@ -110,6 +112,7 @@ export const configureRevenueCat = () => {
 
 /** Link RC to a Supabase user. Call after every successful sign-in. */
 export const identifyRevenueCatUser = async (userId: string) => {
+  if (!FEATURE_FLAGS.ENABLE_PAYWALL) return null;
   if (!configured) configureRevenueCat();
   if (!configured) return null;
   currentUserId = userId;
@@ -120,6 +123,7 @@ export const identifyRevenueCatUser = async (userId: string) => {
 
 /** Reset RC to an anonymous app user. Call on sign-out / account delete. */
 export const resetRevenueCatUser = async () => {
+  if (!FEATURE_FLAGS.ENABLE_PAYWALL) return;
   if (!configured) return;
   // Drop the user pointer FIRST so the post-logout updateCachedSnapshot
   // doesn't overwrite the signed-out user's last known tier in Supabase.
@@ -157,6 +161,7 @@ export const subscribeSnapshot = (
  * Center fails (e.g. native module not yet loaded after a fresh pod add).
  */
 export const presentCustomerCenter = async (): Promise<void> => {
+  if (!FEATURE_FLAGS.ENABLE_PAYWALL) return;
   if (!configured) configureRevenueCat();
   try {
     await RevenueCatUI.presentCustomerCenter();

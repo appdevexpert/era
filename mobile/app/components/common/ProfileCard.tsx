@@ -15,9 +15,15 @@ export interface ProfileCardProps {
   daysLeftLabel: string;
   progress?: number;
   onManagePress?: () => void;
+  /**
+   * Toggles the subscription/progress footer. Set to false in builds where
+   * paywall/subscription flows are disabled (see FEATURE_FLAGS.ENABLE_PAYWALL).
+   * Defaults to true so existing callers stay unchanged.
+   */
+  showSubscription?: boolean;
 }
 
-const 
+const
 ProfileCard = ({
   name,
   uid,
@@ -27,6 +33,7 @@ ProfileCard = ({
   daysLeftLabel,
   progress = 0.78,
   onManagePress,
+  showSubscription = true,
 }: ProfileCardProps) => (
   <View style={styles.card}>
     <GlassView
@@ -47,7 +54,7 @@ ProfileCard = ({
       style={styles.gradientOverlay}
     />
 
-    <View style={styles.top}>
+    <View style={[styles.top, !showSubscription && styles.topNoBorder]}>
       <View style={styles.avatar}>
         <ProfileUserCircle width={54} height={54} />
       </View>
@@ -64,7 +71,7 @@ ProfileCard = ({
       </View>
     </View>
 
-    <View style={styles.bottom}>
+    {showSubscription && <View style={styles.bottom}>
       <View style={styles.subscriptionRow}>
         <View style={styles.subscriptionLeft}>
           <FluentPremium width={24} height={24} />
@@ -98,7 +105,7 @@ ProfileCard = ({
         </View>
         <Text style={styles.daysLeftText}>{daysLeftLabel}</Text>
       </View>
-    </View>
+    </View>}
   </View>
 );
 
@@ -125,6 +132,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.16)",
+  },
+  topNoBorder: {
+    borderBottomWidth: 0,
   },
   avatar: {
     width: 72,

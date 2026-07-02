@@ -15,6 +15,7 @@
  */
 import * as Notifications from "expo-notifications";
 import { Linking, Platform } from "react-native";
+import { FEATURE_FLAGS } from "@/app/config/featureFlags";
 import i18n from "@/app/locales/i18n";
 
 export type NotificationKind = "dailyReminder" | "streakWarning" | "prAlert";
@@ -36,14 +37,16 @@ const IDENTIFIERS = {
  * still show the banner + play the sound. Without this, foreground
  * notifications are silently swallowed.
  */
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+if (FEATURE_FLAGS.ENABLE_NOTIFICATIONS) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 const mapStatus = (status: Notifications.PermissionStatus): PermissionStatus => {
   if (status === "granted") return "granted";
@@ -52,6 +55,7 @@ const mapStatus = (status: Notifications.PermissionStatus): PermissionStatus => 
 };
 
 export const getPermissionStatus = async (): Promise<PermissionStatus> => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return "granted";
   const { status } = await Notifications.getPermissionsAsync();
   return mapStatus(status);
 };
@@ -62,6 +66,7 @@ export const getPermissionStatus = async (): Promise<PermissionStatus> => {
  * their previous answer without re-prompting.
  */
 export const requestNotificationPermission = async (): Promise<PermissionStatus> => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return "granted";
   const existing = await Notifications.getPermissionsAsync();
   if (existing.status !== "undetermined") return mapStatus(existing.status);
 
@@ -93,6 +98,7 @@ const scheduleDaily = async (
   title: string,
   body: string,
 ) => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
   await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
   await Notifications.scheduleNotificationAsync({
     identifier,
@@ -130,6 +136,7 @@ export const scheduleStreakWarning = async () => {
  * flow right after checkAndCreateSetPRs confirms a new max-weight PR.
  */
 export const firePRAlert = async (exerciseName: string, weightLabel: string) => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: i18n.t("notificationContent.prAlert.title"),
@@ -144,14 +151,17 @@ export const firePRAlert = async (exerciseName: string, weightLabel: string) => 
 };
 
 export const cancelDailyReminder = async () => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
   await Notifications.cancelScheduledNotificationAsync(IDENTIFIERS.dailyReminder).catch(() => {});
 };
 
 export const cancelStreakWarning = async () => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
   await Notifications.cancelScheduledNotificationAsync(IDENTIFIERS.streakWarning).catch(() => {});
 };
 
 export const cancelAllScheduledNotifications = async () => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
   await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
 };
 
@@ -161,6 +171,7 @@ export const cancelAllScheduledNotifications = async () => {
  * times — Android dedupes by channel id.
  */
 export const ensureAndroidChannel = async () => {
+  if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
   if (Platform.OS !== "android") return;
   await Notifications.setNotificationChannelAsync("default", {
     name: "ERA",
