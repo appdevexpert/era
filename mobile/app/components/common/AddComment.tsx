@@ -34,9 +34,12 @@ const localeFor = (lang: string) => (lang?.toLowerCase().startsWith("nb") ? "nb-
  * and that write races the sheet's dismiss animation on iOS when the sheet
  * is closed while the input is focused → NaN in a worklet → native crash.
  *
- * `keyboardBehavior="extend"` on the parent sheet is triggered by OS keyboard
- * notifications, not by input focus events — so it still works with plain
- * TextInput. No behavior loss, entire crash class gone.
+ * Trade-off: gorhom's keyboard handling (`keyboardBehavior`, `keyboardBlurBehavior`)
+ * only activates when it registers a focused input, which happens *only* via
+ * `BottomSheetTextInput`. With a plain `TextInput` that machinery stays inert —
+ * so the PARENT must provide its own keyboard avoidance (e.g. a `useAnimatedKeyboard`
+ * spacer + `scrollToEnd`, or `automaticallyAdjustKeyboardInsets`). Don't assume the
+ * sheet lifts this field on its own; if a parent relies on such a mechanism, keep it.
  */
 const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) => {
   const { t, i18n } = useTranslation();
