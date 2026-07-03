@@ -7,7 +7,12 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import type { CurrentAdminUser } from "@/lib/auth/current-user";
 
-const BARE_PATH_PREFIXES = ["/login", "/signup", "/forgot-password"];
+const BARE_PATH_PREFIXES = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+];
 
 export function ShellOrBare({
   children,

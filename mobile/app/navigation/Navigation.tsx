@@ -45,7 +45,7 @@ import { RootStackParamList } from "./types";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const linking = {
-  prefixes: ["mobile://"],
+  prefixes: ["erafit://"],
   config: {
     screens: {
       AuthStack: {

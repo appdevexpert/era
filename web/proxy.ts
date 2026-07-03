@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { SESSION_COOKIE } from "@/lib/auth/session";
 
-const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password"];
+const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some(

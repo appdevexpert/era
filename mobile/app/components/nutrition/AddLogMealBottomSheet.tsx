@@ -10,16 +10,13 @@ import {
   BottomSheetScrollView,
   BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
-import { forwardRef, Ref, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard, LayoutChangeEvent, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import Animated, {
   Easing,
-  scrollTo,
   useAnimatedKeyboard,
-  useAnimatedReaction,
-  useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -144,14 +141,12 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
   function AddLogMealBottomSheet({ onSave }, ref) {
     const { t } = useTranslation();
     const sheetRef = useRef<BottomSheetModal>(null);
-    // Animated ref so the keyboard reaction below can scroll on the UI thread.
-    const animatedScrollRef = useAnimatedRef<Animated.ScrollView>();
-    // Shared values feeding that reaction: commentFocused gates it; baseContentH
-    // (content height minus the spacer) and layoutH (visible scroll height) let it
-    // compute the scroll-to-bottom offset without any JS round-trip.
-    const commentFocused = useSharedValue(false);
-    const baseContentH = useSharedValue(0);
-    const layoutH = useSharedValue(0);
+    const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+    // Whether the Comments field (the bottom-most input) currently has focus, and
+    // the last measured content height — used to keep the field pinned above the
+    // keyboard while it rises (see handleContentSizeChange).
+    const commentFocused = useRef(false);
+    const lastContentHeight = useRef(0);
     // Keyboard height as a reanimated shared value. It tracks the real OS
     // keyboard animation and works under Android edgeToEdge (where `adjustResize`
     // is disabled). Drives a spacer at the bottom of the scroll content so the
@@ -164,25 +159,6 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
     const keyboardSpacerStyle = useAnimatedStyle(() => ({
       height: keyboard.height.value,
     }));
-
-    // Keep the Comments field pinned above the keyboard. As the keyboard rises the
-    // spacer grows the content in lockstep, and this reaction re-scrolls to the new
-    // bottom every frame on the UI thread — so the field travels up perfectly synced
-    // with the keyboard (no JS-driven stepping). When focus changes while the
-    // keyboard is already up, it animates the scroll instead of snapping.
-    useAnimatedReaction(
-      () => ({ height: keyboard.height.value, focused: commentFocused.value }),
-      (curr, prev) => {
-        if (!curr.focused) return;
-        const focusJustChanged = !prev || prev.focused !== curr.focused;
-        const rising = !prev || curr.height > prev.height;
-        // Pin while the keyboard rises or on a fresh focus; ignore a falling
-        // keyboard so an interactive drag-down to dismiss isn't fought.
-        if (!focusJustChanged && !rising) return;
-        const target = Math.max(0, baseContentH.value + curr.height - layoutH.value);
-        scrollTo(animatedScrollRef, 0, target, focusJustChanged);
-      },
-    );
 
     const [selectedTag, setSelectedTag] = useState<MealTag | null>(null);
     const [itemName, setItemName] = useState("");
@@ -306,32 +282,30 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       hide: () => sheetRef.current?.dismiss(),
     }));
 
-    // Feed the reaction: baseContentH = full content height minus the current
-    // spacer (so it stays stable as the keyboard animates); layoutH = the visible
-    // scroll height. Both are read on the UI thread to compute the scroll offset.
-    const handleContentSizeChange = useCallback(
-      (_w: number, height: number) => {
-        baseContentH.value = height - keyboard.height.value;
-      },
-      [baseContentH, keyboard],
-    );
+    // Keep the bottom of the form pinned to the keyboard while it rises. The
+    // reanimated spacer grows the content height frame-by-frame as the keyboard
+    // opens; each growth we snap the scroll to the end so the Comments field
+    // travels up *with* the keyboard as one motion (no jump-after-delay). Guarded
+    // to growth only, so an interactive drag-down to dismiss isn't fought.
+    const handleContentSizeChange = useCallback((_w: number, height: number) => {
+      const grew = height > lastContentHeight.current;
+      lastContentHeight.current = height;
+      if (commentFocused.current && grew) {
+        scrollRef.current?.scrollToEnd({ animated: false });
+      }
+    }, []);
 
-    const handleScrollLayout = useCallback(
-      (e: LayoutChangeEvent) => {
-        layoutH.value = e.nativeEvent.layout.height;
-      },
-      [layoutH],
-    );
-
-    // Comments is the bottom-most field — flag focus so the reaction pins it above
-    // the keyboard, and clear it on blur so the pinning doesn't fight other scrolls.
+    // Comments is the bottom-most field. On focus, immediately scroll it into
+    // view (covers the keyboard-already-open case); the content-size handler
+    // above keeps it pinned as the keyboard finishes rising (cold-open case).
     const handleCommentFocus = useCallback(() => {
-      commentFocused.value = true;
-    }, [commentFocused]);
+      commentFocused.current = true;
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, []);
 
     const handleCommentBlur = useCallback(() => {
-      commentFocused.value = false;
-    }, [commentFocused]);
+      commentFocused.current = false;
+    }, []);
 
     const renderBackdrop = useCallback(
       (props: BottomSheetBackdropProps) => (
@@ -392,14 +366,10 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
         onDismiss={() => ExpoSpeechRecognitionModule.stop()}
       >
         <BottomSheetScrollView
-          // gorhom types its ref as BottomSheetScrollViewMethods, but under the
-          // hood it hands back the reanimated Animated.ScrollView the animated ref
-          // needs. Cast bridges the two ref shapes.
-          ref={animatedScrollRef as unknown as Ref<BottomSheetScrollViewMethods>}
+          ref={scrollRef}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          onLayout={handleScrollLayout}
           onContentSizeChange={handleContentSizeChange}
         >
           {/* Header */}

@@ -795,6 +795,10 @@ create unique index body_weight_log_user_id_logged_for_date_key ON public.body_w
 create index idx_body_weight_log_user_date ON public.body_weight_log USING btree (user_id, logged_for_date DESC);
 
 create index idx_point_events_user_time ON public.era_point_events USING btree (user_id, occurred_at DESC);
+create unique index era_point_events_session_completion_unique
+  ON public.era_point_events USING btree (session_id, event_type)
+  WHERE event_type IN ('workout_completed', 'cardio_completed')
+    AND session_id IS NOT NULL;
 
 create unique index exercise_library_slug_key ON public.exercise_library USING btree (slug);
 create index idx_exercise_library_name ON public.exercise_library USING btree (name);
@@ -1073,9 +1077,31 @@ begin
     raise exception 'p_points must be >= 0';
   end if;
 
-  insert into public.era_point_events (user_id, session_id, event_type, title, points, occurred_at)
-  values (p_user_id, p_session_id, p_event_type, p_title, p_points, p_occurred_at)
-  returning id into v_event_id;
+  begin
+    insert into public.era_point_events (user_id, session_id, event_type, title, points, occurred_at)
+    values (p_user_id, p_session_id, p_event_type, p_title, p_points, p_occurred_at)
+    returning id into v_event_id;
+  exception when unique_violation then
+    -- Guarded event types (workout_completed / cardio_completed) already
+    -- awarded for this session; return the existing row + current total
+    -- without bumping total_points again.
+    select id into v_event_id
+      from public.era_point_events
+     where session_id = p_session_id
+       and event_type = p_event_type
+     order by occurred_at asc
+     limit 1;
+
+    select total_points into v_total
+      from public.user_reward_state
+     where user_id = p_user_id;
+
+    return json_build_object(
+      'event_id',     v_event_id,
+      'total_points', coalesce(v_total, 0),
+      'duplicate',    true
+    );
+  end;
 
   update public.user_reward_state
     set total_points = total_points + p_points,
@@ -1092,8 +1118,9 @@ begin
   end if;
 
   return json_build_object(
-    'event_id', v_event_id,
-    'total_points', v_total
+    'event_id',     v_event_id,
+    'total_points', v_total,
+    'duplicate',    false
   );
 end;
 $function$;
