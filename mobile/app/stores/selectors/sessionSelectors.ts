@@ -10,6 +10,8 @@ export const selectExercisesCompleted = (state: RootState) =>
   state.session.exercisesCompleted;
 export const selectSessionStartedAt = (state: RootState) =>
   state.session.sessionStartedAt;
+export const selectAccumulatedSeconds = (state: RootState) =>
+  state.session.accumulatedSeconds;
 export const selectExerciseStats = (state: RootState) =>
   state.session.exerciseStats;
 export const selectCompletedSets = (state: RootState) =>

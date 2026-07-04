@@ -65,21 +65,19 @@ const WeightStatsCard = ({
         ) : null}
       </View>
 
-      {/* Full graph view is Standard+ — free users see the current/heaviest
-          numbers above but not the historical chart. */}
-      <EntitlementGate
-        requires="standard"
-        fallback={<ProChartLockedCard requiredTier="standard" />}
-      >
+      <View style={styles.chartBlock}>
+        <Text style={styles.chartCaption}>
+          {t("progress.weightLast30Days")}
+        </Text>
         <WeightProgressChart
           data={chartData}
           xTickLabels={chartXTickLabels}
           yMin={chartYMin}
           yMax={chartYMax}
           yStep={chartYStep}
-          pageSize={5}
+          pageSize={7}
         />
-      </EntitlementGate>
+      </View>
 
       <SuccessBanner text={bannerText} />
 
@@ -96,6 +94,15 @@ const WeightStatsCard = ({
           </PressableScale>
         </View>
       </View>
+
+      {/* Full weight card is Standard+. When locked, the entire card sits
+          behind a blurred Upgrade-to-Pro overlay (matches Figma). */}
+      <EntitlementGate
+        requires="standard"
+        fallback={<ProChartLockedCard requiredTier="standard" />}
+      >
+        {null}
+      </EntitlementGate>
     </View>
   );
 };
@@ -107,12 +114,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#111",
     borderWidth: 1,
     borderColor: "#1E1E1E",
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 12,
     gap: 24,
-    //alignItems: "center",
+    position: "relative",
+    overflow: "hidden",
   },
   topRow: { flexDirection: "row", gap: 8, width: "100%" },
+  chartBlock: { gap: 12 },
+  chartCaption: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "rgba(240,240,240,0.5)",
+    letterSpacing: 0.48,
+    textTransform: "uppercase",
+    lineHeight: 14.4,
+  },
   secondaryRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   currentValue: {
     fontFamily: FONTS.semiBold,

@@ -12,6 +12,9 @@ const TwelveWeekCompletion = require("./twelve-week-completion.png");
 const TrophyBadgeGold = require("./trophy-gold.png");
 const TrophyBadgeSilver = require("./trophy-silver.png");
 const TrophyBadgeBronze = require("./trophy-bronze.png");
+const EraAppIcon = require("./icon-era.png");
+const NotificationPhoneMockup = require("./notification-phone-mockup.png");
+const NotificationBell = require("./notification-bell.png");
 
 
-export { IntroBackground, OnboardingBackground, WorkoutCard, GetIcon, WorkoutCountdownBg, PrTrophy, ProgressStatsBg, DemoMedia, TrophyGold, TwelveWeekDiamond, TwelveWeekCompletion, TrophyBadgeGold, TrophyBadgeSilver, TrophyBadgeBronze };
+export { IntroBackground, OnboardingBackground, WorkoutCard, GetIcon, WorkoutCountdownBg, PrTrophy, ProgressStatsBg, DemoMedia, TrophyGold, TwelveWeekDiamond, TwelveWeekCompletion, TrophyBadgeGold, TrophyBadgeSilver, TrophyBadgeBronze, EraAppIcon, NotificationPhoneMockup, NotificationBell };

@@ -286,6 +286,10 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   valueRulerCol: {
+    // Explicit width so the ruler's horizontal ScrollView gets a definite
+    // width to measure (see LogWeightBottomSheet) — prevents the onLayout
+    // → setState feedback loop.
+    width: "100%",
     alignItems: "center",
     gap: 52,
   },

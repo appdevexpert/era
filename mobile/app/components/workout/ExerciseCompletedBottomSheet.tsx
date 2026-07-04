@@ -3,15 +3,33 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { forwardRef, useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  Keyboard,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
-import { BottomSheetModal, BottomSheetView } from "@gorhom/bottom-sheet";
+import {
+  BottomSheetFooter,
+  BottomSheetFooterProps,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetScrollViewMethods,
+} from "@gorhom/bottom-sheet";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/app/stores/store";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
 import { ExpoSpeechRecognitionModule } from "expo-speech-recognition";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 type SetSummary = {
   weight: string;
@@ -28,6 +46,10 @@ type ExerciseCompletedBottomSheetProps = {
   initialComment?: string;
   onContinue: (comment: string) => void;
 };
+
+const REVEAL_MARGIN = 8;
+const CONTINUE_BUTTON_HEIGHT = 53;
+const FOOTER_TOP_PADDING = 10;
 
 const formatDuration = (seconds: number) => {
   const m = Math.floor(seconds / 60);
@@ -64,6 +86,31 @@ const SetCard = ({ set }: { set: SetSummary }) => {
 const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseCompletedBottomSheetProps>(
   function ExerciseCompletedBottomSheet({ exerciseLibraryId, initialComment = "", onContinue }, ref) {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
+    // Own the modal ref internally so we can expand/collapse it on keyboard
+    // events (gorhom's auto-extend is off for plain TextInputs). Still forward
+    // the instance to the parent so present()/dismiss() keep working.
+    const sheetRef = useRef<BottomSheetModal>(null);
+    useImperativeHandle(ref, () => sheetRef.current as BottomSheetModal, []);
+    const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
+    const scrollY = useRef(0);
+    const commentFocused = useRef(false);
+    const commentFieldRef = useRef<View>(null);
+    const kbHeight = useRef(0);
+    const footerHeightRef = useRef(0);
+    const lastContentHeight = useRef(0);
+    const [footerHeight, setFooterHeight] = useState(0);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
+    const kbSpacer = useSharedValue(0);
+    const kbTranslate = useSharedValue(0);
+    const keyboardSpacerStyle = useAnimatedStyle(
+      () => ({ height: kbSpacer.value > 0 ? kbSpacer.value + footerHeight : 0 }),
+      [footerHeight],
+    );
+    const footerStyle = useAnimatedStyle(() => ({
+      transform: [{ translateY: -kbTranslate.value }],
+    }));
     const [comment, setComment] = useState(initialComment);
 
     const { format: formatWeight } = useWeightUnit();
@@ -92,26 +139,162 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
       onContinue(comment);
     }, [comment, onContinue]);
 
+    const revealComment = useCallback(
+      (keyboardHeight: number) => {
+        if (keyboardHeight <= 0) return;
+        const node = commentFieldRef.current;
+        if (!node) return;
+        node.measureInWindow((_x, y, _w, height) => {
+          if (!height) return;
+          const fallbackFooterHeight =
+            CONTINUE_BUTTON_HEIGHT + FOOTER_TOP_PADDING + (insets.bottom || 20);
+          const footerHeightForReveal = footerHeightRef.current || fallbackFooterHeight;
+          const visibleBottom =
+            windowHeight - keyboardHeight - footerHeightForReveal - REVEAL_MARGIN;
+          const overlap = y + height - visibleBottom;
+          if (overlap > 0) {
+            scrollRef.current?.scrollTo({ y: scrollY.current + overlap, animated: true });
+          }
+        });
+      },
+      [insets.bottom, windowHeight],
+    );
+
+    const handleFooterLayout = useCallback((e: LayoutChangeEvent) => {
+      const h = e.nativeEvent.layout.height;
+      footerHeightRef.current = h;
+      setFooterHeight(h);
+      if (commentFocused.current && kbHeight.current > 0) {
+        requestAnimationFrame(() => revealComment(kbHeight.current));
+      }
+    }, [revealComment]);
+
+    const handleCommentFocus = useCallback(() => {
+      commentFocused.current = true;
+      if (kbHeight.current > 0) {
+        revealComment(kbHeight.current);
+      }
+    }, [revealComment]);
+
+    const handleCommentBlur = useCallback(() => {
+      commentFocused.current = false;
+    }, []);
+
+    const handleContentSizeChange = useCallback((_w: number, height: number) => {
+      const grew = height > lastContentHeight.current;
+      lastContentHeight.current = height;
+      if (grew && commentFocused.current && kbHeight.current > 0) {
+        requestAnimationFrame(() => revealComment(kbHeight.current));
+      }
+    }, [revealComment]);
+
+    const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.current = e.nativeEvent.contentOffset.y;
+    }, []);
+
+    useEffect(() => {
+      const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+      const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+      const showSub = Keyboard.addListener(showEvent, (e) => {
+        const height = e.endCoordinates?.height ?? 0;
+        const duration = e.duration && e.duration > 0 ? e.duration : 250;
+        setKeyboardVisible(true);
+        kbHeight.current = height;
+        kbSpacer.value = height;
+        kbTranslate.value = withTiming(height, { duration });
+        // Fill the space above the keyboard so Continue pins just on top of it
+        // (auto-extend is off for plain TextInputs, so we do it manually).
+        sheetRef.current?.expand();
+        if (commentFocused.current) {
+          requestAnimationFrame(() => revealComment(height));
+        }
+      });
+      const hideSub = Keyboard.addListener(hideEvent, (e) => {
+        const duration = e?.duration && e.duration > 0 ? e.duration : 250;
+        setKeyboardVisible(false);
+        kbHeight.current = 0;
+        kbSpacer.value = withTiming(0, { duration });
+        kbTranslate.value = withTiming(0, { duration });
+        // Shrink back to the content-fit height (index 0) so there's no dead
+        // space below Continue at rest.
+        sheetRef.current?.snapToIndex(0);
+      });
+      return () => {
+        showSub.remove();
+        hideSub.remove();
+      };
+    }, [kbSpacer, kbTranslate, revealComment]);
+
     // The sheet stays mounted across dismissals, so AddComment's unmount
     // cleanup can't cover a swipe-down / continue press. Stop the mic
     // explicitly when the sheet dismisses.
     const handleDismiss = useCallback(() => {
       ExpoSpeechRecognitionModule.stop();
-    }, []);
+      setKeyboardVisible(false);
+      kbHeight.current = 0;
+      kbSpacer.value = 0;
+      kbTranslate.value = 0;
+    }, [kbSpacer, kbTranslate]);
+
+    const renderFooter = useCallback(
+      (props: BottomSheetFooterProps) => {
+        if (!keyboardVisible) return null;
+        return (
+          <BottomSheetFooter {...props}>
+            <Animated.View
+              style={[styles.footer, footerStyle, { paddingBottom: insets.bottom || 20 }]}
+              onLayout={handleFooterLayout}
+            >
+              <PressableScale style={styles.continueBtn} onPress={handleContinue}>
+                <LinearGradient
+                  colors={[
+                    "rgba(201,168,76,0.6)",
+                    "rgba(247,224,111,0.6)",
+                    "rgba(252,243,192,0.6)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <GlassFill />
+                <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
+              </PressableScale>
+            </Animated.View>
+          </BottomSheetFooter>
+        );
+      },
+      [footerStyle, handleContinue, handleFooterLayout, insets.bottom, keyboardVisible, t],
+    );
 
     return (
       <BottomSheetModal
-        ref={ref}
+        ref={sheetRef}
         enablePanDownToClose
-        snapPoints={["70%", "90%"]}
+        // Dynamic sizing → the sheet opens at its content-fit height (no dead space
+        // below Continue). maxDynamicContentSize caps content-fit below the 90%
+        // detent so it always stays index 0 → snapToIndex(0) reliably returns to
+        // the content-fit height when the keyboard closes. On keyboard open we
+        // expand() to the 90% detent so Continue pins just above the keyboard.
+        snapPoints={["90%"]}
+        enableDynamicSizing
+        maxDynamicContentSize={windowHeight * 0.85}
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
+        footerComponent={renderFooter}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
         onDismiss={handleDismiss}
       >
-        <BottomSheetView style={styles.content}>
+        <BottomSheetScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onScroll={handleScroll}
+          onContentSizeChange={handleContentSizeChange}
+          stickyHeaderIndices={[0]}
+        >
           <View style={styles.titleWrap}>
             <Text style={styles.title}>{t("workout.ui.exerciseCompleted")}</Text>
           </View>
@@ -122,27 +305,35 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
             ))}
           </View>
 
-          <AddComment
-            key={exerciseLibraryId ?? "empty"}
-            value={comment}
-            onChangeText={setComment}
-          />
-
-          <PressableScale style={styles.continueBtn} onPress={handleContinue}>
-            <LinearGradient
-              colors={[
-                "rgba(201,168,76,0.6)",
-                "rgba(247,224,111,0.6)",
-                "rgba(252,243,192,0.6)",
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
+          <View ref={commentFieldRef}>
+            <AddComment
+              key={exerciseLibraryId ?? "empty"}
+              value={comment}
+              onChangeText={setComment}
+              onFocus={handleCommentFocus}
+              onBlur={handleCommentBlur}
             />
-            <GlassFill />
-            <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
-          </PressableScale>
-        </BottomSheetView>
+          </View>
+
+          {!keyboardVisible ? (
+            <PressableScale style={styles.continueBtn} onPress={handleContinue}>
+              <LinearGradient
+                colors={[
+                  "rgba(201,168,76,0.6)",
+                  "rgba(247,224,111,0.6)",
+                  "rgba(252,243,192,0.6)",
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <GlassFill />
+              <Text style={styles.continueBtnText}>{t("common.continue")}</Text>
+            </PressableScale>
+          ) : null}
+
+          <Animated.View style={keyboardSpacerStyle} />
+        </BottomSheetScrollView>
       </BottomSheetModal>
     );
   },
@@ -166,7 +357,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingBottom: 20,
     gap: 20,
   },
   titleWrap: {
@@ -175,6 +366,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral.charcoal,
+    backgroundColor: COLORS.neutral.black3,
   },
   title: {
     fontFamily: FONTS.display,
@@ -222,7 +414,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    marginTop: 8,
   },
   continueBtnText: {
     fontFamily: FONTS.semiBold,
@@ -231,5 +422,10 @@ const styles = StyleSheet.create({
     color: COLORS.neutral.white,
     textAlign: "center",
     letterSpacing: 0.36,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    backgroundColor: COLORS.neutral.black3,
   },
 });

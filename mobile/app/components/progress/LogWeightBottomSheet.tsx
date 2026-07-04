@@ -1,7 +1,11 @@
+import CalendarMonth from "@/app/components/common/CalendarMonth";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
 import WeightRuler from "@/app/components/workout/WeightRuler";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
+import { formatLongDate } from "@/app/utils/calendar";
+import { todayIso } from "@/app/utils/programWeek";
+import { EditPen } from "@/assets/icons";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -36,18 +40,13 @@ export interface LogWeightBottomSheetRef {
 
 interface LogWeightBottomSheetProps {
   initialKg?: number;
-  onLog?: (value: number, unit: WeightUnit) => void;
+  /** `loggedForDate` is the picked calendar day (YYYY-MM-DD), today by default. */
+  onLog?: (value: number, unit: WeightUnit, loggedForDate: string) => void;
 }
 
-const KG_TO_LB = 2.2046226218;
+type SheetMode = "weight" | "date";
 
-const formatToday = () => {
-  const d = new Date();
-  const day = d.getDate();
-  const month = d.toLocaleString("en-US", { month: "long" }).toUpperCase();
-  const year = d.getFullYear();
-  return `${day} ${month}, ${year}`;
-};
+const KG_TO_LB = 2.2046226218;
 
 const TRACK_WIDTH = 125;
 const PILL_WIDTH = TRACK_WIDTH / 2;
@@ -69,11 +68,18 @@ const LogWeightBottomSheet = forwardRef<
   LogWeightBottomSheetProps
 >(function LogWeightBottomSheet({ initialKg = 65, onLog }, ref) {
   const sheetRef = useRef<BottomSheetModal>(null);
-  const { t } = useTranslation();
-  const dateLabel = useMemo(formatToday, []);
+  const { t, i18n } = useTranslation();
 
   const [unit, setUnit] = useState<WeightUnit>("kg");
   const [value, setValue] = useState<number>(initialKg);
+  const [mode, setMode] = useState<SheetMode>("weight");
+  const [selectedDate, setSelectedDate] = useState<string>(() => todayIso());
+
+  const today = useMemo(() => todayIso(), []);
+  const dateLabel = useMemo(
+    () => formatLongDate(selectedDate, i18n.language),
+    [selectedDate, i18n.language],
+  );
 
   const togglePos = useSharedValue<number>(0);
   useEffect(() => {
@@ -88,7 +94,12 @@ const LogWeightBottomSheet = forwardRef<
   }));
 
   useImperativeHandle(ref, () => ({
-    show: () => sheetRef.current?.present(),
+    show: () => {
+      // Always open fresh: weight view, dated today.
+      setMode("weight");
+      setSelectedDate(todayIso());
+      sheetRef.current?.present();
+    },
     close: () => sheetRef.current?.dismiss(),
   }));
 
@@ -113,8 +124,13 @@ const LogWeightBottomSheet = forwardRef<
   };
 
   const handleLog = () => {
-    onLog?.(value, unit);
+    onLog?.(value, unit, selectedDate);
     sheetRef.current?.dismiss();
+  };
+
+  const handleDatePicked = (iso: string) => {
+    setSelectedDate(iso);
+    setMode("weight");
   };
 
   const range = unit === "kg" ? { min: 30, max: 200 } : { min: 66, max: 440 };
@@ -163,62 +179,92 @@ const LogWeightBottomSheet = forwardRef<
 
       <BottomSheetView style={styles.content}>
         <View style={styles.inner}>
-          {/* Header */}
+          {/* Header — title swaps with the mode; the date row is tappable and
+              opens the calendar picker. */}
           <View style={styles.titleSection}>
-            <Text style={styles.title}>{t("progress.logWeightSheet.title")}</Text>
-            <Text style={styles.dateText}>{dateLabel}</Text>
+            <Text style={styles.title}>
+              {mode === "date"
+                ? t("progress.logWeightSheet.selectDate")
+                : t("progress.logWeightSheet.title")}
+            </Text>
+            {mode === "weight" ? (
+              <PressableScale
+                onPress={() => setMode("date")}
+                hitSlop={8}
+                style={styles.dateRow}
+              >
+                <Text style={styles.dateText}>{dateLabel}</Text>
+                <EditPen width={16} height={16} />
+              </PressableScale>
+            ) : null}
           </View>
 
-          {/* Unit toggle — left-aligned */}
-          <View style={styles.unitToggleWrap}>
-            <PressableScale
-              onPress={() => handleUnitToggle(unit === "kg" ? "lb" : "kg")}
-              style={styles.unitTrack}
-            >
-              <Animated.View style={[styles.unitPill, pillAnimatedStyle]} />
-              <View style={styles.unitHalf} pointerEvents="none">
-                <Text style={styles.unitHalfText}>
-                  {t("progress.logWeightSheet.unitKg")}
-                </Text>
-              </View>
-              <View style={styles.unitHalf} pointerEvents="none">
-                <Text style={styles.unitHalfText}>
-                  {t("progress.logWeightSheet.unitLbs")}
-                </Text>
-              </View>
-            </PressableScale>
-          </View>
-
-          {/* Value + ruler (gap 52) */}
-          <View style={styles.valueRulerCol}>
-            <View style={styles.valueCol}>
-              <Text style={styles.valueNumber}>{value}</Text>
-              <Text style={styles.valueUnit}>{unitLabel}</Text>
-            </View>
-
-            <View style={styles.rulerWrap}>
-              <WeightRuler
-                key={`${unit}-${range.min}-${range.max}`}
-                label=""
-                unit=""
-                value={value}
-                onValueChange={setValue}
-                min={range.min}
-                max={range.max}
-                step={1}
-                headerless
+          {mode === "date" ? (
+            /* Date picker */
+            <View style={styles.calendarWrap}>
+              <CalendarMonth
+                selectedDate={selectedDate}
+                today={today}
+                maxDate={today}
+                onSelect={handleDatePicked}
               />
             </View>
-          </View>
+          ) : (
+            <>
+              {/* Unit toggle — left-aligned */}
+              <View style={styles.unitToggleWrap}>
+                <PressableScale
+                  onPress={() => handleUnitToggle(unit === "kg" ? "lb" : "kg")}
+                  style={styles.unitTrack}
+                >
+                  <Animated.View style={[styles.unitPill, pillAnimatedStyle]} />
+                  <View style={styles.unitHalf} pointerEvents="none">
+                    <Text style={styles.unitHalfText}>
+                      {t("progress.logWeightSheet.unitKg")}
+                    </Text>
+                  </View>
+                  <View style={styles.unitHalf} pointerEvents="none">
+                    <Text style={styles.unitHalfText}>
+                      {t("progress.logWeightSheet.unitLbs")}
+                    </Text>
+                  </View>
+                </PressableScale>
+              </View>
+
+              {/* Value + ruler (gap 52) */}
+              <View style={styles.valueRulerCol}>
+                <View style={styles.valueCol}>
+                  <Text style={styles.valueNumber}>{value}</Text>
+                  <Text style={styles.valueUnit}>{unitLabel}</Text>
+                </View>
+
+                <View style={styles.rulerWrap}>
+                  <WeightRuler
+                    key={`${unit}-${range.min}-${range.max}`}
+                    label=""
+                    unit=""
+                    value={value}
+                    onValueChange={setValue}
+                    min={range.min}
+                    max={range.max}
+                    step={1}
+                    headerless
+                  />
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
-        {/* CTA — separated from inner content by gap-42 */}
-        <View style={styles.ctaWrap}>
-          <PrimaryButton
-            label={t("progress.logWeightSheet.cta")}
-            onPress={handleLog}
-          />
-        </View>
+        {/* CTA — only in weight mode; picking a date auto-returns here. */}
+        {mode === "weight" ? (
+          <View style={styles.ctaWrap}>
+            <PrimaryButton
+              label={t("progress.logWeightSheet.cta")}
+              onPress={handleLog}
+            />
+          </View>
+        ) : null}
       </BottomSheetView>
     </BottomSheetModal>
   );
@@ -255,6 +301,10 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   valueRulerCol: {
+    // Explicit width so the ruler's horizontal ScrollView gets a definite
+    // width to measure. Without it the ScrollView sizes to its own (padded)
+    // content, which feeds back into onLayout → infinite setState loop.
+    width: "100%",
     alignItems: "center",
     gap: 52,
   },
@@ -300,6 +350,11 @@ const styles = StyleSheet.create({
     color: COLORS.neutral.white,
     lineHeight: 26.4,
   },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   dateText: {
     fontFamily: FONTS.medium,
     fontSize: 14,
@@ -307,6 +362,11 @@ const styles = StyleSheet.create({
     color: "rgba(240, 240, 240, 0.5)",
     lineHeight: 16.8,
     textTransform: "uppercase",
+  },
+  calendarWrap: {
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingTop: 4,
   },
 
   // Unit toggle — left-aligned, full-width parent

@@ -59,6 +59,15 @@ interface SessionState {
   setsLogged: number;
   exercisesCompleted: number;
   sessionStartedAt: string | null;
+  /**
+   * Duration (seconds) already committed to workout_sessions.duration_seconds
+   * from PRIOR sittings of this same session. `sessionStartedAt` clocks only
+   * the CURRENT sitting; on finish we write `accumulatedSeconds + (now -
+   * sessionStartedAt)` so End Workout → Resume → End sums instead of
+   * overwriting. Hydrated from the DB row's duration on resume, 0 for a fresh
+   * session. Persisted so it survives an app kill between sittings.
+   */
+  accumulatedSeconds: number;
   /** exerciseLibraryId → historical stats (fetched at session start) */
   exerciseStats: Record<string, ExerciseStatSnapshot>;
   /**
@@ -91,6 +100,7 @@ const initialState: SessionState = {
   setsLogged: 0,
   exercisesCompleted: 0,
   sessionStartedAt: null,
+  accumulatedSeconds: 0,
   exerciseStats: {},
   lastLoggedSetsByExercise: {},
   completedSets: {},
@@ -111,6 +121,12 @@ const sessionSlice = createSlice({
         programDayId: string;
         exerciseMap: Record<string, string>;
         setMap: Record<string, string[]>;
+        /**
+         * Seconds already committed from prior sittings. Passed on resume of a
+         * partially-completed session (from the DB row's duration_seconds).
+         * Omitted for a fresh session → resets to 0.
+         */
+        accumulatedSeconds?: number;
       }>,
     ) {
       state.sessionId = action.payload.sessionId;
@@ -124,6 +140,7 @@ const sessionSlice = createSlice({
       state.exerciseComments = {};
       state.suggestedWeightBySetId = {};
       state.sessionStartedAt = null;
+      state.accumulatedSeconds = action.payload.accumulatedSeconds ?? 0;
       state.isEditMode = false;
     },
     /**

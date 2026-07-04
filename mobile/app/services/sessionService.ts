@@ -76,17 +76,26 @@ export async function createWorkoutSession(params: {
 export async function findExistingSession(params: {
   userId: string;
   programDayId: string;
-}): Promise<{ id: string; status: "in_progress" | "completed" | "abandoned" } | null> {
+}): Promise<{
+  id: string;
+  status: "in_progress" | "completed" | "abandoned";
+  /** Seconds already committed from prior sittings — seeds accumulatedSeconds so a resume sums instead of overwrites. */
+  durationSeconds: number;
+} | null> {
   const { data, error } = await supabase
     .from("workout_sessions")
-    .select("id, status")
+    .select("id, status, duration_seconds")
     .eq("user_id", params.userId)
     .eq("program_day_id", params.programDayId)
     .maybeSingle();
 
   if (error) throw new Error(error.message ?? "Failed to look up workout session");
   if (!data) return null;
-  return { id: data.id as string, status: data.status as "in_progress" | "completed" | "abandoned" };
+  return {
+    id: data.id as string,
+    status: data.status as "in_progress" | "completed" | "abandoned",
+    durationSeconds: Number(data.duration_seconds ?? 0),
+  };
 }
 
 /** A previously-logged set value, keyed by exerciseLibraryId → setIndex (0-based). */
@@ -896,6 +905,13 @@ export type PointEventType =
  * Award points via the SQL RPC. Inserts the event row and bumps
  * user_reward_state.total_points in a single transaction so the
  * scoreboard never drifts from the ledger.
+ *
+ * The RPC also enforces per-session dedup for workout_completed and
+ * cardio_completed via a partial unique index on
+ * era_point_events(session_id, event_type). On duplicate, the RPC
+ * returns the pre-existing event with `duplicate: true` and does NOT
+ * bump total_points a second time — callers should treat that response
+ * as a successful no-op.
  */
 export async function awardPoints(params: {
   userId: string;
@@ -904,7 +920,7 @@ export async function awardPoints(params: {
   title: string;
   sessionId?: string | null;
   occurredAt?: string;
-}): Promise<{ eventId: string; totalPoints: number }> {
+}): Promise<{ eventId: string; totalPoints: number; duplicate: boolean }> {
   const { data, error } = await supabase.rpc("award_points", {
     p_user_id: params.userId,
     p_event_type: params.eventType,
@@ -915,8 +931,30 @@ export async function awardPoints(params: {
   });
 
   throwIfError(error, "Failed to award points");
-  const row = data as { event_id: string; total_points: number };
-  return { eventId: row.event_id, totalPoints: row.total_points };
+  const row = data as { event_id: string; total_points: number; duplicate?: boolean };
+  return {
+    eventId: row.event_id,
+    totalPoints: row.total_points,
+    duplicate: Boolean(row.duplicate),
+  };
+}
+
+/**
+ * Which point event types have already been awarded for a session. Used
+ * by `useWorkoutSession.finishSession` to skip the optimistic +50 / +150
+ * bump when the user resumes an already-ended session and taps End again.
+ * The DB unique index is the durable defense-in-depth; this check just
+ * prevents the local Redux state from momentarily double-counting.
+ */
+export async function getAwardedSessionEventTypes(
+  sessionId: string,
+): Promise<Set<PointEventType>> {
+  const { data, error } = await supabase
+    .from("era_point_events")
+    .select("event_type")
+    .eq("session_id", sessionId);
+  throwIfError(error, "Failed to load session point events");
+  return new Set((data ?? []).map((r) => r.event_type as PointEventType));
 }
 
 /**

@@ -16,51 +16,47 @@
 -- this migration is the durable defense-in-depth backstop.
 --
 -- Safe to re-run: uses IF NOT EXISTS / CREATE OR REPLACE, and the dedupe
--- CTE is a no-op once duplicates are removed.
+-- step is a no-op once the unique index is in place.
 -- ============================================================================
 
-begin;
-
 -- ------------------------------------------------------------
--- 1. Delete duplicate rows for the two guarded event types
---    (keep the oldest row per (session_id, event_type)).
+-- 1. Materialize the duplicate rows to delete (keep the oldest
+--    per session_id + event_type). Temp table so we can both
+--    refund total_points and delete the rows in the right order.
 -- ------------------------------------------------------------
-with ranked as (
-  select
-    id,
-    user_id,
-    points,
-    row_number() over (
-      partition by session_id, event_type
-      order by occurred_at asc, created_at asc, id asc
-    ) as rn
+create temp table _dedup_victims on commit drop as
+select id, user_id, points
+from (
+  select id,
+         user_id,
+         points,
+         row_number() over (
+           partition by session_id, event_type
+           order by occurred_at asc, created_at asc, id asc
+         ) as rn
   from public.era_point_events
   where event_type in ('workout_completed', 'cardio_completed')
     and session_id is not null
-),
-victims as (
-  select id, user_id, points from ranked where rn > 1
-),
-refund as (
-  select user_id, sum(points)::int as removed
-  from victims
-  group by user_id
-),
-del as (
-  delete from public.era_point_events
-  where id in (select id from victims)
-  returning 1
-)
+) t
+where rn > 1;
+
+-- 2. Refund phantom points first (before we lose the rows).
 update public.user_reward_state urs
-set
-  total_points = greatest(0, urs.total_points - r.removed),
-  updated_at   = now()
-from refund r
-where urs.user_id = r.user_id
-  and (select count(*) from del) >= 0;  -- force del CTE evaluation
+set total_points = greatest(0, urs.total_points - agg.removed),
+    updated_at   = now()
+from (
+  select user_id, sum(points)::int as removed
+  from _dedup_victims
+  group by user_id
+) agg
+where urs.user_id = agg.user_id;
+
+-- 3. Delete the duplicates.
+delete from public.era_point_events
+where id in (select id from _dedup_victims);
 
 -- ------------------------------------------------------------
--- 2. Partial unique index — future duplicates fail at DB layer.
+-- 4. Partial unique index — future duplicates fail at DB layer.
 -- ------------------------------------------------------------
 create unique index if not exists era_point_events_session_completion_unique
   on public.era_point_events (session_id, event_type)
@@ -68,7 +64,7 @@ create unique index if not exists era_point_events_session_completion_unique
     and session_id is not null;
 
 -- ------------------------------------------------------------
--- 3. award_points — swallow 23505 for the guarded event types.
+-- 5. award_points — swallow 23505 for the guarded event types.
 --    Returns the existing event_id and current total_points so
 --    the caller sees a successful "award" without any change.
 -- ------------------------------------------------------------
@@ -145,5 +141,3 @@ end;
 $function$;
 
 grant execute on function public.award_points(uuid, public.point_event_type, integer, text, uuid, timestamptz) to anon, authenticated, service_role;
-
-commit;

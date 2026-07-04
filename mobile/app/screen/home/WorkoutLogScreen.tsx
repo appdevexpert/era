@@ -20,7 +20,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { Keyboard, Platform, StyleSheet, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
@@ -31,9 +31,11 @@ import Animated, {
   Extrapolation,
   interpolate,
   runOnJS,
+  useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 
 const WorkoutLogScreen = () => {
@@ -288,11 +290,52 @@ const WorkoutLogScreen = () => {
   const COLLAPSE_DISTANCE = 60;
 
   const scrollY = useSharedValue(0);
+  // keyboardOffset (animated) glides the bar/fade up with the keyboard.
+  // keyboardSpacer (instant) is the scroll-content spacer height, set the moment
+  // the keyboard shows so scrollToEnd has room to lift the comment right away.
+  const keyboardOffset = useSharedValue(0);
+  const keyboardSpacer = useSharedValue(0);
+  // Measured height of the Complete Set bar, so the spacer reserves room for it
+  // and the comment lands just above it (not behind it).
+  const [barHeight, setBarHeight] = useState(0);
   const onScroll = useAnimatedScrollHandler({
     onScroll: (e) => {
       scrollY.value = e.contentOffset.y;
     },
   });
+
+  // The Comments box is the last, bottom-most item. On focus we scroll to the end
+  // to bring the whole comment card above the keyboard. A bottom spacer (sized
+  // keyboard + bar) gives scrollToEnd the room to land the comment just above the
+  // floating Complete Set bar. The bar/fade follow the keyboard via the same event
+  // stream (they're separate absolute chrome).
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const commentFocused = useRef(false);
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      const height = e.endCoordinates?.height ?? 0;
+      const duration = e.duration && e.duration > 0 ? e.duration : 250;
+      keyboardSpacer.value = height; // instant → scroll room exists right away
+      keyboardOffset.value = withTiming(height, { duration }); // glide bar up
+    });
+    const hideSub = Keyboard.addListener(hideEvent, (e) => {
+      const duration = e?.duration && e.duration > 0 ? e.duration : 250;
+      keyboardSpacer.value = withTiming(0, { duration });
+      keyboardOffset.value = withTiming(0, { duration });
+    });
+    const scrollSub = Keyboard.addListener("keyboardDidShow", () => {
+      if (commentFocused.current) {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      scrollSub.remove();
+    };
+  }, [keyboardOffset, keyboardSpacer, scrollRef]);
 
   const contentHoldStyle = useAnimatedStyle(() => ({
     transform: [
@@ -305,6 +348,16 @@ const WorkoutLogScreen = () => {
         ),
       },
     ],
+  }));
+  const keyboardSpacerStyle = useAnimatedStyle(
+    () => ({ height: keyboardSpacer.value + barHeight }),
+    [barHeight],
+  );
+  const bottomFadeKeyboardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -keyboardOffset.value }],
+  }));
+  const bottomBarKeyboardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -keyboardOffset.value }],
   }));
 
   return (
@@ -325,15 +378,12 @@ const WorkoutLogScreen = () => {
       />
 
       <Animated.ScrollView
+        ref={scrollRef}
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 24 },
-        ]}
+        contentContainerStyle={styles.scrollContent}
       >
         <Animated.View style={contentHoldStyle}>
           <SetStatCards
@@ -397,19 +447,43 @@ const WorkoutLogScreen = () => {
           ) : null}
 
           <View style={[styles.bodyPaddeds, { paddingTop: 32 }]}>
-            <AddComment value={comment} onChangeText={setComment} />
+            <AddComment
+              value={comment}
+              onChangeText={setComment}
+              onFocus={() => {
+                commentFocused.current = true;
+              }}
+              onBlur={() => {
+                commentFocused.current = false;
+              }}
+            />
           </View>
+
+          {/* Grows with the keyboard (+ bar height) so scrollToEnd lifts the
+              comment to sit just above the floating Complete Set bar. */}
+          <Animated.View style={keyboardSpacerStyle} />
         </Animated.View>
       </Animated.ScrollView>
 
-      <LinearGradient
+      <Animated.View
         pointerEvents="none"
-        colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.8)"]}
-        locations={[0, 0.51]}
-        style={styles.bottomFade}
-      />
+        style={[styles.bottomFade, bottomFadeKeyboardStyle]}
+      >
+        <LinearGradient
+          colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.8)"]}
+          locations={[0, 0.51]}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
 
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+      <Animated.View
+        onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}
+        style={[
+          styles.bottomBar,
+          bottomBarKeyboardStyle,
+          { paddingBottom: insets.bottom + 12 },
+        ]}
+      >
         <CompleteSetBar
           onComplete={isLastSet ? handleCompleteExercise : handleCompleteSet}
           onNext={nextEx ? () => goToExercise(exIdx + 1, "forward") : undefined}
@@ -418,7 +492,7 @@ const WorkoutLogScreen = () => {
           showPrevious={!!prevEx}
           isLastSet={isLastSet}
         />
-      </View>
+      </Animated.View>
 
       <ExerciseCompletedBottomSheet
         ref={sheetRef}
@@ -486,7 +560,7 @@ const styles = StyleSheet.create({
   },
   bodyPaddeds: {
     paddingHorizontal: 16,
-    paddingBottom: 130,
+    paddingBottom: 100,
     marginHorizontal: -16,
   },
   scrollContent: {

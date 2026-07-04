@@ -49,14 +49,14 @@ import {
   selectWeekByDate,
 } from "@/app/stores/selectors/rewardSelectors";
 import {
-  selectChartYRange,
+  selectDailyChartYRange,
   selectCurrentWeightKg,
   selectGoalsWeightKg,
   selectHeaviestKg,
   selectHeightLabel,
   selectLightestKg,
   selectBmi,
-  selectWeeklyChartPoints,
+  selectDailyChartPoints,
   selectWeightStatus,
 } from "@/app/stores/selectors/weightSelectors";
 import {
@@ -201,9 +201,9 @@ const ProgressScreen = () => {
       dispatch(loadPRBootstrap(userId));
     }
   }, [dispatch, userId, prStatus]);
-  const { points: weeklyPoints, ticks: weeklyTicks } =
-    useSelector(selectWeeklyChartPoints);
-  const yRange = useSelector(selectChartYRange);
+  const { points: dailyPoints, ticks: dailyTicks } =
+    useSelector(selectDailyChartPoints);
+  const yRange = useSelector(selectDailyChartYRange);
   const bmi = useSelector(selectBmi);
   const heightLabel = useSelector(selectHeightLabel);
   const goalsHeight = useSelector((s: RootState) => s.weight.goalsHeight);
@@ -246,10 +246,14 @@ const ProgressScreen = () => {
     [latestPRs, i18n.language, t],
   );
 
-  const handleLogWeight = (value: number, unit: "kg" | "lb") => {
+  const handleLogWeight = (
+    value: number,
+    unit: "kg" | "lb",
+    loggedForDate: string,
+  ) => {
     if (!userId) return;
     const weightKg = unit === "lb" ? value * LB_TO_KG : value;
-    dispatch(logWeightThunk({ userId, weightKg }));
+    dispatch(logWeightThunk({ userId, weightKg, loggedForDate }));
   };
 
   const handleLogHeight = (value: number, unit: "cm" | "ft") => {
@@ -344,8 +348,8 @@ const ProgressScreen = () => {
             currentKg={currentWeightKg !== null ? Math.round(currentWeightKg * 10) / 10 : null}
             heaviestKg={heaviestKg}
             lightestKg={lightestKg}
-            chartData={weeklyPoints}
-            chartXTickLabels={weeklyTicks}
+            chartData={dailyPoints}
+            chartXTickLabels={dailyTicks}
             chartYMin={yRange.yMin}
             chartYMax={yRange.yMax}
             chartYStep={yRange.yStep}

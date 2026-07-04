@@ -6,17 +6,31 @@ import { ChevronBack, TablerPlus } from "@/assets/icons";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
+  BottomSheetFooter,
+  BottomSheetFooterProps,
   BottomSheetModal,
   BottomSheetScrollView,
   BottomSheetScrollViewMethods,
 } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Keyboard, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Keyboard,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PressableScale from "@/app/components/common/PressableScale";
 import Animated, {
   Easing,
-  useAnimatedKeyboard,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -48,6 +62,10 @@ const TAGS: MealTag[] = ["breakfast", "lunch", "eveningSnack", "dinner"];
 
 const SELECT_DURATION = 220;
 const SELECT_EASING = Easing.bezier(0.32, 0.72, 0.32, 1);
+
+// Gap kept between a focused field's bottom edge and the keyboard/footer when we
+// scroll it into view, so the field never sits flush against them.
+const REVEAL_MARGIN = 16;
 
 /**
  * Animated meal-category chip — Figma node 5818:3137.
@@ -140,24 +158,50 @@ interface AddLogMealBottomSheetProps {
 const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBottomSheetProps>(
   function AddLogMealBottomSheet({ onSave }, ref) {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
     const sheetRef = useRef<BottomSheetModal>(null);
     const scrollRef = useRef<BottomSheetScrollViewMethods>(null);
-    // Whether the Comments field (the bottom-most input) currently has focus, and
-    // the last measured content height — used to keep the field pinned above the
-    // keyboard while it rises (see handleContentSizeChange).
-    const commentFocused = useRef(false);
-    const lastContentHeight = useRef(0);
-    // Keyboard height as a reanimated shared value. It tracks the real OS
-    // keyboard animation and works under Android edgeToEdge (where `adjustResize`
-    // is disabled). Drives a spacer at the bottom of the scroll content so the
-    // bottom-most field can be scrolled clear of the keyboard.
-    // Translucent bar flags → correct keyboard height under Android edgeToEdge.
-    const keyboard = useAnimatedKeyboard({
-      isStatusBarTranslucentAndroid: true,
-      isNavigationBarTranslucentAndroid: true,
-    });
-    const keyboardSpacerStyle = useAnimatedStyle(() => ({
-      height: keyboard.height.value,
+
+    // --- Keyboard avoidance -------------------------------------------------
+    // We use plain RN TextInputs (see AddComment header for why), so gorhom's
+    // built-in keyboard handling stays inert, and `useAnimatedKeyboard` reports
+    // 0 inside the modal's portal on iOS — which is why earlier attempts left
+    // both the footer and the scroll frozen. So we drive everything from the JS
+    // `Keyboard` events (these DO fire) into a shared value, and manually:
+    //   (1) a sticky Save footer that floats just above the keyboard,
+    //   (2) on focus, the focused field is scrolled clear of the keyboard+footer,
+    //   (3) a bottom spacer sized (keyboard + footer) so there's room to lift the
+    //       bottom-most field above both.
+    // Refs feed the focus→scroll math and are kept off React state to avoid a
+    // re-render on every scroll frame.
+    const scrollY = useRef(0); // live scroll offset
+    const kbHeight = useRef(0); // current keyboard height (from OS events)
+    const footerHeightRef = useRef(0); // measured Save-footer height
+    const focusedFieldRef = useRef<View | null>(null); // field wrapper in focus
+    const focusedIsLast = useRef(false); // is the focused field the bottom-most one
+    // Field wrappers we may need to lift above the keyboard.
+    const itemNameFieldRef = useRef<View>(null);
+    const servingFieldRef = useRef<View>(null);
+    const commentFieldRef = useRef<View>(null);
+    const [footerHeight, setFooterHeight] = useState(0);
+
+    // Two shared values, both driven by the JS keyboard events below:
+    //  - kbSpacer: set INSTANTLY on show so the bottom spacer already has full
+    //    height when we scroll. If it animated, scrollToEnd would fire before
+    //    there was any room to scroll into and the field would stay put — that
+    //    was the bug in the previous attempt.
+    //  - kbTranslate: animated in lockstep with the OS keyboard so the footer
+    //    glides up with it instead of snapping.
+    const kbSpacer = useSharedValue(0);
+    const kbTranslate = useSharedValue(0);
+    const keyboardSpacerStyle = useAnimatedStyle(
+      () => ({ height: kbSpacer.value + footerHeight }),
+      [footerHeight],
+    );
+    // Footer floats up by the keyboard height so Save sits just on top of it.
+    const footerStyle = useAnimatedStyle(() => ({
+      transform: [{ translateY: -kbTranslate.value }],
     }));
 
     const [selectedTag, setSelectedTag] = useState<MealTag | null>(null);
@@ -282,30 +326,97 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       hide: () => sheetRef.current?.dismiss(),
     }));
 
-    // Keep the bottom of the form pinned to the keyboard while it rises. The
-    // reanimated spacer grows the content height frame-by-frame as the keyboard
-    // opens; each growth we snap the scroll to the end so the Comments field
-    // travels up *with* the keyboard as one motion (no jump-after-delay). Guarded
-    // to growth only, so an interactive drag-down to dismiss isn't fought.
+    // Scroll the focused field clear of the keyboard + sticky footer.
+    //  - Bottom-most field (Comments): scrollToEnd is the most reliable move — no
+    //    coordinate math — and the bottom spacer (keyboard + footer tall) lands it
+    //    right above the footer.
+    //  - Upper fields (Item Name / Serving Size): only scroll if they actually dip
+    //    into the keyboard+footer band (e.g. after staged items push them down),
+    //    and only by the exact overlap so they don't jump further than needed.
+    const revealFocused = useCallback(
+      (keyboardHeight: number) => {
+        if (keyboardHeight <= 0) return;
+        if (focusedIsLast.current) {
+          scrollRef.current?.scrollToEnd({ animated: true });
+          return;
+        }
+        const node = focusedFieldRef.current;
+        if (!node) return;
+        node.measureInWindow((_x, y, _w, height) => {
+          if (!height) return;
+          const visibleBottom =
+            windowHeight - keyboardHeight - footerHeightRef.current - REVEAL_MARGIN;
+          const overlap = y + height - visibleBottom;
+          if (overlap > 0) {
+            scrollRef.current?.scrollTo({ y: scrollY.current + overlap, animated: true });
+          }
+        });
+      },
+      [windowHeight],
+    );
+
+    // Remember which field is focused. If the keyboard is already up (user moved
+    // between fields) reveal it now; on a cold open the keyboard-show listener
+    // below reveals it once the final height is known.
+    const handleFieldFocus = useCallback(
+      (node: View | null, isLast: boolean) => {
+        focusedFieldRef.current = node;
+        focusedIsLast.current = isLast;
+        if (kbHeight.current > 0) revealFocused(kbHeight.current);
+      },
+      [revealFocused],
+    );
+
+    const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollY.current = e.nativeEvent.contentOffset.y;
+    }, []);
+
+    const handleFooterLayout = useCallback((e: LayoutChangeEvent) => {
+      const h = e.nativeEvent.layout.height;
+      footerHeightRef.current = h;
+      setFooterHeight(h);
+    }, []);
+
+    // When the spacer's growth lands (content gets taller as the keyboard opens),
+    // re-pin the bottom-most field above the footer. This catches the case where
+    // scrollToEnd fired a frame before the native content size updated. Guarded to
+    // growth + keyboard-up + last-field so staged-item edits and drag-to-dismiss
+    // don't fight it.
+    const lastContentHeight = useRef(0);
     const handleContentSizeChange = useCallback((_w: number, height: number) => {
       const grew = height > lastContentHeight.current;
       lastContentHeight.current = height;
-      if (commentFocused.current && grew) {
-        scrollRef.current?.scrollToEnd({ animated: false });
+      if (grew && focusedIsLast.current && kbHeight.current > 0) {
+        scrollRef.current?.scrollToEnd({ animated: true });
       }
     }, []);
 
-    // Comments is the bottom-most field. On focus, immediately scroll it into
-    // view (covers the keyboard-already-open case); the content-size handler
-    // above keeps it pinned as the keyboard finishes rising (cold-open case).
-    const handleCommentFocus = useCallback(() => {
-      commentFocused.current = true;
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }, []);
-
-    const handleCommentBlur = useCallback(() => {
-      commentFocused.current = false;
-    }, []);
+    // JS keyboard events fire reliably (unlike useAnimatedKeyboard in this portal),
+    // so they are the single source of truth: they drive the shared value that
+    // moves the footer + spacer, AND trigger the focus scroll with the final
+    // height. `duration` keeps the footer in sync with the OS keyboard animation.
+    useEffect(() => {
+      const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+      const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+      const showSub = Keyboard.addListener(showEvent, (e) => {
+        const height = e.endCoordinates?.height ?? 0;
+        const duration = e.duration && e.duration > 0 ? e.duration : 250;
+        kbHeight.current = height;
+        kbSpacer.value = height; // instant → scroll room exists right away
+        kbTranslate.value = withTiming(height, { duration }); // glide footer up
+        revealFocused(height);
+      });
+      const hideSub = Keyboard.addListener(hideEvent, (e) => {
+        const duration = e?.duration && e.duration > 0 ? e.duration : 250;
+        kbHeight.current = 0;
+        kbSpacer.value = withTiming(0, { duration });
+        kbTranslate.value = withTiming(0, { duration });
+      });
+      return () => {
+        showSub.remove();
+        hideSub.remove();
+      };
+    }, [revealFocused, kbSpacer, kbTranslate]);
 
     const renderBackdrop = useCallback(
       (props: BottomSheetBackdropProps) => (
@@ -347,6 +458,30 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       }
     }, [comments, composeItemsForSave, onSave, resetForm, selectedTag]);
 
+    // Save lives in gorhom's own footer slot so it's reliably pinned to the
+    // bottom of the sheet (always visible, keyboard open or closed). Our inner
+    // Animated.View lifts it above the keyboard via kbTranslate — gorhom doesn't
+    // track plain TextInputs, so BottomSheetFooter alone stays at the bottom.
+    const renderFooter = useCallback(
+      (props: BottomSheetFooterProps) => (
+        <BottomSheetFooter {...props}>
+          <Animated.View
+            style={[styles.footer, footerStyle, { paddingBottom: insets.bottom || 20 }]}
+            onLayout={handleFooterLayout}
+          >
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            <PrimaryButton
+              label={t("nutrition.logMealSheet.saveMeal")}
+              onPress={handleSave}
+              disabled={!canSave}
+              loading={saving}
+            />
+          </Animated.View>
+        </BottomSheetFooter>
+      ),
+      [footerStyle, insets.bottom, handleFooterLayout, error, canSave, saving, handleSave, t],
+    );
+
     return (
       <BottomSheetModal
         ref={sheetRef}
@@ -361,6 +496,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"
         backdropComponent={renderBackdrop}
+        footerComponent={renderFooter}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
         onDismiss={() => ExpoSpeechRecognitionModule.stop()}
@@ -370,7 +506,11 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={handleScroll}
           onContentSizeChange={handleContentSizeChange}
+          // Pin the header (child index 0) to the top as a sticky navbar while
+          // the rest of the form scrolls under it.
+          stickyHeaderIndices={[0]}
         >
           {/* Header */}
           <View style={styles.titleSection}>
@@ -440,12 +580,15 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
                   the sheet dismiss animation on iOS → NaN in a worklet → native
                   crash. Same reasoning as AddComment.tsx. Focusing also closes
                   the units dropdown so it can't sit open behind the keyboard. */}
-              <View style={styles.field}>
+              <View ref={itemNameFieldRef} style={styles.field}>
                 <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.itemName")}</Text>
                 <TextInput
                   value={itemName}
                   onChangeText={setItemName}
-                  onFocus={() => setUnitsOpen(false)}
+                  onFocus={() => {
+                    setUnitsOpen(false);
+                    handleFieldFocus(itemNameFieldRef.current, false);
+                  }}
                   placeholder={t("nutrition.logMealSheet.itemNamePlaceholder")}
                   placeholderTextColor="rgba(240,240,240,0.5)"
                   style={styles.input}
@@ -453,12 +596,15 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
               </View>
 
               <View style={styles.row}>
-                <View style={[styles.field, styles.flex1]}>
+                <View ref={servingFieldRef} style={[styles.field, styles.flex1]}>
                   <Text style={styles.fieldLabel}>{t("nutrition.logMealSheet.servingSize")}</Text>
                   <TextInput
                     value={servingSize}
                     onChangeText={setServingSize}
-                    onFocus={() => setUnitsOpen(false)}
+                    onFocus={() => {
+                      setUnitsOpen(false);
+                      handleFieldFocus(servingFieldRef.current, false);
+                    }}
                     placeholder={t("nutrition.logMealSheet.servingSizePlaceholder")}
                     placeholderTextColor="rgba(240,240,240,0.5)"
                     keyboardType="numeric"
@@ -533,26 +679,17 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
             {/* Comments — uses shared AddComment (plain TextInput + mic).
                 See AddComment.tsx header for the reason we don't use
                 BottomSheetTextInput here. */}
-            <AddComment
-              value={comments}
-              onChangeText={setComments}
-              onFocus={handleCommentFocus}
-              onBlur={handleCommentBlur}
-            />
+            <View ref={commentFieldRef}>
+              <AddComment
+                value={comments}
+                onChangeText={setComments}
+                onFocus={() => handleFieldFocus(commentFieldRef.current, true)}
+              />
+            </View>
           </View>
 
-          {/* Save button + error */}
-          <View style={styles.saveButtonWrap}>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            <PrimaryButton
-              label={t("nutrition.logMealSheet.saveMeal")}
-              onPress={handleSave}
-              disabled={!canSave}
-              loading={saving}
-            />
-          </View>
-
-          {/* Grows with the keyboard so scrollToEnd can lift the comment above it. */}
+          {/* Grows with the keyboard (+ footer height) so the bottom-most field
+              can be scrolled clear of the keyboard and the pinned Save footer. */}
           <Animated.View style={keyboardSpacerStyle} />
         </BottomSheetScrollView>
       </BottomSheetModal>
@@ -585,6 +722,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 20,
     paddingHorizontal: 20,
+    // Opaque so form content scrolls cleanly under the pinned (sticky) header.
+    backgroundColor: "#111111",
     borderBottomWidth: 1,
     borderBottomColor: "#1E1E1E",
   },
@@ -793,12 +932,14 @@ const styles = StyleSheet.create({
     lineHeight: 16.8,
   },
 
-  // Comments
-  // Save button
-  saveButtonWrap: {
+  // Save button — content inside gorhom's pinned footer slot. It floats above
+  // the keyboard via the kbTranslate transform; gorhom keeps it at the sheet
+  // bottom when the keyboard is closed.
+  footer: {
     paddingHorizontal: 20,
-    paddingTop: 36,
+    paddingTop: 16,
     gap: 12,
+    backgroundColor: "#111111",
   },
   errorText: {
     fontFamily: FONTS.medium,

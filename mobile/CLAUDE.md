@@ -28,6 +28,7 @@ All feature/reference docs live in `doc/`:
 - `doc/WORKOUT_SCHEMA_EXPLAINED.md` — Supabase workout schema walkthrough.
 - `doc/WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.
 - `doc/PAYMENT_FEATURE.md` — Subscription tiers (Free / Standard 99 NOK / Pro 199 NOK), RevenueCat integration, 12-week completion flow. Locked by Rami 2026-06-12.
+- `doc/REVENUECAT_STATUS.md` — End-to-end RevenueCat completion tracker: what's done (client code), what's pending (webhook, dashboard, store config), the TODO checklist, and the sandbox test plan. Read this to know what's left before payments are production-ready.
 - `doc/NOTIFICATIONS.md` — Local + push notification stack. First-login modal gate, daily/streak/PR locals, Phase 2 weekly summary push plan. Read before adding any notification type.
 - `doc/12_WEEK_PROGRAM.md`, `doc/12_WEEK_PROGRAM_CLIENT.md` — 12-week program structure references.
 - `doc/MID_PROGRAM_SWITCH_DECISION.md` — Open product question: what happens when a user changes `goals.level` mid-cycle (root cause of Rami feedback #6). Awaiting Rami confirmation before implementation.

@@ -24,6 +24,7 @@ import {
   selectSetsLogged,
   selectExercisesCompleted,
   selectSessionStartedAt,
+  selectAccumulatedSeconds,
   selectExerciseStats,
   selectCompletedSets,
 } from "@/app/stores/selectors/sessionSelectors";
@@ -138,6 +139,7 @@ export const useWorkoutSession = (programDayId?: string) => {
   const setsLogged = useSelector(selectSetsLogged);
   const exercisesCompleted = useSelector(selectExercisesCompleted);
   const sessionStartedAt = useSelector(selectSessionStartedAt);
+  const accumulatedSeconds = useSelector(selectAccumulatedSeconds);
   const exerciseStatsMap = useSelector(selectExerciseStats);
   const completedSetsMap = useSelector(selectCompletedSets);
   const completedExerciseIds = useSelector(
@@ -318,12 +320,16 @@ export const useWorkoutSession = (programDayId?: string) => {
       id: string,
       state: NonNullable<Awaited<ReturnType<typeof sessionService.loadSessionState>>>,
       edit: boolean,
+      priorSeconds: number,
     ) => {
       dispatch(initSession({
         sessionId: id,
         programDayId,
         exerciseMap: state.exerciseMap,
         setMap: state.setMap,
+        // Seed the base with the time already saved on this session so the
+        // next End Workout sums onto it instead of overwriting it.
+        accumulatedSeconds: priorSeconds,
       }));
       dispatch(hydrateCompletedSets(state.completedSets));
       dispatch(hydrateCompletedExerciseIds(state.completedExerciseIds));
@@ -360,7 +366,7 @@ export const useWorkoutSession = (programDayId?: string) => {
         // exerciseMap/setMap and every logSetResult would silently bail.
         const state = await sessionService.loadSessionState(existing.id);
         if (!state) return "already_completed";
-        hydrateFromState(existing.id, state, editMode);
+        hydrateFromState(existing.id, state, editMode, existing.durationSeconds);
         await dispatchHydratedExerciseData();
         dispatch(startSessionTimer());
         return editMode ? "edit_mode" : "resumed";
@@ -383,7 +389,7 @@ export const useWorkoutSession = (programDayId?: string) => {
           flushQueue();
           return "started";
         }
-        hydrateFromState(existing.id, state, false);
+        hydrateFromState(existing.id, state, false, existing.durationSeconds);
         await dispatchHydratedExerciseData();
         dispatch(startSessionTimer());
         return "resumed";
@@ -456,6 +462,9 @@ export const useWorkoutSession = (programDayId?: string) => {
         programDayId: sessionProgramDayId ?? "",
         exerciseMap: state.exerciseMap,
         setMap: state.setMap,
+        // Preserve the committed-time base — this is a map self-heal, not a
+        // new session, so we must not reset the accumulated duration to 0.
+        accumulatedSeconds,
       }));
       dispatch(hydrateCompletedSets(state.completedSets));
       dispatch(hydrateCompletedExerciseIds(state.completedExerciseIds));
@@ -465,7 +474,7 @@ export const useWorkoutSession = (programDayId?: string) => {
       console.error("[session] ensureSessionHydrated failed", err);
       return null;
     }
-  }, [sessionId, sessionProgramDayId, exerciseMap, setMap, dispatch]);
+  }, [sessionId, sessionProgramDayId, exerciseMap, setMap, accumulatedSeconds, dispatch]);
 
   /** Navigate to the correct screen for an exercise. startSet is 0-based. */
   const navigateToExercise = useCallback(
@@ -866,12 +875,22 @@ export const useWorkoutSession = (programDayId?: string) => {
     workoutPoints: number;
     cardioBonusPoints: number;
     newPRs: number;
+    /** Absolute total saved to the DB (all sittings) — drives the exercise-list "MINUTES" stat. */
+    durationSeconds: number;
+    /** This sitting only — drives the SessionComplete "SESSION DURATION" tile. */
+    segmentSeconds: number;
   } | null> => {
     if (!sessionId) return null;
 
-    const durationSeconds = sessionStartedAt
-      ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000)
+    // Time spent in THIS sitting only (sessionStartedAt is reset on each
+    // resume). Add it to whatever prior sittings already committed so an
+    // End Workout → Resume → End sums to the whole workout's time instead
+    // of overwriting it. We write the ABSOLUTE total (not a DB-side +=), so
+    // a sync-queue retry of completeSession stays idempotent.
+    const segmentSeconds = sessionStartedAt
+      ? Math.max(0, Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000))
       : 0;
+    const durationSeconds = accumulatedSeconds + segmentSeconds;
 
     const sessionParams = { sessionId, durationSeconds, exercisesCompleted, setsLogged };
     await syncWrite("completeSession", sessionParams, () =>
@@ -916,6 +935,23 @@ export const useWorkoutSession = (programDayId?: string) => {
     dispatch(bumpSummariesRevision());
 
     if (!userId) return null;
+
+    // Idempotency guard: if the user ended this session earlier (partial
+    // completion → status='completed'), then resumed and hit End Workout
+    // again, we must NOT re-award the session-level bonuses. The DB has
+    // a partial unique index on (session_id, event_type) for these two
+    // types as the durable backstop; this client check avoids the
+    // optimistic Redux bump and the wasted RPC round-trip.
+    // Set-log points (+15) are already dedup'd via completedSetsMap.
+    // Streak (+200) is dedup'd server-side per (user, date).
+    let alreadyAwardedTypes = new Set<sessionService.PointEventType>();
+    try {
+      alreadyAwardedTypes = await sessionService.getAwardedSessionEventTypes(sessionId);
+    } catch (err) {
+      console.warn("[useWorkoutSession] getAwardedSessionEventTypes failed", err);
+    }
+    const workoutAlreadyAwarded = alreadyAwardedTypes.has("workout_completed");
+    const cardioAlreadyAwarded = alreadyAwardedTypes.has("cardio_completed");
 
     // Streak + reward update first so the +50 event sees the correct
     // total_points and the 7-day bonus is folded in atomically.
@@ -964,31 +1000,34 @@ export const useWorkoutSession = (programDayId?: string) => {
       }));
     }
 
-    // +50 for finishing the session.
-    const workoutAwardParams = {
-      userId,
-      sessionId,
-      eventType: "workout_completed" as const,
-      points: 50,
-      title: "Workout Completed",
-    };
-    dispatch(appendPointEvent({
-      id: `tmp-workout-${Date.now()}`,
-      event_type: "workout_completed",
-      title: workoutAwardParams.title,
-      points: workoutAwardParams.points,
-      occurred_at: new Date().toISOString(),
-      session_id: sessionId,
-    }));
-    await syncWrite("awardWorkoutPoints", workoutAwardParams as Record<string, unknown>, () =>
-      sessionService.awardPoints(workoutAwardParams),
-    );
+    // +50 for finishing the session — only if this session hasn't already
+    // been awarded workout_completed (see idempotency guard above).
+    if (!workoutAlreadyAwarded) {
+      const workoutAwardParams = {
+        userId,
+        sessionId,
+        eventType: "workout_completed" as const,
+        points: 50,
+        title: "Workout Completed",
+      };
+      dispatch(appendPointEvent({
+        id: `tmp-workout-${Date.now()}`,
+        event_type: "workout_completed",
+        title: workoutAwardParams.title,
+        points: workoutAwardParams.points,
+        occurred_at: new Date().toISOString(),
+        session_id: sessionId,
+      }));
+      await syncWrite("awardWorkoutPoints", workoutAwardParams as Record<string, unknown>, () =>
+        sessionService.awardPoints(workoutAwardParams),
+      );
+    }
 
     // +150 if THIS session's day is a cardio day. Look up by the session's
     // own programDayId — currentDayDetail can have moved to a different day
     // by the time finishSession runs (e.g., after a calendar rollover).
     const cardioBonusPoints = sessionDayKind === "cardio" ? 150 : 0;
-    if (cardioBonusPoints > 0) {
+    if (cardioBonusPoints > 0 && !cardioAlreadyAwarded) {
       const cardioAwardParams = {
         userId,
         sessionId,
@@ -1029,10 +1068,13 @@ export const useWorkoutSession = (programDayId?: string) => {
       workoutPoints: 50,
       cardioBonusPoints,
       newPRs,
+      durationSeconds,
+      segmentSeconds,
     };
   }, [
     sessionId,
     sessionStartedAt,
+    accumulatedSeconds,
     exercisesCompleted,
     setsLogged,
     userId,
@@ -1087,9 +1129,15 @@ export const useWorkoutSession = (programDayId?: string) => {
       } catch (err) {
         console.warn("[useWorkoutSession] getSessionFinishedStats failed", err);
       }
-      const durationSeconds = stats?.durationSeconds ?? 0;
-      const mins = Math.floor(durationSeconds / 60);
-      const secs = durationSeconds % 60;
+      // SESSION DURATION shows THIS Start-Again sitting only (timer was stamped
+      // when the user re-entered the workout), NOT the DB total from the
+      // original completion — matches the Resume flow's "what I did this
+      // session" semantics. Points / sets / PRs stay the historical DB values.
+      const editElapsed = sessionStartedAt
+        ? Math.max(0, Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000))
+        : 0;
+      const mins = Math.floor(editElapsed / 60);
+      const secs = editElapsed % 60;
       navigation.replace("SessionComplete", {
         sessionId,
         programTitle: sessionWorkout.title,
@@ -1116,9 +1164,15 @@ export const useWorkoutSession = (programDayId?: string) => {
       console.warn("[useWorkoutSession] finishSession threw", err);
     }
 
-    const elapsed = sessionStartedAt
-      ? Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000)
-      : 0;
+    // SessionComplete shows THIS sitting's duration only ("what I did in this
+    // session"), not the accumulated total. The full total is what we saved to
+    // the DB (result.durationSeconds) and is what the exercise-list "MINUTES"
+    // stat reads back. Fall back to raw elapsed if finishSession bailed early.
+    const elapsed =
+      result?.segmentSeconds ??
+      (sessionStartedAt
+        ? Math.max(0, Math.floor((Date.now() - new Date(sessionStartedAt).getTime()) / 1000))
+        : 0);
     const mins = Math.floor(elapsed / 60);
     const secs = elapsed % 60;
 

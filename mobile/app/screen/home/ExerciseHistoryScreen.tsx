@@ -112,24 +112,26 @@ const StatsCard = ({
         </View>
       </View>
 
-      {/* 12-week progression chart per exercise is Pro-only. Standard users
-          still see the session history list below; only the chart is gated. */}
-      <EntitlementGate requires="pro" fallback={<ProChartLockedCard />}>
-        {chart.length > 0 ? (
-          <WeightProgressChart
-            data={chart}
-            xTickLabels={xTickLabels}
-            yMin={yMin}
-            yMax={yMax}
-            yStep={yStep}
-            unit={chartUnit}
-          />
-        ) : null}
-      </EntitlementGate>
+      {chart.length > 0 ? (
+        <WeightProgressChart
+          data={chart}
+          xTickLabels={xTickLabels}
+          yMin={yMin}
+          yMax={yMax}
+          yStep={yStep}
+          unit={chartUnit}
+        />
+      ) : null}
 
       <View style={styles.successBanner}>
         <Text style={styles.successText}>{successMessage}</Text>
       </View>
+
+      {/* Whole stats card is Pro-only. When locked, the entire card sits
+          behind a blurred Upgrade-to-Pro overlay (matches Figma). */}
+      <EntitlementGate requires="pro" fallback={<ProChartLockedCard />}>
+        {null}
+      </EntitlementGate>
     </View>
   );
 };
@@ -317,10 +319,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#111111",
     borderWidth: 1,
     borderColor: "#1E1E1E",
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 12,
     gap: 24,
     alignItems: "center",
+    position: "relative",
+    overflow: "hidden",
   },
   statsTopRow: {
     flexDirection: "row",

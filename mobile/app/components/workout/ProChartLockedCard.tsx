@@ -1,6 +1,7 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { PasswordLockIcon } from "@/assets/icons";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -9,9 +10,6 @@ import { useTranslation } from "react-i18next";
 import PressableScale from "@/app/components/common/PressableScale";
 import GlassFill from "@/app/components/common/GlassFill";
 import type { HomeStackParamList } from "@/app/navigation/types";
-
-const FIGMA_W = 353;
-const FIGMA_H = 200;
 
 type Nav = NativeStackNavigationProp<HomeStackParamList>;
 
@@ -22,17 +20,27 @@ interface ProChartLockedCardProps {
   requiredTier?: "standard" | "pro";
 }
 
+// Absolute-positioned overlay that sits ON TOP of the real chart. The chart
+// still renders underneath so it bleeds through the blur (matches Figma).
 const ProChartLockedCard = ({ requiredTier = "pro" }: ProChartLockedCardProps) => {
   const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
 
   return (
-    <View style={styles.wrap}>
-      <View style={styles.iconBadge}>
-        <PasswordLockIcon width={20} height={20} />
-      </View>
+    <View style={styles.overlay}>
+      <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={styles.dim} />
 
-      <View style={styles.copy}>
+      <View style={styles.copyBlock}>
+        <View style={styles.iconBadge}>
+          <LinearGradient
+            colors={["rgba(10,10,10,0.12)", "rgba(201,168,76,0.12)"]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <PasswordLockIcon width={32} height={32} />
+        </View>
         <Text style={styles.title}>
           {t(`history.chartLocked.${requiredTier}.title`)}
         </Text>
@@ -51,8 +59,8 @@ const ProChartLockedCard = ({ requiredTier = "pro" }: ProChartLockedCardProps) =
             "rgba(247,224,111,0.6)",
             "rgba(252,243,192,0.6)",
           ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
+          start={{ x: 1, y: 0 }}
+          end={{ x: 0, y: 0 }}
           style={StyleSheet.absoluteFill}
         />
         <GlassFill />
@@ -67,49 +75,55 @@ const ProChartLockedCard = ({ requiredTier = "pro" }: ProChartLockedCardProps) =
 export default ProChartLockedCard;
 
 const styles = StyleSheet.create({
-  wrap: {
-    width: "100%",
-    aspectRatio: FIGMA_W / FIGMA_H,
-    borderRadius: 16,
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: COLORS.neutral.charcoal,
-    backgroundColor: COLORS.neutral.black3,
+    borderColor: "#1E1E1E",
+    overflow: "hidden",
+    paddingHorizontal: 20,
+    paddingTop: 31,
+    paddingBottom: 20,
+    justifyContent: "space-between",
+  },
+  dim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(10,10,10,0.24)",
+  },
+  copyBlock: {
     alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    paddingHorizontal: 16,
+    gap: 16,
   },
   iconBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(201,168,76,0.12)",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 1,
+    borderColor: "#1E1E1E",
+    backgroundColor: "#111",
     alignItems: "center",
     justifyContent: "center",
-  },
-  copy: {
-    alignItems: "center",
-    gap: 4,
+    overflow: "hidden",
   },
   title: {
-    fontFamily: FONTS.semiBold,
-    fontWeight: "600",
-    fontSize: 16,
-    lineHeight: 19.2,
+    fontFamily: FONTS.display,
+    fontWeight: "500",
+    fontSize: 20,
+    lineHeight: 24,
     color: COLORS.neutral.white,
     textAlign: "center",
   },
   body: {
     fontFamily: FONTS.regular,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 16,
+    lineHeight: 22.4,
     color: "rgba(240,240,240,0.6)",
     textAlign: "center",
+    width: 290,
   },
   cta: {
-    height: 36,
-    paddingHorizontal: 20,
-    borderRadius: 999,
+    height: 48,
+    borderRadius: 138,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -117,8 +131,8 @@ const styles = StyleSheet.create({
   ctaText: {
     fontFamily: FONTS.semiBold,
     fontWeight: "600",
-    fontSize: 13,
-    color: COLORS.neutral.white,
-    letterSpacing: 0.26,
+    fontSize: 16,
+    color: "#F0F0F0",
+    letterSpacing: 0.32,
   },
 });

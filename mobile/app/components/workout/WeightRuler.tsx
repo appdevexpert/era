@@ -67,10 +67,17 @@ const WeightRuler = ({
   const halfRuler = rulerWidth / 2;
   const scrollRef = useRef<Animated.ScrollView>(null);
   const lastReported = useSharedValue(value);
+  const lastWidth = useRef(0);
 
   const handleLayout = useCallback((e: LayoutChangeEvent) => {
-    const w = e.nativeEvent.layout.width;
-    if (w > 0) setRulerWidth(w);
+    // Round + skip no-op updates. onLayout can fire with sub-pixel jitter on
+    // every render; setting state each time would re-render → re-layout →
+    // loop ("Maximum update depth exceeded"). Only commit real width changes.
+    const w = Math.round(e.nativeEvent.layout.width);
+    if (w > 0 && w !== lastWidth.current) {
+      lastWidth.current = w;
+      setRulerWidth(w);
+    }
   }, []);
 
   const report = useCallback(
@@ -82,21 +89,33 @@ const WeightRuler = ({
     [max, min, step, onValueChange],
   );
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (e) => {
-      // 1 tick = 1 step. For step=1 this is a no-op; for fractional steps
-      // (e.g. height in ft uses step=0.1) we must multiply tick count by step
-      // so scrolling 25 ticks from min=3 maps to 3 + 25 × 0.1 = 5.5 ft.
-      const v = min + (e.contentOffset.x / TICK_SPACING) * step;
-      const rounded = Math.round(v / step) * step;
-      if (rounded !== lastReported.value) {
-        lastReported.value = rounded;
-        runOnJS(report)(rounded);
-      }
+  const scrollHandler = useAnimatedScrollHandler(
+    {
+      onScroll: (e) => {
+        // 1 tick = 1 step. For step=1 this is a no-op; for fractional steps
+        // (e.g. height in ft uses step=0.1) we must multiply tick count by step
+        // so scrolling 25 ticks from min=3 maps to 3 + 25 × 0.1 = 5.5 ft.
+        const v = min + (e.contentOffset.x / TICK_SPACING) * step;
+        const rounded = Math.round(v / step) * step;
+        if (rounded !== lastReported.value) {
+          lastReported.value = rounded;
+          runOnJS(report)(rounded);
+        }
+      },
     },
-  });
+    [min, step, report],
+  );
 
-  const initialOffset = ((value - min) / step) * TICK_SPACING;
+  // Initial scroll position, captured ONCE at mount. We deliberately never
+  // re-apply contentOffset on later renders: while scrolling, `report` sends
+  // the new value to the parent, the parent feeds `value` back down, and
+  // re-applying contentOffset would scroll-to-self → fire onScroll → report
+  // again → infinite setState ("Maximum update depth exceeded"). Unit/range
+  // changes remount the ruler via `key`, so this stays correct per unit.
+  const initialContentOffset = useRef({
+    x: ((value - min) / step) * TICK_SPACING,
+    y: 0,
+  }).current;
 
   return (
     <View style={styles.container}>
@@ -146,7 +165,7 @@ const WeightRuler = ({
           decelerationRate="fast"
           onScroll={scrollHandler}
           scrollEventThrottle={16}
-          contentOffset={{ x: initialOffset, y: 0 }}
+          contentOffset={initialContentOffset}
           onLayout={handleLayout}
           contentContainerStyle={{
             paddingHorizontal: halfRuler,

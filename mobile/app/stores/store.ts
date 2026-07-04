@@ -66,6 +66,7 @@ const sessionPersistConfig = {
     "setsLogged",
     "exercisesCompleted",
     "sessionStartedAt",
+    "accumulatedSeconds",
     "completedSets",
     "completedExerciseIds",
     "exerciseComments",
