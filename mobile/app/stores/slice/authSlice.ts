@@ -228,6 +228,7 @@ const authSlice = createSlice({
       state.isRecovery = false;
       state.isOnboarded = false;
       state.hasGoals = null;
+      state.programStartDate = null;
       state.loadingStatus = "idle";
       state.error = null;
     },
@@ -330,6 +331,9 @@ const authSlice = createSlice({
       // not GetStarted; only account delete (RESET_ALL) reverts to GetStarted.
       state.isOnboarded = false;
       state.hasGoals = null;
+      // Drop the previous user's program start date so the next login can't
+      // inherit their week number via redux-persist rehydration.
+      state.programStartDate = null;
       state.loadingStatus = "idle";
       state.error = null;
     });
@@ -343,6 +347,7 @@ const authSlice = createSlice({
       state.isRecovery = false;
       state.isOnboarded = false;
       state.hasGoals = null;
+      state.programStartDate = null;
     });
 
     // Delete Account — fulfilled is a no-op because RESET_ALL has already
