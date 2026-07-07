@@ -126,6 +126,7 @@ export { default as AddPhotoCamera } from "./add-photo-camera.svg";
 export { default as AddPhotoGallery } from "./add-photo-gallery.svg";
 export { default as DownloadGallery } from "./download-gallery.svg";
 export { default as EditPen } from "./edit-pen.svg";
+export { default as CalendarIcon } from "./calendar.svg";
 export { default as MedalGold } from "./medal-gold.svg";
 export { default as MedalSilver } from "./medal-silver.svg";
 export { default as MedalBronze } from "./medal-bronze.svg";

@@ -164,7 +164,11 @@ const formatSetChip = (set: CompletedSetView): string => {
   // Treat weight 0 as bodyweight — exercises like pull-ups/dips log a set
   // with no external load, which should render as "BW X 6", not "0KG X 6".
   if (set.weight != null && set.weight > 0) return `${set.weight}${set.weightUnit} X ${set.reps ?? 0}`;
-  if (set.duration != null) return `${set.duration} SEC`;
+  if (set.duration != null) {
+    return set.duration < 60
+      ? `${set.duration} SEC`
+      : `${Math.round(set.duration / 60)} MIN`;
+  }
   return `BW X ${set.reps ?? 0}`;
 };
 

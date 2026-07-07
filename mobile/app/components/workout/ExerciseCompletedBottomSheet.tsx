@@ -135,9 +135,16 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
       setComment(initialComment);
     }, [initialComment]);
 
+    // Read the live comment + callback from a ref so handleContinue keeps a
+    // stable identity across keystrokes. Otherwise it changed on every keystroke
+    // → renderFooter changed → gorhom saw a new footer component type and
+    // remounted the footer (Continue button's LinearGradient) each keystroke,
+    // which read as a color flicker while typing.
+    const latest = useRef({ comment, onContinue });
+    latest.current = { comment, onContinue };
     const handleContinue = useCallback(() => {
-      onContinue(comment);
-    }, [comment, onContinue]);
+      latest.current.onContinue(latest.current.comment);
+    }, []);
 
     const revealComment = useCallback(
       (keyboardHeight: number) => {

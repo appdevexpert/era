@@ -10,10 +10,10 @@ Companion doc: [`PAYMENT_FEATURE.md`](./PAYMENT_FEATURE.md) (tiers, pricing, spe
 ## 0. TL;DR (read this first)
 
 - **App-side (client) integration: DONE and correct.** ✅ Subscribe, upgrade, downgrade, cancel, expiry, grace period, refund, restore, resubscribe all reflect correctly on-device, because RevenueCat's SDK does the lifecycle logic and the app reads its verdict live.
-- **Server/DB side: NOT authoritative.** 🔴 There is **no RevenueCat → Supabase webhook**. The `profiles` subscription columns are written by the phone only, while the app is open. DB tier is *eventually consistent*, not real-time.
+- **Server/DB side: LIVE ✅ (2026-07-05).** The `subscription_*` lockdown migration is applied + verified (clients can't spoof their tier), the `revenuecat-webhook` edge function is deployed (`verify_jwt=false`), the secret is set + matched, the webhook is registered in RC, and a **Send test event returned `200`**. Auth + connectivity are proven end-to-end. The remaining proof is a real **sandbox purchase** (needs RC products/offering + store products first — §6.B/C), which exercises the actual entitlement-write path with a real user UUID.
 - **Cannot be verified from code (must be done + tested manually):** 🔴 RevenueCat dashboard config (products, entitlements, published offering), App Store Connect / Play Console products, and a real **sandbox purchase test**.
 
-**"Is everything working?" →** The code path is correct. It is **not "proven" until you (1) build the webhook, (2) publish the RC offering + store products, and (3) run one full sandbox subscribe → cancel → restore → resubscribe cycle.**
+**"Is everything working?" →** The code path is correct (webhook + RLS lockdown now built). It is **not "proven" until you (1) deploy the webhook + apply the migration (§6.A runbook), (2) publish the RC offering + store products, and (3) run one full sandbox subscribe → cancel → restore → resubscribe cycle.**
 
 ---
 
@@ -29,10 +29,12 @@ Login (auth-first: login happens BEFORE onboarding/paywall)
        └─ every purchase now attaches to the correct account
 
 Any entitlement change (purchase / renew / cancel / expiry / refund)
-  └─ Purchases.addCustomerInfoUpdateListener fires (also on every app foreground)
-       └─ updateCachedSnapshot(customerInfo)
-            ├─ in-memory snapshot updated → useEntitlement consumers re-render → gates lock/unlock
-            └─ saveSubscriptionState(userId, snapshot) → mirror into profiles (client-side only)
+  ├─ ON DEVICE: Purchases.addCustomerInfoUpdateListener fires (also on app foreground)
+  │    └─ updateCachedSnapshot(customerInfo)
+  │         └─ in-memory snapshot updated → useEntitlement consumers re-render → gates lock/unlock
+  └─ ON SERVER: RevenueCat → revenuecat-webhook edge function
+       └─ apply_subscription_event RPC (service_role) → profiles.subscription_* updated
+          (works even while the app is CLOSED; client no longer writes these columns)
 
 Logout / delete account
   └─ resetRevenueCatUser() → Purchases.logOut()
@@ -51,7 +53,7 @@ Logout / delete account
 | SDK installed | ✅ | `react-native-purchases ^10.4.0`, `react-native-purchases-ui ^10.4.0` (package.json) |
 | API keys present | ✅ | `.env.local` (Apple + Google both set), read via `app/config/env.ts` |
 | SDK config (one-time, idempotent) | ✅ | `app/services/revenueCatService.ts` → `configureRevenueCat()`, called at `app/App.tsx:22` |
-| Global `customerInfo` listener | ✅ | `revenueCatService.ts` (fans out to hooks + DB mirror) |
+| Global `customerInfo` listener | ✅ | `revenueCatService.ts` (fans out to entitlement hooks) |
 | User identity link (RC ↔ Supabase UID) | ✅ | `identifyRevenueCatUser()` in `Navigation.tsx` (SIGNED_IN) + `authSlice.ts` (sign-in/sign-up) |
 | Logout / delete reset | ✅ | `resetRevenueCatUser()` in `authSlice.ts` (logout + deleteAccount) |
 | Entitlement model (`standard`, `pro`) | ✅ | `revenueCatService.ts` — snapshot `{ tier, expiresAt, productId }`, pro>standard |
@@ -64,9 +66,11 @@ Logout / delete account
 | Onboarding → paywall entry | ✅ | `app/screen/onboarding/Onboarding.tsx:153` (`source: "onboarding"`) |
 | Manage / cancel / refund UI | ✅ | `ManageSubscriptionBottomSheet.tsx` → `presentCustomerCenter()` (RC Customer Center + OS-settings fallback) |
 | Subscription display in Profile | ✅ | `ProfileScreen.tsx` (tier / productId / daysRemaining) |
-| DB mirror write | ✅ | `app/services/profileService.ts` → `saveSubscriptionState()` |
-| DB columns + constraint + index | ✅ | `supabase/workout_schema.sql:145` (`subscription_tier/_expires_at/_product_id`) |
-| Build-time kill switch | ✅ | `app/config/featureFlags.ts` → `ENABLE_PAYWALL` (currently `true` on this branch) |
+| DB write path | ✅ (server-side) | webhook → `apply_subscription_event` RPC. Client mirror **removed** — `subscription_*` is service_role-only now. |
+| DB columns + constraint + index | ✅ | `supabase/workout_schema.sql` (`subscription_tier/_expires_at/_product_id/_event_at`) |
+| Build-time kill switch | ✅ | `app/config/featureFlags.ts` → `ENABLE_PAYWALL` (currently **`false`** on `clean-build` — payments off; flip to `true` to enable) |
+| Server webhook writer | ✅ **deployed to prod 2026-07-05 (v2, `verify_jwt=false`)** | `supabase/functions/revenuecat-webhook/index.ts` + `apply_subscription_event` RPC |
+| `subscription_*` columns locked to service_role | ✅ **applied + verified on prod 2026-07-05** | `supabase/2026_07_05_lock_subscription_columns.sql` (`prevent_subscription_tampering` trigger). Verified: authenticated write → blocked; service_role RPC → allowed. |
 
 ### Feature gating actually applied (not just built)
 
@@ -95,12 +99,13 @@ Table **`profiles`** (`supabase/workout_schema.sql:145`):
 | `subscription_tier` | `text` default `'free'`, CHECK in (`free`,`standard`,`pro`) | current tier mirror |
 | `subscription_expires_at` | `timestamptz` | renewal/expiry from RC |
 | `subscription_product_id` | `text` | e.g. `era_pro_monthly` |
+| `subscription_event_at` | `timestamptz` | RC event timestamp of last applied webhook event (out-of-order guard) |
 | index `idx_profiles_subscription_tier` | | |
 
-- Written by `saveSubscriptionState()` on **every** `customerInfo` change while the app is open + logged in.
-- **Self-heals on every app open:** cold start → login → `logIn` returns fresh customerInfo → listener → mirror re-synced.
-- RLS `profiles_update_self` allows the user to write their own row (this is what makes the client mirror possible).
-- **Currently NO server code reads these columns** — `web/` has zero consumers. So today the mirror is write-only / informational; its staleness has **zero user-facing impact yet.**
+- **Written ONLY by the `revenuecat-webhook` edge function** via the `apply_subscription_event` RPC (service_role). The client no longer writes these columns — a client write is spoofable and is now blocked by the `prevent_subscription_tampering` trigger (admins + service_role only).
+- **Out-of-order / duplicate safe:** `apply_subscription_event` only applies an event whose `event_timestamp` is `>=` `subscription_event_at`, so a late-arriving stale event can't overwrite newer state.
+- The webhook keeps the DB correct **even while the app is closed** (renew/expire/refund). On-device access is always live from the RC SDK regardless.
+- **Currently NO server code reads these columns** — `web/` has zero consumers. So user-facing impact today is still zero; this makes the mirror trustworthy for when a consumer (admin/analytics) is added.
 
 ---
 
@@ -126,10 +131,10 @@ RevenueCat handles the lifecycle; the app reflects it. On-device access:
 
 ## 5. What is PENDING 🔴 / risks
 
-1. **No RevenueCat webhook → Supabase (biggest gap).**
-   - No `supabase/functions` dir, no webhook handler anywhere in the repo.
-   - Consequence: if a sub changes **while the app is closed** (renew/cancel/expire/refund), `profiles.subscription_tier` stays stale until the user next opens the app.
-   - Also: RLS lets a user write their own `subscription_tier` → **spoofable** by a direct API call. Harmless today (nothing server-side trusts it) but must be locked down before any backend/admin/analytics reads it.
+1. **RevenueCat webhook → Supabase — CODE DONE ✅, deploy pending 🔴.**
+   - Edge function `supabase/functions/revenuecat-webhook/index.ts` + `apply_subscription_event` RPC now handle `INITIAL_PURCHASE / RENEWAL / CANCELLATION / EXPIRATION / PRODUCT_CHANGE / BILLING_ISSUE / REFUND` (and grace/pause/uncancel), keeping the DB correct even while the app is closed.
+   - RLS lockdown done in code: `prevent_subscription_tampering` trigger blocks user writes to `subscription_*`; only the webhook (service_role) / admins can write. Client mirror removed from `profileService`/`revenueCatService`.
+   - **Still to do:** apply the migration, deploy the function, set the secret, register the webhook URL in RC — see §6.A runbook. Until then the code is inert.
 
 2. **RevenueCat dashboard config — not verifiable from code.** Products (`era_standard_monthly/annual`, `era_pro_monthly/annual`), entitlements (`standard`, `pro`), and a **published "current" offering** (PaywallScreen relies on `offerings.current`; unpublished → error screen).
 
@@ -146,10 +151,36 @@ RevenueCat handles the lifecycle; the app reflects it. On-device access:
 ## 6. TO DO — steps to fully complete
 
 ### A. Server authority (code — makes DB trustworthy)
-- [ ] **Create Supabase edge function** `revenuecat-webhook` that verifies RC's `Authorization` header and upserts `profiles.subscription_tier/_expires_at/_product_id` from the event (`INITIAL_PURCHASE`, `RENEWAL`, `CANCELLATION`, `EXPIRATION`, `PRODUCT_CHANGE`, `BILLING_ISSUE`, `REFUND`). Use service-role key server-side.
-- [ ] **Register the webhook URL** in RevenueCat dashboard → Integrations → Webhooks, with the shared secret.
-- [ ] **Lock down RLS:** remove `subscription_*` columns from what `profiles_update_self` can write (move to a restricted column set or a SECURITY DEFINER RPC), so only the webhook/service role can set tier. Keep the client mirror as a fast-path fallback only.
-- [ ] Regenerate `supabase/workout_schema.sql` after the RLS change (schema-mirror rule).
+- [x] **Edge function `revenuecat-webhook`** — verifies RC's `Authorization` header (shared secret), maps the event to a tier, and writes via `apply_subscription_event`. Handles `INITIAL_PURCHASE / RENEWAL / CANCELLATION / EXPIRATION / PRODUCT_CHANGE / BILLING_ISSUE / REFUND` (+ uncancel/pause/grace). `supabase/functions/revenuecat-webhook/index.ts`.
+- [x] **RLS lockdown** — `prevent_subscription_tampering` trigger blocks all client writes to `subscription_*`; `apply_subscription_event` RPC is service_role-only. Client mirror removed. `supabase/2026_07_05_lock_subscription_columns.sql`.
+- [x] **Schema mirror regenerated** — `workout_schema.sql` updated (new column + functions + trigger).
+- [x] **Migration applied to prod** (`soyvnnicpkttehwjlpie`) on 2026-07-05 via MCP. Lock behavior verified live (client write blocked, service_role write allowed).
+- [x] **Function deployed to prod** 2026-07-05 via MCP — `revenuecat-webhook` v2, `verify_jwt=false` (first deploy was mistakenly `verify_jwt=true`, which would 401 all RC calls at the gateway; fixed).
+- [x] **Webhook registered in RC dashboard** — URL + Authorization value set, HMAC disabled, All events, Both environments.
+- [x] **Secret set + Test event PASSED 2026-07-05** — `REVENUECAT_WEBHOOK_SECRET` set in Supabase, matches the RC Authorization value. RC "Send test event" → `200 {"ok":true,"test":true}` (verified in edge-function logs, function v5). Auth + connectivity proven end-to-end.
+
+#### Runbook (order matters — lock the DB before pointing RC at it)
+
+```bash
+# 1. Apply the RLS + RPC + watermark-column migration  ✅ DONE (2026-07-05, via MCP)
+#    supabase db push   — or run supabase/2026_07_05_lock_subscription_columns.sql
+
+# 2. Set the shared secret (MUST equal the RC dashboard "Authorization" value)
+supabase secrets set REVENUECAT_WEBHOOK_SECRET=<your-strong-random-secret>
+
+# 3. Deploy the function. --no-verify-jwt is REQUIRED (RC sends our secret,
+#    not a Supabase JWT; we verify it ourselves inside the function).
+supabase functions deploy revenuecat-webhook --no-verify-jwt
+```
+
+Then in **RevenueCat → Project → Integrations → Webhooks**:
+- URL: `https://soyvnnicpkttehwjlpie.supabase.co/functions/v1/revenuecat-webhook`
+- Authorization header value: the **exact** `REVENUECAT_WEBHOOK_SECRET` from step 2.
+- Send a **Test event** → expect `200 {"ok":true,"test":true}` and no DB change.
+
+> The `/functions/v1/` gateway URL is publicly reachable only because the function is deployed with `--no-verify-jwt`. RC sends our custom `Authorization` secret (verified in-function), not a Supabase JWT/apikey.
+
+Verify: sandbox-purchase on device → row flips to `standard`/`pro`; let it expire with the app **closed** → webhook flips it to `free` (this is the whole point).
 
 ### B. RevenueCat dashboard (config — no code)
 - [ ] Create products `era_standard_monthly`, `era_standard_annual`, `era_pro_monthly`, `era_pro_annual`.

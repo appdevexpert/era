@@ -78,13 +78,22 @@ const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) =
       return;
     }
 
-    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-    if (!permission.granted) {
-      Toast.show({
-        type: "error",
-        text1: t("workout.ui.micPermissionDenied"),
-      });
-      return;
+    // Check first, then request. On the FIRST grant, iOS is still tearing
+    // down the permission-dialog audio route when the promise resolves —
+    // calling start() immediately races that teardown and throws
+    // "Audio session was interrupted." Give iOS a moment to settle before
+    // grabbing the mic. Already-granted repeat taps skip the wait.
+    const existing = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+    if (!existing.granted) {
+      const requested = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!requested.granted) {
+        Toast.show({
+          type: "error",
+          text1: t("workout.ui.micPermissionDenied"),
+        });
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
     }
 
     baseTextRef.current = value;

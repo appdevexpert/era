@@ -78,7 +78,7 @@ era_pro_annual         → 1799 NOK/year
 | File | Role |
 |---|---|
 | `app/services/revenueCatService.ts` | Only file that imports `react-native-purchases` + `react-native-purchases-ui`. Owns the SDK config, the in-module tier cache, the subscriber registry, and the Supabase mirror. |
-| `app/services/profileService.ts` | `saveSubscriptionState(userId, snapshot)` — writes the tier/expiry/product into `profiles`. Idempotent, called by revenueCatService on every customerInfo update. |
+| `app/services/profileService.ts` | Profile reads/writes. **Note:** the old `saveSubscriptionState` client mirror was removed on 2026-07-05 — `subscription_*` is now written server-side only by the `revenuecat-webhook` edge function (see REVENUECAT_STATUS.md). |
 | `app/hooks/useEntitlement.ts` | Read-only hook. Returns `{ tier, isFree, hasStandard, hasPro }`. Subscribes to the service's cache for live updates. |
 | `app/hooks/useRequireEntitlement.ts` | **Action-gate hook.** Returns a function `(required: "standard" \| "pro") => boolean`. Inside an event handler, call it before doing gated work — falsy return means it already redirected the user to the paywall. |
 | `app/components/common/EntitlementGate.tsx` | **UI-section gate.** `<EntitlementGate requires="pro" fallback={...}>...</EntitlementGate>` — wraps any block of JSX that should disappear (or be replaced) for users below the required tier. |
@@ -88,10 +88,12 @@ era_pro_annual         → 1799 NOK/year
 
 ```
 RC dashboard / Apple-Google purchase
-  → Purchases.addCustomerInfoUpdateListener fires
-  → revenueCatService.updateCachedTier(info)
-    → tier cache updated → useEntitlement consumers re-render
-    → mirrorToSupabase(userId, info, tier) → profiles row updated
+  → ON DEVICE: Purchases.addCustomerInfoUpdateListener fires
+      → revenueCatService.updateCachedSnapshot(info)
+      → tier cache updated → useEntitlement consumers re-render
+  → ON SERVER: RevenueCat → revenuecat-webhook edge function
+      → apply_subscription_event RPC (service_role) → profiles row updated
+        (authoritative; works even while the app is closed)
 ```
 
 **Identity flow**
@@ -134,7 +136,7 @@ const { hasPro } = useEntitlement();
 | `subscription_expires_at` | timestamptz | Renewal/expiry from RC |
 | `subscription_product_id` | text | e.g. `era_pro_monthly` |
 
-RLS: `profiles_update_self` already lets the user write their own row. The mirror is convenience-only — RC stays source of truth, and Phase 2 will swap client writes for an authoritative RC webhook → Supabase edge function.
+RLS: the `subscription_*` columns are **locked to service_role** (`prevent_subscription_tampering` trigger, 2026-07-05) — a user can no longer set their own tier. ✅ The "Phase 2 authoritative RC webhook → Supabase edge function" is now built (`revenuecat-webhook` + `apply_subscription_event`); a fourth column `subscription_event_at` was added as an out-of-order guard. See REVENUECAT_STATUS.md §6.A for deploy status.
 
 ### Access status (as of 2026-06-08)
 - RevenueCat admin invite sent by Rami to `appeneuretech@gmail.com` — confirm received before starting.

@@ -141,7 +141,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
 
     if (!targetProgramId) {
       return rejectWithValue(
-        "No workout program assigned. Complete onboarding (gender + level) or contact support.",
+        "Network error",
       );
     }
 

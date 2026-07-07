@@ -6,7 +6,7 @@ import {
   BottomSheetModal,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 
@@ -16,7 +16,7 @@ export interface EndWorkoutBottomSheetRef {
 }
 
 interface EndWorkoutBottomSheetProps {
-  onEnd?: () => void;
+  onEnd?: () => void | Promise<void>;
   onKeepGoing?: () => void;
 }
 
@@ -24,6 +24,12 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
   function EndWorkoutBottomSheet({ onEnd, onKeepGoing }, ref) {
     const { t } = useTranslation();
     const sheetRef = useRef<BottomSheetModal>(null);
+    // While onEnd is running (finishSession → Supabase completeSession +
+    // record_workout_completion RPC + PR check), we keep the sheet open and
+    // spin the End Workout button. Blocks re-taps and pan/backdrop dismissal
+    // that would otherwise let the user fire a second finishSession before
+    // navigation replaces this screen.
+    const [ending, setEnding] = useState(false);
 
     useImperativeHandle(ref, () => ({
       show: () => sheetRef.current?.present(),
@@ -37,30 +43,43 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.6}
-          pressBehavior="close"
+          pressBehavior={ending ? "none" : "close"}
         />
       ),
-      [],
+      [ending],
     );
 
-    const handleEnd = () => {
-      sheetRef.current?.dismiss();
-      onEnd?.();
+    const handleEnd = async () => {
+      if (ending) return;
+      setEnding(true);
+      try {
+        await onEnd?.();
+      } finally {
+        // Navigation inside onEnd unmounts this sheet on the happy path. If
+        // it threw, reset so the user can retry rather than getting stuck.
+        setEnding(false);
+      }
     };
 
     const handleKeepGoing = () => {
+      if (ending) return;
       sheetRef.current?.dismiss();
       onKeepGoing?.();
     };
+
+    const handleDismiss = useCallback(() => {
+      setEnding(false);
+    }, []);
 
     return (
       <BottomSheetModal
         ref={sheetRef}
         enableDynamicSizing
-        enablePanDownToClose
+        enablePanDownToClose={!ending}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
+        onDismiss={handleDismiss}
       >
         <BottomSheetView style={styles.content}>
           <View style={styles.upper}>
@@ -78,12 +97,14 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
               onPress={handleEnd}
               variant="destructive"
               style={styles.actionItem}
+              loading={ending}
             />
             <TintButton
               label={t("workout.ui.keepGoing")}
               onPress={handleKeepGoing}
               variant="gold"
               style={styles.actionItem}
+              disabled={ending}
             />
           </View>
         </BottomSheetView>

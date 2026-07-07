@@ -292,7 +292,7 @@ const Navigation = () => {
 
   return (
     <>
-      <NavigationContainer ref={navigationRef} linking={showAuthStack ? linking : undefined}>
+      <NavigationContainer ref={navigationRef} linking={showAuthStack ? linking : undefined} >
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {showAuthStack ? (
             <Stack.Screen name="AuthStack" component={AuthNavigator} />

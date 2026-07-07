@@ -21,7 +21,6 @@ import Purchases, {
 import RevenueCatUI from "react-native-purchases-ui";
 import { ENV } from "@/app/config/env";
 import { FEATURE_FLAGS } from "@/app/config/featureFlags";
-import { saveSubscriptionState } from "@/app/services/profileService";
 
 export const ENTITLEMENT_STANDARD = "standard";
 export const ENTITLEMENT_PRO = "pro";
@@ -44,7 +43,6 @@ const initialSnapshot: EntitlementSnapshot = {
 
 let configured = false;
 let cachedSnapshot: EntitlementSnapshot = { ...initialSnapshot };
-let currentUserId: string | null = null;
 const snapshotSubscribers = new Set<(snapshot: EntitlementSnapshot) => void>();
 
 const resolveApiKey = (): string => {
@@ -77,14 +75,11 @@ const updateCachedSnapshot = (info: CustomerInfo | null) => {
     cachedSnapshot = next;
     snapshotSubscribers.forEach((cb) => cb(cachedSnapshot));
   }
-  // Mirror to Supabase profiles only when we know which user this belongs
-  // to — i.e. after sign-in. Anonymous customerInfo events don't have a
-  // Supabase identity yet, so skip them.
-  if (currentUserId) {
-    saveSubscriptionState(currentUserId, next).catch((err) =>
-      console.warn("[revenueCat] supabase mirror failed", err),
-    );
-  }
+  // NOTE: the Supabase mirror (profiles.subscription_*) is now written
+  // server-side by the `revenuecat-webhook` edge function — the ONLY writer,
+  // since those columns are locked to service_role (a client write would be
+  // spoofable and is blocked by the prevent_subscription_tampering trigger).
+  // On-device entitlement stays live via this in-memory snapshot.
 };
 
 /**
@@ -115,7 +110,6 @@ export const identifyRevenueCatUser = async (userId: string) => {
   if (!FEATURE_FLAGS.ENABLE_PAYWALL) return null;
   if (!configured) configureRevenueCat();
   if (!configured) return null;
-  currentUserId = userId;
   const { customerInfo } = await Purchases.logIn(userId);
   updateCachedSnapshot(customerInfo);
   return customerInfo;
@@ -125,11 +119,9 @@ export const identifyRevenueCatUser = async (userId: string) => {
 export const resetRevenueCatUser = async () => {
   if (!FEATURE_FLAGS.ENABLE_PAYWALL) return;
   if (!configured) return;
-  // Drop the user pointer FIRST so the post-logout updateCachedSnapshot
-  // doesn't overwrite the signed-out user's last known tier in Supabase.
-  // Their entitlement state on the server stays as it was at sign-out and
-  // gets re-validated on next sign-in.
-  currentUserId = null;
+  // Logout returns the anonymous customerInfo, so the cached snapshot resets
+  // to free. The server-side mirror is untouched — it stays as the webhook
+  // last set it and is re-validated by RC on next sign-in.
   const customerInfo = await Purchases.logOut();
   updateCachedSnapshot(customerInfo);
 };

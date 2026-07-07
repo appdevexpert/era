@@ -5,7 +5,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { formatLongDate } from "@/app/utils/calendar";
 import { todayIso } from "@/app/utils/programWeek";
-import { EditPen } from "@/assets/icons";
+import { CalendarIcon } from "@/assets/icons";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -188,14 +188,17 @@ const LogWeightBottomSheet = forwardRef<
                 : t("progress.logWeightSheet.title")}
             </Text>
             {mode === "weight" ? (
-              <PressableScale
-                onPress={() => setMode("date")}
-                hitSlop={8}
-                style={styles.dateRow}
-              >
+              <View style={styles.dateRow}>
                 <Text style={styles.dateText}>{dateLabel}</Text>
-                <EditPen width={16} height={16} />
-              </PressableScale>
+                <PressableScale
+                  onPress={() => setMode("date")}
+                  hitSlop={8}
+
+                >
+
+                  <CalendarIcon width={28} height={28} />
+                </PressableScale>
+              </View>
             ) : null}
           </View>
 
@@ -351,8 +354,10 @@ const styles = StyleSheet.create({
     lineHeight: 26.4,
   },
   dateRow: {
+    alignSelf: "stretch",
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 8,
   },
   dateText: {

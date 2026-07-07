@@ -65,7 +65,10 @@ const pickTopStat = (
     const longest = durationOnly.reduce((max, s) =>
       (s.duration ?? 0) > (max.duration ?? 0) ? s : max,
     );
-    return { value: `${longest.duration} SEC`, labelKey: "maxDurationLabel" };
+    const seconds = longest.duration ?? 0;
+    const value =
+      seconds < 60 ? `${seconds} SEC` : `${Math.round(seconds / 60)} MIN`;
+    return { value, labelKey: "maxDurationLabel" };
   }
 
   const repsBased = sets.filter((s) => s.reps != null && s.reps > 0);

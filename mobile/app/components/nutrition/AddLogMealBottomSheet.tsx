@@ -217,6 +217,33 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Mirror of the form values that Save needs, kept fresh every render. Save
+    // (and the compose helper) read from this ref instead of closing over state
+    // directly, so their identities stay stable across keystrokes. Without this,
+    // handleSave changed on every keystroke → renderFooter changed → gorhom saw a
+    // new footer component type and remounted the footer subtree (Save button's
+    // LinearGradient) each keystroke, which read as a color flicker.
+    const latest = useRef({
+      selectedTag,
+      itemName,
+      servingSize,
+      units,
+      stagedItems,
+      editingIndex,
+      comments,
+      onSave,
+    });
+    latest.current = {
+      selectedTag,
+      itemName,
+      servingSize,
+      units,
+      stagedItems,
+      editingIndex,
+      comments,
+      onSave,
+    };
+
     const clearItemFields = useCallback(() => {
       setItemName("");
       setServingSize("");
@@ -239,6 +266,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
     //   - new draft (editing=null) + form has content → append as a final item
     //   - form empty → just the existing staged list
     const composeItemsForSave = useCallback((): SavedMealItem[] => {
+      const { itemName, servingSize, units, stagedItems, editingIndex } = latest.current;
       const trimmed = itemName.trim();
       if (!trimmed) return stagedItems;
       const draft: SavedMealItem = {
@@ -252,7 +280,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
         return copy;
       }
       return [...stagedItems, draft];
-    }, [editingIndex, itemName, servingSize, stagedItems, units]);
+    }, []);
 
     // "+ Add Item" when editingIndex === null, "Update Item" otherwise.
     const handleUpsertItem = useCallback(() => {
@@ -438,6 +466,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       (stagedItems.length > 0 || itemName.trim().length > 0);
 
     const handleSave = useCallback(async () => {
+      const { selectedTag, comments, onSave } = latest.current;
       if (!selectedTag) return;
       const items = composeItemsForSave();
       if (items.length === 0) return;
@@ -456,7 +485,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
       } finally {
         setSaving(false);
       }
-    }, [comments, composeItemsForSave, onSave, resetForm, selectedTag]);
+    }, [composeItemsForSave, resetForm]);
 
     // Save lives in gorhom's own footer slot so it's reliably pinned to the
     // bottom of the sheet (always visible, keyboard open or closed). Our inner

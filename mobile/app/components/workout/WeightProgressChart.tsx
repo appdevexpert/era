@@ -41,6 +41,12 @@ interface WeightProgressChartProps {
   unit?: string;
   /** Number of points visible per page (default 4). */
   pageSize?: number;
+  /**
+   * When true, the chart opens scrolled to the newest data point (the far
+   * right) instead of the oldest. Used by the Progress weight card so the
+   * "last 30 days" view lands on today, not 29 days ago. Defaults to false.
+   */
+  initialScrollToEnd?: boolean;
 }
 
 const GOLD = "#C9A84C";
@@ -87,12 +93,19 @@ const WeightProgressChart = ({
   yStep = 5,
   unit,
   pageSize = 4,
+  initialScrollToEnd = false,
 }: WeightProgressChartProps) => {
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   // gifted-charts mutates data items internally (adds isActiveClone etc.),
   // so we hold them in a ref to prevent React/Hermes from freezing them.
   const dataRef = useRef<Record<string, unknown>[]>([]);
+
+  // Horizontal ScrollView ref + a one-shot guard so we jump to the newest
+  // point exactly once (on first content measure), never fighting the user's
+  // manual scroll on later re-renders.
+  const scrollRef = useRef<ScrollView>(null);
+  const didInitialScroll = useRef(false);
 
   const onLayoutChartRow = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -165,11 +178,27 @@ const WeightProgressChart = ({
 
         {/* Paged horizontal scroll containing the full chart. */}
         <ScrollView
+          ref={scrollRef}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           decelerationRate="fast"
           style={styles.scroll}
+          onContentSizeChange={(w) => {
+            // The first render happens before the row is measured, so the
+            // content width is 0 — ignore that fire, otherwise it burns the
+            // one-shot before the real chart is laid out. Once the content
+            // has a real width, jump to the newest point (today). Deferring a
+            // frame lets the ScrollView finish its offset math so scrollToEnd
+            // actually lands instead of no-opping on a not-yet-laid-out frame.
+            if (!initialScrollToEnd || didInitialScroll.current || w <= 0) {
+              return;
+            }
+            didInitialScroll.current = true;
+            requestAnimationFrame(() =>
+              scrollRef.current?.scrollToEnd({ animated: false }),
+            );
+          }}
         >
           {pageWidth > 0 && plotHeight > 0 ? (
             // Explicit height + overflow:hidden so children never get clipped

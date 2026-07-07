@@ -144,6 +144,22 @@ const NutritionScreen = () => {
     }
   }, [dispatch, todaysWeek]);
 
+  // Ensure the *selected* week's plan is loaded too, not just today's. Without
+  // this, navigating to a past/future week leaves `planByWeek[selectedWeek]`
+  // empty, so `selectMergedMealRows` has no plan items to match logged meals
+  // against and any ticked planned meals silently drop from the list.
+  // `ensureWeekPlan` is idempotent (load-or-generate, cache-checked), so this
+  // is a no-op once the week is cached.
+  const selectedWeek = useMemo(
+    () => weekNumberForDate(selectedDate, programStartDate ?? null),
+    [selectedDate, programStartDate],
+  );
+  useEffect(() => {
+    if (selectedWeek >= 1 && selectedWeek <= TOTAL_PROGRAM_WEEKS) {
+      dispatch(ensureWeekPlan(selectedWeek));
+    }
+  }, [dispatch, selectedWeek]);
+
   // -------- View-model mapping --------------------------------------
 
   const days: NutritionDayItem[] = useMemo(

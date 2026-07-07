@@ -277,9 +277,13 @@ const WeightsScreen = () => {
               <View style={styles.statusBox}>
                 <Text style={styles.statusText}>{t("weights.error")}</Text>
               </View>
-            ) : loading && exercises.length === 0 ? (
-              // Card-area-only skeleton — fills the gap between Redux
-              // bootstrap completing and the per-exercise Supabase fetch landing.
+            ) : overrideLoading || (summariesLoading && exercises.length === 0) ? (
+              // Card-area-only skeleton. Two windows to cover:
+              //   1. overrideLoading — user tapped a non-today day; without this
+              //      the previous day's cards linger until the fetch resolves,
+              //      making the tap feel unresponsive.
+              //   2. Initial bootstrap → per-exercise summaries fetch, when no
+              //      cards have rendered yet.
               <WeightsCardsSkeleton />
             ) : showEmpty ? (
               <View style={styles.statusBox}>

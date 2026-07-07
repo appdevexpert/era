@@ -139,12 +139,17 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   program_start_date date,
-  -- RevenueCat entitlement mirror. Source of truth = RC SDK; client writes
-  -- these via profileService.saveSubscriptionState on every customerInfo
-  -- update. Allowed values match the locked entitlement IDs.
+  -- RevenueCat entitlement mirror. Source of truth = RC SDK (on device) +
+  -- the revenuecat-webhook edge function (server). These columns are written
+  -- ONLY by the webhook via apply_subscription_event (service_role); clients are
+  -- blocked by the prevent_subscription_tampering trigger. Allowed values match
+  -- the locked entitlement IDs.
   subscription_tier text not null default 'free',
   subscription_expires_at timestamptz,
   subscription_product_id text,
+  -- Watermark: RC event_timestamp of the last applied webhook event
+  -- (out-of-order / duplicate-delivery guard). See apply_subscription_event.
+  subscription_event_at timestamptz,
   constraint profiles_pkey primary key (id),
   constraint profiles_id_fkey foreign key (id) references auth.users(id) on delete cascade,
   constraint profiles_subscription_tier_check
@@ -956,6 +961,85 @@ $function$;
 grant execute on function public.prevent_profile_role_escalation() to anon, authenticated, service_role;
 
 -- ------------------------------------------------------------
+-- prevent_subscription_tampering — trigger guard for profiles.subscription_*
+-- Blocks any client write to the subscription mirror columns. Only the
+-- RevenueCat webhook (service_role) or an admin may change them.
+-- ------------------------------------------------------------
+create or replace function public.prevent_subscription_tampering()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if tg_op = 'INSERT' then
+    if (new.subscription_tier is distinct from 'free'
+        or new.subscription_expires_at is not null
+        or new.subscription_product_id is not null
+        or new.subscription_event_at is not null)
+       and coalesce(auth.role(), '') <> 'service_role'
+       and not public.is_admin() then
+      raise exception
+        'subscription_* columns are managed by the RevenueCat webhook and cannot be set directly.';
+    end if;
+    return new;
+  end if;
+
+  if (new.subscription_tier is distinct from old.subscription_tier
+      or new.subscription_expires_at is distinct from old.subscription_expires_at
+      or new.subscription_product_id is distinct from old.subscription_product_id
+      or new.subscription_event_at is distinct from old.subscription_event_at)
+     and coalesce(auth.role(), '') <> 'service_role'
+     and not public.is_admin() then
+    raise exception
+      'subscription_* columns are managed by the RevenueCat webhook and cannot be set directly.';
+  end if;
+
+  return new;
+end;
+$function$;
+
+-- Trigger function fires as table owner; not callable via REST (no PUBLIC grant).
+revoke all on function public.prevent_subscription_tampering() from public, anon, authenticated;
+
+-- ------------------------------------------------------------
+-- apply_subscription_event — the ONLY intended writer of profiles.subscription_*.
+-- Called by the revenuecat-webhook edge function (service_role only). The
+-- subscription_event_at watermark makes it idempotent + out-of-order safe.
+-- ------------------------------------------------------------
+create or replace function public.apply_subscription_event(
+  p_user_id    uuid,
+  p_tier       text,
+  p_expires_at timestamptz,
+  p_product_id text,
+  p_event_at   timestamptz
+)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_count int;
+begin
+  update public.profiles
+     set subscription_tier       = p_tier,
+         subscription_expires_at = p_expires_at,
+         subscription_product_id = p_product_id,
+         subscription_event_at   = p_event_at
+   where id = p_user_id
+     and (subscription_event_at is null or subscription_event_at <= p_event_at);
+
+  get diagnostics v_count = row_count;
+  return v_count > 0;
+end;
+$function$;
+
+revoke all on function public.apply_subscription_event(uuid, text, timestamptz, text, timestamptz) from public;
+revoke all on function public.apply_subscription_event(uuid, text, timestamptz, text, timestamptz) from anon, authenticated;
+grant execute on function public.apply_subscription_event(uuid, text, timestamptz, text, timestamptz) to service_role;
+
+-- ------------------------------------------------------------
 -- can_access_program / can_access_program_day / can_access_program_day_exercise
 -- ------------------------------------------------------------
 create or replace function public.can_access_program(program_uuid uuid)
@@ -1555,6 +1639,7 @@ grant execute on function public.record_workout_completion(uuid, uuid, date, tim
 create trigger trg_exercise_library_updated_at BEFORE UPDATE ON public.exercise_library FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_planned_exercise_sets_updated_at BEFORE UPDATE ON public.planned_exercise_sets FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger prevent_profile_role_escalation BEFORE INSERT OR UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION prevent_profile_role_escalation();
+create trigger prevent_subscription_tampering BEFORE INSERT OR UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION prevent_subscription_tampering();
 create trigger trg_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_program_day_exercises_updated_at BEFORE UPDATE ON public.program_day_exercises FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_program_day_sections_updated_at BEFORE UPDATE ON public.program_day_sections FOR EACH ROW EXECUTE FUNCTION set_updated_at();

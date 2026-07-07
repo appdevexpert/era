@@ -22,35 +22,7 @@ export async function saveProgramStartDate(userId: string, date: string): Promis
   if (error) throw new Error(error.message);
 }
 
-export interface SubscriptionSnapshot {
-  /** "free" / "standard" / "pro" — must match the CHECK constraint on profiles. */
-  tier: "free" | "standard" | "pro";
-  /** Renewal/expiry timestamp from RC. Null when user is free or RC didn't supply one. */
-  expiresAt: string | null;
-  /** Identifier of the purchased product (e.g. "era_pro_monthly"). Null for free users. */
-  productId: string | null;
-}
-
-/**
- * Mirror RevenueCat entitlement state onto the user's profile row. Called
- * by revenueCatService whenever customerInfo changes. Source of truth stays
- * RC; this is a convenience cache so server code can read tier without a
- * round trip to the RC REST API.
- *
- * Idempotent — re-running with the same snapshot is a no-op at the DB level.
- */
-export async function saveSubscriptionState(
-  userId: string,
-  snapshot: SubscriptionSnapshot,
-): Promise<void> {
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      subscription_tier: snapshot.tier,
-      subscription_expires_at: snapshot.expiresAt,
-      subscription_product_id: snapshot.productId,
-    })
-    .eq("id", userId);
-
-  if (error) throw new Error(error.message);
-}
+// NOTE: subscription state (profiles.subscription_*) is NOT written from the
+// client anymore. Those columns are locked to service_role and written only by
+// the `revenuecat-webhook` edge function (see supabase/functions/revenuecat-webhook).
+// The client reads live entitlement from the RC SDK via revenueCatService.

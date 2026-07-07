@@ -76,6 +76,7 @@ const WeightStatsCard = ({
           yMax={chartYMax}
           yStep={chartYStep}
           pageSize={7}
+          initialScrollToEnd
         />
       </View>
 
