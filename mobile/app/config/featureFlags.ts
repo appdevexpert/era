@@ -18,7 +18,7 @@ export const FEATURE_FLAGS = {
    *   - Paywall screen is never navigated to
    *   - Manage Subscription button in Profile becomes a no-op
    */
-  ENABLE_PAYWALL: false,
+  ENABLE_PAYWALL: true,
 
   /**
    * Master switch for expo-notifications.
@@ -29,5 +29,5 @@ export const FEATURE_FLAGS = {
    *   - Android notification channel is not registered
    *   - Notification section in Profile is hidden
    */
-  ENABLE_NOTIFICATIONS: false,
+  ENABLE_NOTIFICATIONS: true,
 } as const;
