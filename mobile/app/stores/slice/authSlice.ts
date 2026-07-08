@@ -124,13 +124,14 @@ export const signInThunk = createAsyncThunk<
     // probably exists" (true) so we don't push a returning user back into
     // onboarding because of a transient network blip; the next bootstrap
     // attempt will surface real issues.
-    const { data: goalRow } = await fetchUserGoalData(user.id);
+    const { data: goalRow, error: goalErr } = await fetchUserGoalData(user.id);
+    const hasGoals = goalErr ? true : goalRow !== null;
     identifyRevenueCatUser(user.id).catch((err) =>
       reportBackgroundError("auth.identifyRevenueCatUser.signIn", err, {
         userId: user.id,
       }),
     );
-    return { user, hasGoals: goalRow !== null };
+    return { user, hasGoals };
   },
 );
 

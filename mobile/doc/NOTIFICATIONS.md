@@ -70,7 +70,7 @@ The permission ask is decoupled from the OS popup. We show a **custom modal firs
    ↓
 [Underlying stack renders: Onboarding / PlanGen / Home]
    ↓
-[Modal slides up (presentationStyle="pageSheet")]
+[Modal slides up (presentationStyle="fullScreen")]
    ↓
    ┌─────────────────────────────────┐
    │  Stay on track with ERA          │
@@ -80,7 +80,7 @@ The permission ask is decoupled from the OS popup. We show a **custom modal firs
    │  Maybe Later                     │
    └─────────────────────────────────┘
    ↓
-[User picks Enable / Maybe Later / swipe-down dismiss]
+[User picks Enable / Maybe Later]
    ↓
 [hasAskedNotificationPermission = true forever]
    ↓
@@ -223,13 +223,13 @@ Key paths:
 | Case | Behaviour |
 |---|---|
 | User denies at OS level | Modal flag still set → modal never re-opens. Profile shows "Open System Settings" link. |
-| User swipes modal down | Treated as Maybe Later — flag set. |
+| Android back button | Treated as Maybe Later — flag set via `onRequestClose`. |
 | User toggles a notification ON but permission is denied | Scheduling call no-ops (expo-notifications silently fails). Profile UI hides toggles entirely when denied, so this is a defensive case only. |
 | App reinstall | All Redux state wipes — modal reappears on next login. |
 | Account delete (`RESET_ALL`) | Same as reinstall. |
 | Phone reboot / app kill | `expo-notifications` persists schedules natively — no re-registration needed. |
 | Language change | Next notification fire reads the current `i18next` language. |
-| Android (no `pageSheet`) | Modal falls back to full-screen slide-up. |
+| Platform parity | `presentationStyle="fullScreen"` renders the same full-screen slide-up on iOS and Android — no swipe-to-dismiss, exit only via Enable / Maybe Later / Android back. |
 
 ---
 

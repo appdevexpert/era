@@ -15,6 +15,7 @@ import LogWeightBottomSheet, {
   type LogWeightBottomSheetRef,
 } from "@/app/components/progress/LogWeightBottomSheet";
 import PhotoStrip from "@/app/components/progress/PhotoStrip";
+import { useRequireEntitlement } from "@/app/hooks/useRequireEntitlement";
 import PrCarousel from "@/app/components/progress/PrCarousel";
 import { type PrEntry } from "@/app/components/progress/PrCard";
 import ProgressStatsCard from "@/app/components/progress/ProgressStatsCard";
@@ -146,6 +147,12 @@ const ProgressScreen = () => {
   const photoPreviewSheetRef = useRef<PhotoPreviewBottomSheetRef>(null);
   const logWeightSheetRef = useRef<LogWeightBottomSheetRef>(null);
   const logHeightSheetRef = useRef<LogHeightBottomSheetRef>(null);
+  // Progress Photos is Standard+ (locked 2026-06-12). Free users bounce to Paywall.
+  const requireEntitlement = useRequireEntitlement();
+  const handleAddPhoto = () => {
+    if (!requireEntitlement("standard")) return;
+    addPhotoSheetRef.current?.show();
+  };
 
   const weightStatus = useSelector(selectWeightStatus);
   const currentWeightKg = useSelector(selectCurrentWeightKg);
@@ -373,7 +380,7 @@ const ProgressScreen = () => {
               date: formatPhotoDate(p.createdAt),
               imageUri: p.signedUrl,
             }))}
-            onAddPhoto={() => addPhotoSheetRef.current?.show()}
+            onAddPhoto={handleAddPhoto}
             onPhotoPress={(photo) => {
               const row = photos.find((p) => p.id === photo.id);
               photoPreviewSheetRef.current?.show({

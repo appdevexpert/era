@@ -146,7 +146,16 @@ const Navigation = () => {
      */
     const resolveHasGoals = async (uid: string) => {
       try {
-        const { data } = await fetchUserGoalData(uid);
+        const { data, error } = await fetchUserGoalData(uid);
+        if (error) {
+          // fetchUserGoalData swallows network errors and returns
+          // { data: null, error } instead of throwing, so without this
+          // branch an offline cold-start would flip hasGoals to false
+          // and shove the user into Onboarding. Treat any non-null error
+          // as "unknown — assume goals exist" so returning users stay put.
+          dispatch(setHasGoals(true));
+          return;
+        }
         dispatch(setHasGoals(data !== null));
       } catch {
         // Network blip: stay conservative — assume goals exist so we don't
@@ -309,7 +318,7 @@ const Navigation = () => {
       <Modal
         visible={showNotificationPermissionModal}
         animationType="slide"
-        presentationStyle="pageSheet"
+        presentationStyle="fullScreen"
         onDismiss={handleNotificationModalDismiss}
         onRequestClose={handleNotificationModalDismiss}
       >

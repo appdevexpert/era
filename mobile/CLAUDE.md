@@ -29,7 +29,9 @@ All feature/reference docs live in `doc/`:
 - `doc/WORKOUT_BACKEND_CONTEXT.md` — Workout backend integration context.
 - `doc/PAYMENT_FEATURE.md` — Subscription tiers (Free / Standard 99 NOK / Pro 199 NOK), RevenueCat integration, 12-week completion flow. Locked by Rami 2026-06-12.
 - `doc/REVENUECAT_STATUS.md` — End-to-end RevenueCat completion tracker: what's done (client code), what's pending (webhook, dashboard, store config), the TODO checklist, and the sandbox test plan. Read this to know what's left before payments are production-ready.
+- `doc/PAYMENT_TEST_PLAN.md` — iOS TestFlight sandbox test plan for RevenueCat subscriptions. Pre-flight blockers, phase-by-phase checklist (subscribe → upgrade → cancel → expiry → restore → refund → annual → gate spot-checks), SQL verification queries, and a failure-triage table. Run before production release.
 - `doc/NOTIFICATIONS.md` — Local + push notification stack. First-login modal gate, daily/streak/PR locals, Phase 2 weekly summary push plan. Read before adding any notification type.
+- `doc/NOTIFICATIONS_TEST_PLAN.md` — QA runbook / approval checklist for the notification feature. Permission gate, Daily Reminder, Streak Warning, PR Alerts, Profile toggles, bilingual, iOS/Android platform checks, failure-triage table. Run before sign-off.
 - `doc/12_WEEK_PROGRAM.md`, `doc/12_WEEK_PROGRAM_CLIENT.md` — 12-week program structure references.
 - `doc/MID_PROGRAM_SWITCH_DECISION.md` — Open product question: what happens when a user changes `goals.level` mid-cycle (root cause of Rami feedback #6). Awaiting Rami confirmation before implementation.
 - `doc/CLEAN_BUILD.md` — `clean-build` branch reference. Two build-time feature flags disable paywall/RevenueCat and expo-notifications for internal builds. Includes what changes when each flag flips, and how to re-enable.

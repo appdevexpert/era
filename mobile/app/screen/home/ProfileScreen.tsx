@@ -23,7 +23,6 @@ import { RootState, useAppDispatch } from "@/app/stores/store";
 import { computeCurrentPosition } from "@/app/utils/programSchedule";
 import { verticalScale } from "@/app/utils/responsive";
 import {
-  ChartGold,
   FireGold,
   IconBolt,
   InfoCircleGold,
@@ -315,12 +314,6 @@ const ProfileScreen = () => {
               label={t("profile.notifications.prAlerts")}
               value={notificationPrefs.prAlerts}
               onChange={(v) => handleNotificationToggle("prAlerts", v)}
-            />
-            <NotificationToggleRow
-              icon={<ChartGold width={24} height={24} />}
-              label={t("profile.notifications.weeklySummary")}
-              value={notificationPrefs.weeklySummary}
-              onChange={(v) => handleNotificationToggle("weeklySummary", v)}
             />
           </SettingsCard>
         )}
