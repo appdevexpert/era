@@ -116,9 +116,9 @@ const GetStarted = () => {
       {/* Bottom stack: quote card + slide button */}
       <View style={[styles.bottomStack, { paddingBottom: insets.bottom + 20 }]}>
         {/* Quote Card */}
-        <View style={styles.quoteCard}>
+        {/* <View style={styles.quoteCard}>
           <Text style={styles.quoteText}>{t("getStarted.quote")}</Text>
-        </View>
+        </View> */}
 
         {/* Slide-to-start Button */}
         <View style={styles.button}>

@@ -633,6 +633,24 @@ create table if not exists public.user_exercise_stats (
 );
 
 -- ------------------------------------------------------------
+-- user_program_day_exercise_order (depends on: auth.users, program_days)
+-- Per-user saved ordering of exercises within a single program day. This is a
+-- view-time overlay only — the app reorders exercises on read and NEVER mutates
+-- the shared program_day_exercises template. exercise_order is a JSON array of
+-- program_day_exercises.id values in the user's preferred order.
+-- ------------------------------------------------------------
+create table if not exists public.user_program_day_exercise_order (
+  user_id uuid not null,
+  program_day_id uuid not null,
+  exercise_order jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_program_day_exercise_order_pkey primary key (user_id, program_day_id),
+  constraint user_program_day_exercise_order_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade,
+  constraint user_program_day_exercise_order_program_day_id_fkey foreign key (program_day_id) references public.program_days(id) on delete cascade
+);
+
+-- ------------------------------------------------------------
 -- user_reward_state (depends on: auth.users)
 -- ------------------------------------------------------------
 create table if not exists public.user_reward_state (
@@ -1650,6 +1668,7 @@ create trigger trg_session_cardio_logs_updated_at BEFORE UPDATE ON public.sessio
 create trigger trg_session_exercises_updated_at BEFORE UPDATE ON public.session_exercises FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_session_sets_updated_at BEFORE UPDATE ON public.session_sets FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_user_exercise_stats_updated_at BEFORE UPDATE ON public.user_exercise_stats FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+create trigger trg_user_program_day_exercise_order_updated_at BEFORE UPDATE ON public.user_program_day_exercise_order FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_user_program_assignments_updated_at BEFORE UPDATE ON public.user_program_assignments FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_user_reward_state_updated_at BEFORE UPDATE ON public.user_reward_state FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_user_streak_days_updated_at BEFORE UPDATE ON public.user_streak_days FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -1685,6 +1704,7 @@ alter table public.user_exercise_stats enable row level security;
 alter table public.user_meal_plan_items enable row level security;
 alter table public.user_meal_plans enable row level security;
 alter table public.user_program_assignments enable row level security;
+alter table public.user_program_day_exercise_order enable row level security;
 alter table public.user_reward_state enable row level security;
 alter table public.user_streak_days enable row level security;
 alter table public.water_logs enable row level security;
@@ -1926,6 +1946,16 @@ create policy "user_exercise_stats_admin_all" on public.user_exercise_stats
   using (is_admin())
   with check (is_admin());
 create policy "user_exercise_stats_own_all" on public.user_exercise_stats
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+-- user_program_day_exercise_order
+create policy "user_program_day_exercise_order_admin_all" on public.user_program_day_exercise_order
+  for all to authenticated
+  using (is_admin())
+  with check (is_admin());
+create policy "user_program_day_exercise_order_own_all" on public.user_program_day_exercise_order
   for all to authenticated
   using (user_id = auth.uid())
   with check (user_id = auth.uid());

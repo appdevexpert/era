@@ -196,7 +196,6 @@ export interface ExerciseListExerciseView {
   /** Weight unit for display (kg | lb). */
   weightUnit: string;
   weight?: string;
-  showHandle: boolean;
 }
 
 export interface ExerciseListSectionView {

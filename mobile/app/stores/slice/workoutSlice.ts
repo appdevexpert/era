@@ -3,6 +3,7 @@ import { setProgramStartDate, signOutThunk } from "./authSlice";
 import { loadRewardBootstrap } from "./rewardSlice";
 import { loadWeightBootstrap } from "./weightSlice";
 import {
+  fetchUserExerciseOrders,
   getCompletedSessionSummaries,
   getProgramDayDetail,
   getProgramDayDetailFast,
@@ -35,6 +36,8 @@ export type WorkoutBootstrapData = {
   loadedAt: string;
   versionSignature: string | null;
   assignment: AssignmentRow | null;
+  /** program_day_id → user's preferred ordering of program_day_exercise ids. */
+  userExerciseOrderByDay: Record<string, string[]>;
 };
 
 interface WorkoutState {
@@ -73,6 +76,14 @@ interface WorkoutState {
   /** Active user_program_assignments row — drives cycle 2 + deload UI. */
   assignment: AssignmentRow | null;
   /**
+   * Per-user, per-day exercise ordering overlay. Keyed by program_day_id →
+   * array of program_day_exercise ids in the user's preferred order. Applied
+   * at render time by the mappers; the raw program_day_exercises rows are never
+   * mutated. Persisted so a reorder survives an app kill and drives the resume
+   * flow. Empty/missing key = fall back to the plan's default sort_order.
+   */
+  userExerciseOrderByDay: Record<string, string[]>;
+  /**
    * Monotonic counter bumped once per finishSession (fresh completion OR an
    * edit-mode re-log). Screens that fetch cross-session set history
    * (WeightsScreen via useExerciseSummaries) depend on this so they refetch
@@ -97,6 +108,7 @@ const initialState: WorkoutState = {
   loadedAt: null,
   versionSignature: null,
   assignment: null,
+  userExerciseOrderByDay: {},
   summariesRevision: 0,
 };
 
@@ -208,6 +220,12 @@ export const loadWorkoutBootstrap = createAsyncThunk<
     // downstream UI (mappers, completion detection) can read it.
     const assignment = userId ? await getActiveAssignment(userId) : null;
 
+    // Saved per-day exercise ordering (user drag-and-drop preference). One
+    // round-trip; empty when the user has never reordered anything.
+    const userExerciseOrderByDay = userId
+      ? await fetchUserExerciseOrders(userId)
+      : {};
+
     return {
       userId,
       programId: overview.program.id,
@@ -218,6 +236,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       loadedAt: new Date().toISOString(),
       versionSignature,
       assignment,
+      userExerciseOrderByDay,
     };
   } catch (error) {
     return rejectWithValue(
@@ -446,6 +465,19 @@ const workoutSlice = createSlice({
       state.currentDayDetail = action.payload;
       state.dayDetailsById[action.payload.day.id] = action.payload;
     },
+    /**
+     * Save the user's drag-and-drop exercise ordering for one program day.
+     * Optimistic — dispatched the moment a drag settles; the Supabase upsert
+     * runs in the background via the sync queue. `orderedIds` is the full set
+     * of program_day_exercise ids for that day in the new display order.
+     */
+    setExerciseOrder: (
+      state,
+      action: PayloadAction<{ programDayId: string; orderedIds: string[] }>,
+    ) => {
+      state.userExerciseOrderByDay[action.payload.programDayId] =
+        action.payload.orderedIds;
+    },
   },
   extraReducers: (builder) => {
     builder.addCase(loadWorkoutBootstrap.pending, (state) => {
@@ -485,6 +517,14 @@ const workoutSlice = createSlice({
       state.loadedAt = action.payload.loadedAt;
       state.versionSignature = action.payload.versionSignature;
       state.assignment = action.payload.assignment;
+      // Same local-first rationale as completedDayDurations: a just-made reorder
+      // may still be sitting in the sync queue (not yet on the server). Seed any
+      // unseen days from the server, but let local values win on conflict so an
+      // in-flight optimistic reorder isn't clobbered by a stale server view.
+      state.userExerciseOrderByDay = {
+        ...action.payload.userExerciseOrderByDay,
+        ...state.userExerciseOrderByDay,
+      };
       // Reset the per-day cache (program may have changed) and seed it with
       // today's day so taps on today are also cache hits.
       const today = action.payload.currentDayDetail;
@@ -510,6 +550,7 @@ export const {
   markDayCompleted,
   setCompletedDayDuration,
   setCurrentDayDetail,
+  setExerciseOrder,
   bumpSummariesRevision,
 } = workoutSlice.actions;
 

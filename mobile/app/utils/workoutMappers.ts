@@ -453,9 +453,40 @@ function buildRolledOverSections({
   });
 }
 
+/**
+ * Reorders a single section's exercises to match the user's saved drag-and-drop
+ * order. Drift-safe by design:
+ *   - ids present in `orderOverride` are placed in that saved order,
+ *   - any exercise the override doesn't mention (e.g. an admin added a new one
+ *     after the user last reordered) keeps its default sort_order and lands
+ *     after the known ones — never hidden, never dropped,
+ *   - an empty / missing override falls back to plain sort_order (the plan's
+ *     default, identical to today's behavior).
+ * `orderOverride` is the full day's flat id list; since cross-section drag is
+ * impossible, filtering to one section preserves that section's relative order.
+ */
+function applyExerciseOrder<T extends { id: string; sort_order: number }>(
+  exercises: T[],
+  orderOverride: string[] | undefined,
+): T[] {
+  const sorted = [...exercises].sort((a, b) => a.sort_order - b.sort_order);
+  if (!orderOverride || orderOverride.length === 0) return sorted;
+
+  const rank = new Map(orderOverride.map((id, index) => [id, index] as const));
+  return sorted.sort((a, b) => {
+    const ra = rank.get(a.id);
+    const rb = rank.get(b.id);
+    if (ra != null && rb != null) return ra - rb; // both saved → saved order
+    if (ra != null) return -1; // known before unknown
+    if (rb != null) return 1;
+    return a.sort_order - b.sort_order; // both new → default order
+  });
+}
+
 export function mapExerciseList(
   data: ProgramDayDetailData,
   language: string,
+  orderOverride?: string[],
 ): ExerciseListView {
   const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
     (acc, set) => {
@@ -479,8 +510,9 @@ export function mapExerciseList(
     exerciseCount: data.exercises.filter((exercise) => mainSectionIds.has(exercise.section_id)).length,
     estimatedMinutes: data.day.estimated_minutes ?? 0,
     sections: data.sections.map((section) => {
-      const sectionExercises = data.exercises.filter(
-        (exercise) => exercise.section_id === section.id,
+      const sectionExercises = applyExerciseOrder(
+        data.exercises.filter((exercise) => exercise.section_id === section.id),
+        orderOverride,
       );
 
       return {
@@ -517,7 +549,6 @@ export function mapExerciseList(
             initialWeightKg: Number.isFinite(initialWeightKg) ? initialWeightKg : null,
             weightUnit,
             weight: weight || undefined,
-            showHandle: section.section_kind !== "treadmill_walk",
           };
         }),
       };
@@ -728,7 +759,12 @@ function formatTimeDuration(seconds: number): string {
 export function mapSessionWorkout(
   data: ProgramDayDetailData,
   language: string,
-  options: { isDeloadWeek?: boolean; usesTopSetBackoff?: boolean } = {},
+  options: {
+    isDeloadWeek?: boolean;
+    usesTopSetBackoff?: boolean;
+    /** User's saved per-day exercise ordering (drag-and-drop preference). */
+    orderOverride?: string[];
+  } = {},
 ): SessionWorkout {
   const isDeload = options.isDeloadWeek === true;
   // Rami 2026-06-25: Top Set + Back-off applies only to Male Advanced.
@@ -749,9 +785,10 @@ export function mapSessionWorkout(
   let globalOrder = 0;
 
   const exercises: SessionExercise[] = sortedSections.flatMap((section) => {
-    const sectionExercises = data.exercises
-      .filter((ex) => ex.section_id === section.id)
-      .sort((a, b) => a.sort_order - b.sort_order);
+    const sectionExercises = applyExerciseOrder(
+      data.exercises.filter((ex) => ex.section_id === section.id),
+      options.orderOverride,
+    );
 
     return sectionExercises.map((exercise) => {
       const lib = libraryById.get(exercise.exercise_id);

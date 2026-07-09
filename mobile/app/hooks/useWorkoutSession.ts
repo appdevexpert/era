@@ -159,6 +159,13 @@ export const useWorkoutSession = (programDayId?: string) => {
     const program = state.workout.overview?.program;
     return program?.gender === "male" && program?.level === "advanced";
   });
+  // User's saved exercise ordering for THIS session's day. Keyed by targetDayId
+  // (the resolved programDayId), NOT state.workout.currentDayDetail — same
+  // locked rule as the day resolution above, so the session runs the exercises
+  // in the order the user set for the day they actually selected.
+  const orderOverride = useSelector((state: RootState) =>
+    targetDayId ? state.workout.userExerciseOrderByDay[targetDayId] : undefined,
+  );
 
   const sessionWorkout: SessionWorkout | null = useMemo(
     () =>
@@ -166,9 +173,10 @@ export const useWorkoutSession = (programDayId?: string) => {
         ? mapSessionWorkout(currentDayDetail, i18n.language, {
             isDeloadWeek,
             usesTopSetBackoff,
+            orderOverride,
           })
         : null,
-    [currentDayDetail, i18n.language, isDeloadWeek, usesTopSetBackoff],
+    [currentDayDetail, i18n.language, isDeloadWeek, usesTopSetBackoff, orderOverride],
   );
 
   const totalExercises = sessionWorkout?.exercises.length ?? 0;

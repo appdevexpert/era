@@ -13,6 +13,7 @@ import {
   setFlushing,
 } from "@/app/stores/slice/syncSlice";
 import * as sessionService from "@/app/services/sessionService";
+import * as workoutService from "@/app/services/workoutService";
 import type { SessionExercise, SessionExerciseSet } from "@/app/types/workout";
 import {
   deleteMealLog,
@@ -112,6 +113,16 @@ export const useSyncQueue = () => {
       awardSetPoints: (p) => sessionService.awardPoints(p),
       awardWorkoutPoints: (p) => sessionService.awardPoints(p),
       awardCardioPoints: (p) => sessionService.awardPoints(p),
+
+      // -------- exercise reorder --------------------------------------
+      // Idempotent upsert keyed by (user_id, program_day_id) — a queued retry
+      // just re-writes the same order, so replaying is always safe.
+      upsertExerciseOrder: (p) =>
+        workoutService.upsertExerciseOrder(p as {
+          userId: string;
+          programDayId: string;
+          orderedIds: string[];
+        }),
 
       // -------- nutrition --------------------------------------------
       // These mirror the thunks' write paths but go directly through the

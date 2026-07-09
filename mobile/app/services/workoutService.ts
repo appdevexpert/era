@@ -373,6 +373,62 @@ export async function getCompletedSessionSummaries(
 }
 
 /**
+ * Fetches every saved per-day exercise ordering for a user in one round-trip.
+ * Returns a map of program_day_id → ordered program_day_exercise ids. Used by
+ * the bootstrap to hydrate Redux so ExerciseList / the session flow render the
+ * user's preferred order on first paint. Empty map on failure (order is a
+ * non-critical preference — never block the workout on it).
+ */
+export async function fetchUserExerciseOrders(
+  userId: string,
+): Promise<Record<string, string[]>> {
+  const { data, error } = await supabase
+    .from("user_program_day_exercise_order")
+    .select("program_day_id, exercise_order")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.warn("[fetchUserExerciseOrders]", error.message);
+    return {};
+  }
+
+  const map: Record<string, string[]> = {};
+  for (const row of data ?? []) {
+    const dayId = row.program_day_id as string | null;
+    const order = row.exercise_order;
+    if (dayId && Array.isArray(order)) {
+      map[dayId] = order.filter((id): id is string => typeof id === "string");
+    }
+  }
+  return map;
+}
+
+/**
+ * Upserts a user's exercise ordering for a single program day. Row-level write
+ * keyed by (user_id, program_day_id) — last-write-wins via updated_at, so a
+ * two-device race just keeps the newest order. Idempotent: re-running a queued
+ * retry with the same params is safe.
+ */
+export async function upsertExerciseOrder(params: {
+  userId: string;
+  programDayId: string;
+  orderedIds: string[];
+}): Promise<void> {
+  const { error } = await supabase
+    .from("user_program_day_exercise_order")
+    .upsert(
+      {
+        user_id: params.userId,
+        program_day_id: params.programDayId,
+        exercise_order: params.orderedIds,
+      },
+      { onConflict: "user_id,program_day_id" },
+    );
+
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Returns MAX(updated_at) across all 8 workout-plan tables.
  * Used on app foreground to detect admin-side changes without refetching the
  * whole bootstrap. Returns null on network/RPC failure so callers can silently

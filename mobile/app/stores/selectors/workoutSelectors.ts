@@ -52,8 +52,15 @@ export const buildSessionWorkout = (
   const program = state.workout.overview?.program;
   const usesTopSetBackoff =
     program?.gender === "male" && program?.level === "advanced";
+  const orderOverride = detail
+    ? state.workout.userExerciseOrderByDay[detail.day.id]
+    : undefined;
   return detail
-    ? mapSessionWorkout(detail, language, { isDeloadWeek, usesTopSetBackoff })
+    ? mapSessionWorkout(detail, language, {
+        isDeloadWeek,
+        usesTopSetBackoff,
+        orderOverride,
+      })
     : null;
 };
 

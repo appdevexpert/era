@@ -15,6 +15,7 @@ import { selectUser } from "@/app/stores/selectors/authSelectors";
 import {
   loadProgramDayDetail,
   loadWorkoutBootstrap,
+  setExerciseOrder,
 } from "@/app/stores/slice/workoutSlice";
 import { useAppDispatch, type RootState } from "@/app/stores/store";
 import type {
@@ -41,13 +42,23 @@ import type { SetFeedbackValue } from "@/app/utils/setSuggestion";
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Haptics from "expo-haptics";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  NestedReorderableList,
+  ScrollViewContainer,
+  useIsActive,
+  useReorderableDrag,
+  type ReorderableListReorderEvent,
+} from "react-native-reorderable-list";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "@/assets/icons";
+import { useSyncQueue } from "@/app/hooks/useSyncQueue";
+import { upsertExerciseOrder } from "@/app/services/workoutService";
 
 const ReorderIcon = () => (
   <View style={styles.reorderIcon}>
@@ -106,18 +117,23 @@ const ExerciseRow = ({
   exercise,
   mode,
   stats,
+  handle,
+  active,
 }: {
   exercise: ExerciseListExerciseView;
   mode: DayStatus;
   /** user_exercise_stats row keyed by this exercise's library id. */
   stats?: UserExerciseStat;
+  /** Drag handle element, supplied only by the reorderable variant. */
+  handle?: ReactNode;
+  /** True while this row is the one being dragged — applies the lift style. */
+  active?: boolean;
 }) => {
   const { t } = useTranslation();
   // Smart Weight suggestion is Standard+ — free users always see the
   // program's initial weight, never the history-derived recommendation.
   const { hasStandard } = useEntitlement();
   const showWeight = mode === "active" || mode === "future";
-  const showHandle = exercise.showHandle && mode === "active";
 
   const suggestion = getSuggestedExerciseWeight({
     initialWeightKg: exercise.initialWeightKg,
@@ -140,8 +156,8 @@ const ExerciseRow = ({
       : t("workout.ui.initialWeight");
 
   return (
-    <View style={styles.exerciseRow}>
-      {showHandle ? <ReorderIcon /> : null}
+    <View style={[styles.exerciseRow, active && styles.exerciseRowActive]}>
+      {handle ?? null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
           {exercise.name}
@@ -245,11 +261,102 @@ const ExerciseSection = ({
   </View>
 );
 
+/* ─── Reorderable exercise row + section (active + not-started only) ─── */
+
+/**
+ * A draggable exercise row. Lives inside a NestedReorderableList item, so it can
+ * use the reorderable-list hooks. The ≡ handle triggers the drag on long-press
+ * (with a light haptic); the whole row lifts while it's the active item.
+ */
+const ReorderableExerciseRow = ({
+  exercise,
+  stats,
+  canReorder,
+}: {
+  exercise: ExerciseListExerciseView;
+  stats?: UserExerciseStat;
+  canReorder: boolean;
+}) => {
+  const drag = useReorderableDrag();
+  const isActive = useIsActive();
+
+  const handle = canReorder ? (
+    <Pressable
+      hitSlop={12}
+      delayLongPress={180}
+      onLongPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        drag();
+      }}
+      style={styles.handlePress}
+    >
+      <ReorderIcon />
+    </Pressable>
+  ) : undefined;
+
+  return (
+    <ExerciseRow
+      exercise={exercise}
+      mode="active"
+      stats={stats}
+      handle={handle}
+      active={isActive}
+    />
+  );
+};
+
+/**
+ * One reorderable section (Exercises / Finisher / Treadmill). Each section is
+ * its own list, so a drag can NEVER cross section boundaries. The handle only
+ * appears when there are 2+ exercises to shuffle between.
+ */
+const ReorderableExerciseSection = ({
+  section,
+  statsByExerciseId,
+  onReorder,
+}: {
+  section: ExerciseListSectionView;
+  statsByExerciseId: Map<string, UserExerciseStat>;
+  onReorder: (event: ReorderableListReorderEvent) => void;
+}) => {
+  const canReorder = section.exercises.length > 1;
+  return (
+    <View style={styles.section}>
+      <SectionHeader title={section.title} />
+      <NestedReorderableList
+        data={section.exercises}
+        scrollable={false}
+        // The inner list must never scroll itself — the outer ScrollViewContainer
+        // owns scrolling (and drag auto-scroll targets the container). Setting
+        // scrollEnabled={false} is both correct here AND satisfies RN's
+        // "VirtualizedList nested in ScrollView" guard (which only fires when the
+        // inner list's scrollEnabled !== false), so no console error is logged.
+        scrollEnabled={false}
+        onReorder={onReorder}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <View>
+            <ReorderableExerciseRow
+              exercise={item}
+              stats={statsByExerciseId.get(item.exerciseLibraryId)}
+              canReorder={canReorder}
+            />
+            {index < section.exercises.length - 1 ? (
+              <View style={styles.divider} />
+            ) : null}
+          </View>
+        )}
+      />
+    </View>
+  );
+};
+
 const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseList">>();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
+  const { syncWrite } = useSyncQueue();
   const { t, i18n } = useTranslation();
   const user = useSelector(selectUser);
   const currentDayDetail = useSelector(selectCurrentDayDetail);
@@ -283,9 +390,19 @@ const ExerciseListScreen = () => {
       : !requestedDayId
         ? currentDayDetail
         : null);
+  // User's saved drag-and-drop ordering for the resolved day. Feeds the mapper
+  // so both the list and (via the session mappers) the actual workout run in
+  // the user's order. Keyed by the resolved day id, never a bootstrap fallback.
+  const activeDayId = activeDayDetail?.day.id;
+  const orderOverride = useSelector((state: RootState) =>
+    activeDayId ? state.workout.userExerciseOrderByDay[activeDayId] : undefined,
+  );
   const workout = useMemo(
-    () => (activeDayDetail ? mapExerciseList(activeDayDetail, i18n.language) : null),
-    [activeDayDetail, i18n.language],
+    () =>
+      activeDayDetail
+        ? mapExerciseList(activeDayDetail, i18n.language, orderOverride)
+        : null,
+    [activeDayDetail, i18n.language, orderOverride],
   );
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && !activeDayDetail,
@@ -541,6 +658,105 @@ const ExerciseListScreen = () => {
   const showStatsRow = dayStatus !== "missed";
   const dataReady = workout && !shouldLoadRequestedDay;
 
+  // Reorder is editable ONLY on an active day whose workout hasn't started yet
+  // (buttonMode "start"). Gated on summaryLoaded so the handle doesn't flash in
+  // and then disappear once we learn a session already exists. The per-section
+  // "2+ exercises" check happens inside ReorderableExerciseSection.
+  const reorderEnabled =
+    dayStatus === "active" &&
+    Boolean(dataReady) &&
+    summaryLoaded &&
+    buttonMode === "start";
+
+  const handleReorder = useCallback(
+    (sectionId: string, { from, to }: ReorderableListReorderEvent) => {
+      if (from === to || !workout || !activeDayDetail || !user?.id) return;
+      const programDayId = activeDayDetail.day.id;
+      const userId = user.id;
+
+      // Reorder the dragged section's ids; keep every other section untouched;
+      // flatten to the full day order. Cross-section drag can't happen (one list
+      // per section), so this always preserves section grouping.
+      const orderedIds = workout.sections.flatMap((s) => {
+        const ids = s.exercises.map((e) => e.id);
+        if (s.id !== sectionId) return ids;
+        const next = [...ids];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        return next;
+      });
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Local-first: Redux updates instantly (the row already settled on screen),
+      // then the Supabase upsert runs in the background with sync-queue retry.
+      dispatch(setExerciseOrder({ programDayId, orderedIds }));
+      syncWrite(
+        "upsertExerciseOrder",
+        { userId, programDayId, orderedIds },
+        () => upsertExerciseOrder({ userId, programDayId, orderedIds }),
+      );
+    },
+    [workout, activeDayDetail, user?.id, dispatch, syncWrite],
+  );
+
+  const bottomButton =
+    showStartButton && dataReady && summaryLoaded ? (
+      <>
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.92)"]}
+          locations={[0, 0.58]}
+          style={styles.bottomFade}
+        />
+        <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
+          <PrimaryButton label={buttonLabel} onPress={handlePrimaryAction} />
+        </View>
+      </>
+    ) : null;
+
+  // Active + not-started → dedicated reorderable render (drag to change order).
+  // Every other state (resume, completed, missed, future, loading, error) falls
+  // through to the standard render below, completely unchanged.
+  if (reorderEnabled && workout) {
+    return (
+      <View style={styles.root}>
+        <View pointerEvents="none" style={styles.topFade} />
+        <ScrollViewContainer
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + verticalScale(130),
+              paddingBottom: insets.bottom + verticalScale(132),
+            },
+          ]}
+        >
+          {showStatsRow ? (
+            <View style={styles.statsRow}>
+              <StatCard
+                value={String(workout.exerciseCount)}
+                label={t("workout.ui.exercisesLabel")}
+              />
+              <StatCard
+                value={String(workout.estimatedMinutes)}
+                label={t("workout.ui.minutesLabel")}
+              />
+            </View>
+          ) : null}
+          {workout.sections.map((section) => (
+            <ReorderableExerciseSection
+              key={section.id}
+              section={section}
+              statsByExerciseId={statsByExerciseId}
+              onReorder={(event) => handleReorder(section.id, event)}
+            />
+          ))}
+        </ScrollViewContainer>
+        {bottomButton}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <View pointerEvents="none" style={styles.topFade} />
@@ -656,19 +872,7 @@ const ExerciseListScreen = () => {
         )}
       </ScrollView>
 
-      {showStartButton && dataReady && summaryLoaded ? (
-        <>
-          <LinearGradient
-            pointerEvents="none"
-            colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.92)"]}
-            locations={[0, 0.58]}
-            style={styles.bottomFade}
-          />
-          <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
-            <PrimaryButton label={buttonLabel} onPress={handlePrimaryAction} />
-          </View>
-        </>
-      ) : null}
+      {bottomButton}
     </View>
   );
 };
@@ -799,6 +1003,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  // Applied to the single row being dragged — a subtle "lifted card" on the
+  // dark surface (lighter fill + rounded corners + shadow).
+  exerciseRowActive: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginHorizontal: -12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  handlePress: {
+    paddingRight: 4,
+    justifyContent: "center",
   },
   reorderIcon: {
     width: 24,

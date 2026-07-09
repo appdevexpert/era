@@ -33,6 +33,7 @@ const workoutPersistConfig = {
     "loadedAt",
     "versionSignature",
     "assignment",
+    "userExerciseOrderByDay",
   ],
 };
 const nutritionPersistConfig = {
