@@ -26,7 +26,7 @@ import {
   FireGold,
   IconBolt,
   InfoCircleGold,
-  MedalPrRed,
+  MedalPrGold,
   //MedalBadge,
   ProfileBackChevron,
   SettingChevronRight,
@@ -310,7 +310,7 @@ const ProfileScreen = () => {
               onChange={(v) => handleNotificationToggle("streakWarning", v)}
             />
             <NotificationToggleRow
-              icon={<MedalPrRed width={24} height={24} />}
+              icon={<MedalPrGold width={28} height={15} />}
               label={t("profile.notifications.prAlerts")}
               value={notificationPrefs.prAlerts}
               onChange={(v) => handleNotificationToggle("prAlerts", v)}

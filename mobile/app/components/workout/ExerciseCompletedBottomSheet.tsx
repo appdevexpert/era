@@ -273,18 +273,40 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
       [footerStyle, handleContinue, handleFooterLayout, insets.bottom, keyboardVisible, t],
     );
 
+    // Rest snap point derived synchronously from set count so the sheet opens at the correct
+    // height on its FIRST present() — no waiting for onContentSizeChange (which arrives AFTER
+    // the initial snap). Heights below match the styles below; keep them in sync.
+    const restSnap = useMemo(() => {
+      const rows = Math.max(1, Math.ceil(sets.length / 3));
+      const setsRowHeight = rows * 65 + (rows - 1) * 8; // setCard ~65 tall, gap 8
+      const contentHeight =
+        24 + // handle
+        70 + // title container (title 26 + paddingBottom 20 + border 1 + spacing)
+        20 + // gap
+        setsRowHeight +
+        20 + // gap
+        180 + // AddComment (label 19 + gap 8 + inputCard 144 + spacing)
+        20 + // gap
+        53 + // Continue button
+        20 + // content paddingBottom
+        (insets.bottom || 20); // safe-area bottom
+      return Math.round(
+        Math.min(Math.max(contentHeight, 400), windowHeight * 0.85),
+      );
+    }, [sets.length, insets.bottom, windowHeight]);
+
+    const snapPoints = useMemo<(string | number)[]>(() => [restSnap, "90%"], [restSnap]);
+
     return (
       <BottomSheetModal
         ref={sheetRef}
         enablePanDownToClose
-        // Dynamic sizing → the sheet opens at its content-fit height (no dead space
-        // below Continue). maxDynamicContentSize caps content-fit below the 90%
-        // detent so it always stays index 0 → snapToIndex(0) reliably returns to
-        // the content-fit height when the keyboard closes. On keyboard open we
-        // expand() to the 90% detent so Continue pins just above the keyboard.
-        snapPoints={["90%"]}
-        enableDynamicSizing
-        maxDynamicContentSize={windowHeight * 0.85}
+        // Fixed detents (no dynamic sizing) driven by measured content height so 3 / 5 / 10-set
+        // variants each open exactly at their needed size. 90% is the keyboard-open detent.
+        // Dynamic sizing was fighting the animated keyboard spacer: spacer growth changed content
+        // height, gorhom recomputed target, that race squished AddComment when content was tall.
+        // snapToIndex(0) on keyboard-hide returns to the measured rest snap.
+        snapPoints={snapPoints}
         keyboardBehavior="extend"
         keyboardBlurBehavior="restore"
         android_keyboardInputMode="adjustResize"

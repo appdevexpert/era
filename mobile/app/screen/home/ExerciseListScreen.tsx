@@ -48,7 +48,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   NestedReorderableList,
   ScrollViewContainer,
-  useIsActive,
   useReorderableDrag,
   type ReorderableListReorderEvent,
 } from "react-native-reorderable-list";
@@ -118,7 +117,6 @@ const ExerciseRow = ({
   mode,
   stats,
   handle,
-  active,
 }: {
   exercise: ExerciseListExerciseView;
   mode: DayStatus;
@@ -126,8 +124,6 @@ const ExerciseRow = ({
   stats?: UserExerciseStat;
   /** Drag handle element, supplied only by the reorderable variant. */
   handle?: ReactNode;
-  /** True while this row is the one being dragged — applies the lift style. */
-  active?: boolean;
 }) => {
   const { t } = useTranslation();
   // Smart Weight suggestion is Standard+ — free users always see the
@@ -156,7 +152,7 @@ const ExerciseRow = ({
       : t("workout.ui.initialWeight");
 
   return (
-    <View style={[styles.exerciseRow, active && styles.exerciseRowActive]}>
+    <View style={styles.exerciseRow}>
       {handle ?? null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
@@ -266,7 +262,7 @@ const ExerciseSection = ({
 /**
  * A draggable exercise row. Lives inside a NestedReorderableList item, so it can
  * use the reorderable-list hooks. The ≡ handle triggers the drag on long-press
- * (with a light haptic); the whole row lifts while it's the active item.
+ * (with a light haptic); the lift/settle animation is the library's default.
  */
 const ReorderableExerciseRow = ({
   exercise,
@@ -278,7 +274,6 @@ const ReorderableExerciseRow = ({
   canReorder: boolean;
 }) => {
   const drag = useReorderableDrag();
-  const isActive = useIsActive();
 
   const handle = canReorder ? (
     <Pressable
@@ -294,15 +289,7 @@ const ReorderableExerciseRow = ({
     </Pressable>
   ) : undefined;
 
-  return (
-    <ExerciseRow
-      exercise={exercise}
-      mode="active"
-      stats={stats}
-      handle={handle}
-      active={isActive}
-    />
-  );
+  return <ExerciseRow exercise={exercise} mode="active" stats={stats} handle={handle} />;
 };
 
 /**
@@ -382,6 +369,16 @@ const ExerciseListScreen = () => {
   // from Supabase; finishSession writes through it optimistically.
   const cachedCompletedDurationMinutes = useSelector((state: RootState) =>
     requestedDayId ? state.workout.completedDayDurations[requestedDayId] : undefined,
+  );
+  // Synchronous "has this day's workout started?" signals — both are persisted
+  // in Redux, so they're available on the very first render (no network). Used
+  // to decide the reorder handle instantly instead of waiting on
+  // getDaySessionSummary (which caused the ~1s delay + branch-switch flicker).
+  const completedDayIds = useSelector(
+    (state: RootState) => state.workout.completedDayIds,
+  );
+  const activeSessionDayId = useSelector((state: RootState) =>
+    state.session.sessionId ? state.session.programDayId : null,
   );
   const activeDayDetail =
     cachedDayDetail ??
@@ -658,15 +655,20 @@ const ExerciseListScreen = () => {
   const showStatsRow = dayStatus !== "missed";
   const dataReady = workout && !shouldLoadRequestedDay;
 
-  // Reorder is editable ONLY on an active day whose workout hasn't started yet
-  // (buttonMode "start"). Gated on summaryLoaded so the handle doesn't flash in
-  // and then disappear once we learn a session already exists. The per-section
+  // Reorder is editable ONLY on an active day whose workout hasn't started yet.
+  // We derive "not started" SYNCHRONOUSLY from Redux — a day is "start" state
+  // when it's neither completed (completedDayIds) nor has an in-progress session
+  // (session slice). Both are persisted, so this is known on the first render:
+  // the handle appears instantly (no getDaySessionSummary wait) and the decision
+  // is stable, so there's no branch-switch flicker. A brand-new user has empty
+  // completedDayIds + no session → correctly resolves to "start". The per-section
   // "2+ exercises" check happens inside ReorderableExerciseSection.
+  const isStartState =
+    !!activeDayId &&
+    !completedDayIds.includes(activeDayId) &&
+    activeSessionDayId !== activeDayId;
   const reorderEnabled =
-    dayStatus === "active" &&
-    Boolean(dataReady) &&
-    summaryLoaded &&
-    buttonMode === "start";
+    dayStatus === "active" && Boolean(dataReady) && isStartState;
 
   const handleReorder = useCallback(
     (sectionId: string, { from, to }: ReorderableListReorderEvent) => {
@@ -1003,19 +1005,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-  },
-  // Applied to the single row being dragged — a subtle "lifted card" on the
-  // dark surface (lighter fill + rounded corners + shadow).
-  exerciseRowActive: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginHorizontal: -12,
-    shadowColor: "#000000",
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
   handlePress: {
     paddingRight: 4,

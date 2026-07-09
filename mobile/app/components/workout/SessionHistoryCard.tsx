@@ -1,6 +1,6 @@
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
-import { MedalPrRed } from "@/assets/icons";
+import { MedalPrGold } from "@/assets/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -36,9 +36,8 @@ interface SessionHistoryCardProps {
 const POSITIVE = "#3DCA7A";
 const NEGATIVE = "#E67777";
 
-// Default PR badge — red-ribboned gold star medal. Renders at its natural ~38×72 ratio
-// and is pulled up slightly so the ribbon top edge sits above the card.
-const DefaultBadge = () => <MedalPrRed width={38} height={72} />;
+// Default PR badge — purple-ribboned gold medal (Figma "Award 6"). Renders at its natural ~83×44 ratio.
+const DefaultBadge = () => <MedalPrGold width={83} height={45} />;
 
 /**
  * Session history row used inside the Exercise History screen.
@@ -74,7 +73,8 @@ const SessionHistoryCard = ({
       {showBadge ? (
         <View style={styles.gradientClip} pointerEvents="none">
           <LinearGradient
-            colors={["rgba(17,17,17,0)", "rgba(201,168,76,0.30)"]}
+            colors={["rgba(17,17,17,0)", "rgba(17,17,17,0)", "rgba(201,168,76,0.30)"]}
+            locations={[0, 0.17143, 1]}
             start={{ x: 0, y: 0.5 }}
             end={{ x: 1, y: 0.5 }}
             style={styles.badgeGradient}
@@ -115,10 +115,9 @@ const styles = StyleSheet.create({
     gap: 20,
     overflow: "hidden",
   },
-  // overflow:visible lets the medal's ribbon hang above the card top edge to match Figma.
+  // Reserve right-side space for the wide gold medal (~83px wide).
   cardWithBadge: {
-    overflow: "visible",
-    paddingRight: 60,
+    paddingRight: 100,
   },
   // Clips the gold gradient to the card's rounded corners since the card itself is overflow:visible.
   gradientClip: {
@@ -148,8 +147,8 @@ const styles = StyleSheet.create({
   },
   weight: {
     fontFamily: FONTS.semiBold,
-    fontSize: 22,
-    lineHeight: 26.4,
+    fontSize: 24,
+    lineHeight: 28.8,
     fontWeight: "600",
     color: "#FFFFFF",
   },
@@ -160,13 +159,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.56,
     textTransform: "uppercase",
   },
-  // Medal sits absolutely on the right; top:-5 mirrors the Figma offset so the ribbon overhangs the card.
+  // Wide gold medal sits centered on the right side of the row (Figma "Award 6", right:3.02 vertically centered).
   badgeSlot: {
     position: "absolute",
-    right: 16,
-    top: -5,
-    width: 38,
-    height: 72,
+    right: 3,
+    top: 0,
+    bottom: 0,
+    width: 83,
     alignItems: "center",
     justifyContent: "center",
   },

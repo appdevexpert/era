@@ -31,11 +31,20 @@ never mutated. The order is stored separately and applied on read by the mappers
 The handle appears **only** when **all** of these are true:
 
 1. `dayStatus === "active"` (today's current day),
-2. the workout has **not started yet** (`buttonMode === "start"` — the button
-   still says "Start Now", no session exists),
-3. the section has **2+ exercises** (nothing to reorder with a single exercise),
-4. `summaryLoaded === true` (so the handle doesn't flash in and then disappear
-   once we learn a session already exists).
+2. the workout has **not started yet** — derived **synchronously from Redux**
+   (`isStartState`): the day is NOT in `completedDayIds` AND has no in-progress
+   session (`session` slice `programDayId` doesn't match). No network wait.
+3. the section has **2+ exercises** (nothing to reorder with a single exercise).
+
+**Why Redux, not the network:** the handle used to wait on `getDaySessionSummary`
+(`summaryLoaded`), which caused a ~1s delay and a branch-switch flicker (the
+`ScrollView` → `ScrollViewContainer` swap when the flag flipped). `completedDayIds`
++ the `session` slice are both **persisted**, so "has this day started?" is known
+on the first render — the handle is instant and its value is stable (no flip → no
+flicker), with no flash-then-hide (completedDayIds covers the completed-today case).
+A brand-new user has empty `completedDayIds` + no session → correctly "start". The
+Start/Resume/Start-Again **button** still uses `getDaySessionSummary` for its label,
+but that no longer gates the handle and never remounts the list.
 
 In every other state the handle is hidden:
 
