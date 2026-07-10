@@ -1,9 +1,9 @@
 import { FONTS } from "@/app/constants/fonts";
 import { useWeightUnit } from "@/app/hooks/useWeightUnit";
-import { MedalPrGold } from "@/assets/icons";
+import { LeaderboardTrophy } from "@/assets/images";
 import { LinearGradient } from "expo-linear-gradient";
 import { ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 
 export interface SessionDelta {
   /** Absolute difference vs the previous session — kg or seconds depending on `metricKind`. */
@@ -36,8 +36,9 @@ interface SessionHistoryCardProps {
 const POSITIVE = "#3DCA7A";
 const NEGATIVE = "#E67777";
 
-// Default PR badge — purple-ribboned gold medal (Figma "Award 6"). Renders at its natural ~83×44 ratio.
-const DefaultBadge = () => <MedalPrGold width={83} height={45} />;
+const DefaultBadge = () => (
+  <Image source={LeaderboardTrophy} style={styles.trophyBadge} resizeMode="contain" />
+);
 
 /**
  * Session history row used inside the Exercise History screen.
@@ -115,9 +116,9 @@ const styles = StyleSheet.create({
     gap: 20,
     overflow: "hidden",
   },
-  // Reserve right-side space for the wide gold medal (~83px wide).
+  // Reserve right-side space for the 60×60 trophy badge.
   cardWithBadge: {
-    paddingRight: 100,
+    paddingRight: 80,
   },
   // Clips the gold gradient to the card's rounded corners since the card itself is overflow:visible.
   gradientClip: {
@@ -159,14 +160,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.56,
     textTransform: "uppercase",
   },
-  // Wide gold medal sits centered on the right side of the row (Figma "Award 6", right:3.02 vertically centered).
+  // Trophy sits centered on the right side of the row.
   badgeSlot: {
     position: "absolute",
-    right: 3,
+    right: 10,
     top: 0,
     bottom: 0,
-    width: 83,
+    width: 60,
     alignItems: "center",
     justifyContent: "center",
+  },
+  trophyBadge: {
+    width: 60,
+    height: 60,
   },
 });

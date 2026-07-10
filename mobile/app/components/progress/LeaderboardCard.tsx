@@ -1,8 +1,9 @@
 import GlassFill from "@/app/components/common/GlassFill";
 import { FONTS } from "@/app/constants/fonts";
-import { ChevronRight, MedalPrGold } from "@/assets/icons";
+import { LeaderboardChevron } from "@/assets/icons";
+import { LeaderboardTrophy } from "@/assets/images";
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
@@ -35,8 +36,11 @@ const LeaderboardCard = ({ onPress }: LeaderboardCardProps) => {
           <Text style={styles.title}>{t("progress.leaderboard")}</Text>
           <Text style={styles.eyebrow}>{t("progress.leaderboardEyebrow")}</Text>
         </View>
-        <MedalPrGold width={83} height={45} />
-        <ChevronRight width={15} height={22} color="#F0F0F0" />
+        <LeaderboardChevron width={14.667} height={22} />
+      </View>
+
+      <View style={styles.trophyWrap} pointerEvents="none">
+        <Image source={LeaderboardTrophy} style={styles.trophy} resizeMode="contain" />
       </View>
     </PressableScale>
   );
@@ -50,16 +54,14 @@ const styles = StyleSheet.create({
     padding: 16,
     minHeight: 78,
     justifyContent: "center",
-    // overflow:visible so the medal ribbon can hang above the card top edge (matches Figma).
   },
-  // Clips background layers (glass + gold gradient) to the card's rounded corners.
   bgClip: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 16,
     overflow: "hidden",
   },
   glass: { borderRadius: 16 },
-  row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  row: { flexDirection: "row", alignItems: "center", gap: 8 },
   textCol: { flex: 1, gap: 8 },
   title: {
     fontFamily: FONTS.display,
@@ -75,5 +77,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.48,
     textTransform: "uppercase",
     lineHeight: 14.4,
+  },
+  trophyWrap: {
+    position: "absolute",
+    right: 40,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+  },
+  trophy: {
+    width: 60,
+    height: 60,
   },
 });
