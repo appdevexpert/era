@@ -212,6 +212,9 @@ const WorkoutLogScreen = () => {
 
   /** Complete Exercise (last set) → log once + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
+    // Drop the keyboard from any focused Set-N input first, otherwise the sheet's
+    // keyboardBehavior="extend" opens it at the 90% detent instead of restSnap.
+    Keyboard.dismiss();
     if (lastSetLogged.current) {
       sheetRef.current?.present();
       return;
