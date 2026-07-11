@@ -3,6 +3,8 @@
 import React, {
   type ReactElement,
   type ReactNode,
+  createContext,
+  useContext,
   useMemo,
   useState,
 } from "react";
@@ -100,6 +102,10 @@ function Hidden({ name, value }: { name: string; value: string | number | null |
   return <input type="hidden" name={name} value={value ?? ""} />;
 }
 
+// Lets any form/button rendered inside a BuilderDialog close it after a
+// successful action — no prop-drilling through the many builder dialogs.
+const DialogCloseContext = createContext<() => void>(() => {});
+
 function BuilderDialog({
   title,
   description,
@@ -115,15 +121,29 @@ function BuilderDialog({
   onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 }) {
+  // Controlled when the caller passes `open`; otherwise manages its own state
+  // (trigger-based dialogs) so it can still close itself after a save/delete.
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const actualOpen = isControlled ? open : internalOpen;
+
+  const setOpen = (next: boolean) => {
+    if (isControlled) onOpenChange?.(next);
+    else setInternalOpen(next);
+  };
+  const close = () => setOpen(false);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={actualOpen} onOpenChange={setOpen}>
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="font-sans">{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        {children}
+        <DialogCloseContext.Provider value={close}>
+          {children}
+        </DialogCloseContext.Provider>
       </DialogContent>
     </Dialog>
   );
@@ -150,13 +170,17 @@ function ActionForm({
   children: ReactNode;
   className?: string;
 }) {
-  const { handleSubmit, pending } = useFormAction(action, { success: successMessage });
+  const close = useContext(DialogCloseContext);
+  const { handleSubmit, pending } = useFormAction(action, {
+    success: successMessage,
+    onSuccess: close,
+  });
   return (
     <form onSubmit={handleSubmit} className={className ?? "grid gap-4"}>
       {children}
       <SubmitRow>
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving..." : submitLabel}
+        <Button type="submit" loading={pending}>
+          {submitLabel}
         </Button>
       </SubmitRow>
     </form>
@@ -188,9 +212,54 @@ function DefaultSectionsButton({ programId, dayId }: { programId: string; dayId:
   }
 
   return (
-    <Button type="button" variant="secondary" size="sm" disabled={pending} onClick={handleClick}>
-      <HugeiconsIcon icon={Layers01Icon} size={16} strokeWidth={1.8} />
-      {pending ? "Adding..." : "Add default sections"}
+    <Button type="button" variant="secondary" size="sm" loading={pending} onClick={handleClick}>
+      {!pending && <HugeiconsIcon icon={Layers01Icon} size={16} strokeWidth={1.8} />}
+      Add default sections
+    </Button>
+  );
+}
+
+// Delete confirm button used inside a BuilderDialog — closes the dialog on
+// success via the DialogCloseContext.
+function ConfirmDeleteButton({
+  action,
+  formFields,
+  label,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  formFields: Record<string, string>;
+  label: string;
+}) {
+  const close = useContext(DialogCloseContext);
+  const [pending, setPending] = useState(false);
+  const toastManager = Toast.useToastManager();
+
+  async function handleDelete() {
+    setPending(true);
+    try {
+      const fd = new FormData();
+      for (const [key, val] of Object.entries(formFields)) fd.set(key, val);
+      await action(fd);
+      toastManager.add({
+        type: "success",
+        title: `${label.charAt(0).toUpperCase() + label.slice(1)} deleted`,
+      });
+      close();
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "digest" in err) throw err;
+      toastManager.add({
+        type: "error",
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "An unexpected error occurred.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <Button type="button" variant="destructive" loading={pending} onClick={handleDelete}>
+      Delete {label}
     </Button>
   );
 }
@@ -207,32 +276,6 @@ function DeleteButton({
   programId: string;
   label: string;
 } & Omit<React.ComponentProps<typeof Button>, "type">) {
-  const [pending, setPending] = useState(false);
-  const toastManager = Toast.useToastManager();
-
-  async function handleDelete() {
-    setPending(true);
-    try {
-      const fd = new FormData();
-      fd.set("id", id);
-      fd.set("program_id", programId);
-      await action(fd);
-      toastManager.add({
-        type: "success",
-        title: `${label.charAt(0).toUpperCase() + label.slice(1)} deleted`,
-      });
-    } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err;
-      toastManager.add({
-        type: "error",
-        title: "Delete failed",
-        description: err instanceof Error ? err.message : "An unexpected error occurred.",
-      });
-    } finally {
-      setPending(false);
-    }
-  }
-
   return (
     <BuilderDialog
       title={`Delete ${label}?`}
@@ -245,9 +288,11 @@ function DeleteButton({
     >
       <div className="grid gap-4">
         <SubmitRow>
-          <Button type="button" variant="destructive" disabled={pending} onClick={handleDelete}>
-            {pending ? "Deleting..." : `Delete ${label}`}
-          </Button>
+          <ConfirmDeleteButton
+            action={action}
+            formFields={{ id, program_id: programId }}
+            label={label}
+          />
         </SubmitRow>
       </div>
     </BuilderDialog>
@@ -470,8 +515,8 @@ function DeleteDayDialog({
           >
             Cancel
           </Button>
-          <Button type="button" variant="destructive" disabled={pending} onClick={handleDelete}>
-            {pending ? "Deleting..." : "Delete day"}
+          <Button type="button" variant="destructive" loading={pending} onClick={handleDelete}>
+            Delete day
           </Button>
         </SubmitRow>
       </div>

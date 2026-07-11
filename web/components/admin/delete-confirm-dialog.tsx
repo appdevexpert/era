@@ -91,15 +91,15 @@ export function DeleteConfirmDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" disabled={pending} onClick={onClose}>
             Cancel
           </Button>
           <Button
             variant="destructive"
-            disabled={pending}
+            loading={pending}
             onClick={handleDelete}
           >
-            {pending ? "Deleting..." : `Delete ${target?.type}`}
+            Delete {target?.type}
           </Button>
         </DialogFooter>
       </DialogContent>

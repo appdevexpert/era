@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
 import { FormField, SelectField } from "@/components/admin/form-field";
 import { Button } from "@/components/ui/button";
@@ -33,12 +33,14 @@ export function ExerciseFormDialog({
   defaultOpen?: boolean;
 }) {
   const isEditing = Boolean(exercise);
+  const [open, setOpen] = useState(defaultOpen);
   const { handleSubmit, pending } = useFormAction(saveExercise, {
     success: isEditing ? "Exercise updated" : "Exercise created",
+    onSuccess: () => setOpen(false),
   });
 
   return (
-    <Dialog defaultOpen={defaultOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
@@ -102,8 +104,8 @@ export function ExerciseFormDialog({
           </div>
 
           <div className="flex justify-end border-t border-border pt-4">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving..." : isEditing ? "Save changes" : "Create exercise"}
+            <Button type="submit" loading={pending}>
+              {isEditing ? "Save changes" : "Create exercise"}
             </Button>
           </div>
         </form>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
 import { FormField, OptionSelectField } from "@/components/admin/form-field";
 import { Button } from "@/components/ui/button";
@@ -48,12 +48,14 @@ export function ProgramFormDialog({
   defaultOpen?: boolean;
 }) {
   const isEditing = Boolean(program);
+  const [open, setOpen] = useState(defaultOpen);
   const { handleSubmit, pending } = useFormAction(saveProgram, {
     success: isEditing ? "Program updated" : "Program created",
+    onSuccess: () => setOpen(false),
   });
 
   return (
-    <Dialog defaultOpen={defaultOpen}>
+    <Dialog open={open} onOpenChange={setOpen}>
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
@@ -115,8 +117,8 @@ export function ProgramFormDialog({
           </div>
 
           <div className="flex justify-end border-t border-border pt-4">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving..." : isEditing ? "Save changes" : "Create program"}
+            <Button type="submit" loading={pending}>
+              {isEditing ? "Save changes" : "Create program"}
             </Button>
           </div>
         </form>

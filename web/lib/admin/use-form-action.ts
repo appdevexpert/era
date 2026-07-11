@@ -9,7 +9,7 @@ import { Toast } from "@base-ui/react/toast"
  */
 export function useFormAction(
   action: (formData: FormData) => Promise<void>,
-  options: { success: string },
+  options: { success: string; onSuccess?: () => void },
 ) {
   const [pending, setPending] = useState(false)
   const toastManager = Toast.useToastManager()
@@ -22,6 +22,7 @@ export function useFormAction(
         const fd = new FormData(e.currentTarget)
         await action(fd)
         toastManager.add({ type: "success", title: options.success })
+        options.onSuccess?.()
       } catch (err: unknown) {
         if (err && typeof err === "object" && "digest" in err) throw err
         toastManager.add({
@@ -33,7 +34,7 @@ export function useFormAction(
         setPending(false)
       }
     },
-    [action, options.success, toastManager],
+    [action, options, toastManager],
   )
 
   return { handleSubmit, pending }
