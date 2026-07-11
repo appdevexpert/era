@@ -1,21 +1,13 @@
 "use server";
 
-import { randomUUID } from "crypto";
-
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import {
-  SESSION_COOKIE,
-  getDummyAdminEmail,
-  getDummyAdminPassword,
-} from "@/lib/auth/session";
+import { getAdminRecord } from "@/lib/auth/admin-access";
+import { createClient } from "@/lib/supabase/server";
 
 export type SignInState = {
   error: string | null;
 };
-
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export async function signIn(
   _prev: SignInState,
@@ -29,18 +21,23 @@ export async function signIn(
     return { error: "Email and password are required." };
   }
 
-  if (email !== getDummyAdminEmail() || password !== getDummyAdminPassword()) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error || !data.user) {
     return { error: "Invalid email or password." };
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, randomUUID(), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
+  // Supabase verified the password; now check the admin allow-list. A valid
+  // app user who isn't an admin must not get into the panel.
+  const admin = await getAdminRecord(data.user.id);
+  if (!admin) {
+    await supabase.auth.signOut();
+    return { error: "This account is not authorized for the admin panel." };
+  }
 
   redirect(next && next.startsWith("/") ? next : "/");
 }

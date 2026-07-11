@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdminClient } from "@/lib/admin/supabase";
 import { isMainProgramId } from "@/lib/admin/constants";
+import { logAdminAction } from "@/lib/admin/audit";
+import { getCurrentAdminUser } from "@/lib/auth/current-user";
 
 function value(formData: FormData, key: string) {
   const raw = formData.get(key);
@@ -59,6 +61,7 @@ export async function saveExercise(formData: FormData) {
     throw new Error("Exercise name is required.");
   }
 
+  const actor = await getCurrentAdminUser();
   const payload = {
     slug: value(formData, "slug") || slugify(name),
     name,
@@ -68,15 +71,36 @@ export async function saveExercise(formData: FormData) {
     primary_muscles: textArray(formData, "primary_muscles"),
     default_rest_seconds: numberValue(formData, "default_rest_seconds"),
     is_active: formData.get("is_active") === "on",
+    updated_by: actor?.full_name ?? actor?.id ?? null,
+    updated_at: new Date().toISOString(),
   };
 
   const result = id
-    ? await supabase.from("exercise_library").update(payload).eq("id", id)
-    : await supabase.from("exercise_library").insert(payload);
+    ? await supabase
+        .from("exercise_library")
+        .update(payload)
+        .eq("id", id)
+        .select("id")
+        .maybeSingle()
+    : await supabase
+        .from("exercise_library")
+        .insert(payload)
+        .select("id")
+        .maybeSingle();
 
   if (result.error) {
     throw new Error(result.error.message);
   }
+
+  await logAdminAction({
+    action: id ? "update" : "create",
+    entity: "Exercise",
+    table: "exercise_library",
+    recordId: id || result.data?.id,
+    summary: `${id ? "Updated" : "Created"} exercise "${name}"`,
+    details: payload,
+    actor,
+  });
 
   revalidatePath("/exercises");
 }
@@ -115,6 +139,7 @@ export async function saveProgram(formData: FormData) {
     }
   }
 
+  const actor = await getCurrentAdminUser();
   const payload = {
     title,
     title_translations: translations(titleEn || title, titleNb || title),
@@ -123,15 +148,36 @@ export async function saveProgram(formData: FormData) {
     gender,
     level,
     kind,
+    updated_by: actor?.full_name ?? actor?.id ?? null,
+    updated_at: new Date().toISOString(),
   };
 
   const result = id
-    ? await supabase.from("workout_programs").update(payload).eq("id", id)
-    : await supabase.from("workout_programs").insert(payload);
+    ? await supabase
+        .from("workout_programs")
+        .update(payload)
+        .eq("id", id)
+        .select("id")
+        .maybeSingle()
+    : await supabase
+        .from("workout_programs")
+        .insert(payload)
+        .select("id")
+        .maybeSingle();
 
   if (result.error) {
     throw new Error(result.error.message);
   }
+
+  await logAdminAction({
+    action: id ? "update" : "create",
+    entity: "Program",
+    table: "workout_programs",
+    recordId: id || result.data?.id,
+    summary: `${id ? "Updated" : "Created"} program "${title}"`,
+    details: payload,
+    actor,
+  });
 
   revalidatePath("/programs");
 }
@@ -143,19 +189,32 @@ export async function saveProgramWeek(formData: FormData) {
   const title = value(formData, "title") || `Week ${weekNumber}`;
   const focus = value(formData, "focus");
 
-  const { error } = await supabase.from("program_weeks").upsert(
-    {
-      program_id: programId,
-      week_number: weekNumber,
-      title,
-      title_translations: translations(title, title),
-      focus,
-      focus_translations: translations(focus, focus),
-    },
-    { onConflict: "program_id,week_number" },
-  );
+  const { data, error } = await supabase
+    .from("program_weeks")
+    .upsert(
+      {
+        program_id: programId,
+        week_number: weekNumber,
+        title,
+        title_translations: translations(title, title),
+        focus,
+        focus_translations: translations(focus, focus),
+      },
+      { onConflict: "program_id,week_number" },
+    )
+    .select("id")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "update",
+    entity: "Program week",
+    table: "program_weeks",
+    recordId: data?.id,
+    summary: `Saved Week ${weekNumber}`,
+    details: { program_id: programId, week_number: weekNumber, title, focus },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -169,29 +228,42 @@ export async function saveProgramDay(formData: FormData) {
   const titleNb = value(formData, "title_nb");
   const title = titleEn || titleNb || `Day ${dayNumber}`;
 
-  const { error } = await supabase.from("program_days").upsert(
-    {
-      program_id: programId,
-      week_id: weekId,
-      day_number: dayNumber,
-      weekday: numberValue(formData, "weekday"),
-      workout_kind: value(formData, "workout_kind") || "custom",
-      title,
-      title_translations: translations(titleEn || title, titleNb || title),
-      subtitle: optionalValue(formData, "subtitle_en"),
-      subtitle_translations: translations(
-        value(formData, "subtitle_en"),
-        value(formData, "subtitle_nb"),
-      ),
-      target_muscles: textArray(formData, "target_muscles"),
-      estimated_minutes: numberValue(formData, "estimated_minutes"),
-      is_rest_day: formData.get("is_rest_day") === "on",
-      sort_order: dayNumber,
-    },
-    { onConflict: "week_id,day_number" },
-  );
+  const { data, error } = await supabase
+    .from("program_days")
+    .upsert(
+      {
+        program_id: programId,
+        week_id: weekId,
+        day_number: dayNumber,
+        weekday: numberValue(formData, "weekday"),
+        workout_kind: value(formData, "workout_kind") || "custom",
+        title,
+        title_translations: translations(titleEn || title, titleNb || title),
+        subtitle: optionalValue(formData, "subtitle_en"),
+        subtitle_translations: translations(
+          value(formData, "subtitle_en"),
+          value(formData, "subtitle_nb"),
+        ),
+        target_muscles: textArray(formData, "target_muscles"),
+        estimated_minutes: numberValue(formData, "estimated_minutes"),
+        is_rest_day: formData.get("is_rest_day") === "on",
+        sort_order: dayNumber,
+      },
+      { onConflict: "week_id,day_number" },
+    )
+    .select("id")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "update",
+    entity: "Program day",
+    table: "program_days",
+    recordId: data?.id,
+    summary: `Saved "${title}" (Day ${dayNumber})`,
+    details: { program_id: programId, week_id: weekId, day_number: dayNumber, title },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -204,15 +276,28 @@ export async function saveDaySection(formData: FormData) {
   const titleNb = value(formData, "title_nb");
   const title = titleEn || titleNb || "Section";
 
-  const { error } = await supabase.from("program_day_sections").insert({
-    program_day_id: programDayId,
-    section_kind: value(formData, "section_kind") || "main_exercises",
-    title,
-    title_translations: translations(titleEn || title, titleNb || title),
-    sort_order: intValue(formData, "sort_order", 0),
-  });
+  const { data, error } = await supabase
+    .from("program_day_sections")
+    .insert({
+      program_day_id: programDayId,
+      section_kind: value(formData, "section_kind") || "main_exercises",
+      title,
+      title_translations: translations(titleEn || title, titleNb || title),
+      sort_order: intValue(formData, "sort_order", 0),
+    })
+    .select("id")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "create",
+    entity: "Section",
+    table: "program_day_sections",
+    recordId: data?.id,
+    summary: `Added section "${title}"`,
+    details: { program_day_id: programDayId, title },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -224,19 +309,32 @@ export async function assignExerciseToDay(formData: FormData) {
   const displayNameEn = value(formData, "display_name_en");
   const displayNameNb = value(formData, "display_name_nb");
 
-  const { error } = await supabase.from("program_day_exercises").insert({
-    program_day_id: value(formData, "program_day_id"),
-    section_id: value(formData, "section_id"),
-    exercise_id: exerciseId,
-    sort_order: intValue(formData, "sort_order", 0),
-    display_name: displayNameEn || null,
-    display_name_translations: translations(displayNameEn, displayNameNb),
-    initial_weight_value: numberValue(formData, "initial_weight_value"),
-    initial_weight_unit: "kg",
-    default_rest_seconds: numberValue(formData, "default_rest_seconds"),
-  });
+  const { data, error } = await supabase
+    .from("program_day_exercises")
+    .insert({
+      program_day_id: value(formData, "program_day_id"),
+      section_id: value(formData, "section_id"),
+      exercise_id: exerciseId,
+      sort_order: intValue(formData, "sort_order", 0),
+      display_name: displayNameEn || null,
+      display_name_translations: translations(displayNameEn, displayNameNb),
+      initial_weight_value: numberValue(formData, "initial_weight_value"),
+      initial_weight_unit: "kg",
+      default_rest_seconds: numberValue(formData, "default_rest_seconds"),
+    })
+    .select("id")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "create",
+    entity: "Exercise in day",
+    table: "program_day_exercises",
+    recordId: data?.id,
+    summary: `Added exercise${displayNameEn ? ` "${displayNameEn}"` : ""} to a day`,
+    details: { program_day_id: value(formData, "program_day_id"), exercise_id: exerciseId },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -244,20 +342,34 @@ export async function assignExerciseToDay(formData: FormData) {
 export async function addPlannedSet(formData: FormData) {
   const supabase = requireAdminClient();
   const programId = value(formData, "program_id");
+  const setNumber = intValue(formData, "set_number", 1);
 
-  const { error } = await supabase.from("planned_exercise_sets").insert({
-    program_day_exercise_id: value(formData, "program_day_exercise_id"),
-    set_number: intValue(formData, "set_number", 1),
-    set_kind: value(formData, "set_kind") || "working",
-    target_weight_value: numberValue(formData, "target_weight_value"),
-    target_reps_exact: numberValue(formData, "target_reps_exact"),
-    target_reps_min: numberValue(formData, "target_reps_min"),
-    target_reps_max: numberValue(formData, "target_reps_max"),
-    target_duration_seconds: numberValue(formData, "target_duration_seconds"),
-    rest_seconds: numberValue(formData, "rest_seconds"),
-  });
+  const { data, error } = await supabase
+    .from("planned_exercise_sets")
+    .insert({
+      program_day_exercise_id: value(formData, "program_day_exercise_id"),
+      set_number: setNumber,
+      set_kind: value(formData, "set_kind") || "working",
+      target_weight_value: numberValue(formData, "target_weight_value"),
+      target_reps_exact: numberValue(formData, "target_reps_exact"),
+      target_reps_min: numberValue(formData, "target_reps_min"),
+      target_reps_max: numberValue(formData, "target_reps_max"),
+      target_duration_seconds: numberValue(formData, "target_duration_seconds"),
+      rest_seconds: numberValue(formData, "rest_seconds"),
+    })
+    .select("id")
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "create",
+    entity: "Planned set",
+    table: "planned_exercise_sets",
+    recordId: data?.id,
+    summary: `Added set ${setNumber}`,
+    details: { program_day_exercise_id: value(formData, "program_day_exercise_id"), set_number: setNumber },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -284,6 +396,15 @@ export async function addDefaultSections(formData: FormData) {
   );
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "create",
+    entity: "Sections",
+    table: "program_day_sections",
+    recordId: programDayId,
+    summary: `Added ${defaults.length} default sections`,
+    details: { program_day_id: programDayId },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -317,6 +438,15 @@ export async function addBulkSets(formData: FormData) {
   const { error } = await supabase.from("planned_exercise_sets").insert(rows);
 
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "create",
+    entity: "Planned sets",
+    table: "planned_exercise_sets",
+    recordId: exerciseId,
+    summary: `Added ${count} sets`,
+    details: { program_day_exercise_id: exerciseId, set_count: count, start_from: startFrom },
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -368,6 +498,14 @@ export async function duplicateDay(formData: FormData) {
 
   if (exercisesError) throw new Error(exercisesError.message);
   if (!sourceExercises?.length) {
+    await logAdminAction({
+      action: "create",
+      entity: "Program day",
+      table: "program_days",
+      recordId: targetDayId,
+      summary: "Duplicated a day (sections only)",
+      details: { source_day_id: sourceDayId, target_day_id: targetDayId },
+    });
     revalidatePath(`/programs/${programId}`);
     return;
   }
@@ -431,6 +569,15 @@ export async function duplicateDay(formData: FormData) {
     if (insertSetsError) throw new Error(insertSetsError.message);
   }
 
+  await logAdminAction({
+    action: "create",
+    entity: "Program day",
+    table: "program_days",
+    recordId: targetDayId,
+    summary: "Duplicated a day (sections, exercises & sets)",
+    details: { source_day_id: sourceDayId, target_day_id: targetDayId },
+  });
+
   revalidatePath(`/programs/${programId}`);
 }
 
@@ -444,6 +591,14 @@ export async function deleteExercise(formData: FormData) {
 
   const { error } = await supabase.from("exercise_library").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "delete",
+    entity: "Exercise",
+    table: "exercise_library",
+    recordId: id,
+    summary: "Deleted an exercise",
+  });
 
   revalidatePath("/exercises");
 }
@@ -459,6 +614,14 @@ export async function deleteProgram(formData: FormData) {
   const { error } = await supabase.from("workout_programs").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
+  await logAdminAction({
+    action: "delete",
+    entity: "Program",
+    table: "workout_programs",
+    recordId: id,
+    summary: "Deleted a program",
+  });
+
   revalidatePath("/programs");
 }
 
@@ -469,6 +632,14 @@ export async function deleteProgramWeek(formData: FormData) {
 
   const { error } = await supabase.from("program_weeks").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "delete",
+    entity: "Program week",
+    table: "program_weeks",
+    recordId: id,
+    summary: "Deleted a program week",
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -481,6 +652,14 @@ export async function deleteProgramDay(formData: FormData) {
   const { error } = await supabase.from("program_days").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
+  await logAdminAction({
+    action: "delete",
+    entity: "Program day",
+    table: "program_days",
+    recordId: id,
+    summary: "Deleted a program day",
+  });
+
   revalidatePath(`/programs/${programId}`);
 }
 
@@ -491,6 +670,14 @@ export async function deleteDaySection(formData: FormData) {
 
   const { error } = await supabase.from("program_day_sections").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "delete",
+    entity: "Section",
+    table: "program_day_sections",
+    recordId: id,
+    summary: "Deleted a section",
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -503,6 +690,14 @@ export async function deleteDayExercise(formData: FormData) {
   const { error } = await supabase.from("program_day_exercises").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
+  await logAdminAction({
+    action: "delete",
+    entity: "Exercise in day",
+    table: "program_day_exercises",
+    recordId: id,
+    summary: "Removed an exercise from a day",
+  });
+
   revalidatePath(`/programs/${programId}`);
 }
 
@@ -513,6 +708,14 @@ export async function deletePlannedSet(formData: FormData) {
 
   const { error } = await supabase.from("planned_exercise_sets").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "delete",
+    entity: "Planned set",
+    table: "planned_exercise_sets",
+    recordId: id,
+    summary: "Deleted a planned set",
+  });
 
   revalidatePath(`/programs/${programId}`);
 }
@@ -541,6 +744,15 @@ export async function updateDaySection(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  await logAdminAction({
+    action: "update",
+    entity: "Section",
+    table: "program_day_sections",
+    recordId: id,
+    summary: `Updated section "${title}"`,
+    details: { title, sort_order: intValue(formData, "sort_order", 0) },
+  });
+
   revalidatePath(`/programs/${programId}`);
 }
 
@@ -567,6 +779,15 @@ export async function updateDayExercise(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  await logAdminAction({
+    action: "update",
+    entity: "Exercise in day",
+    table: "program_day_exercises",
+    recordId: id,
+    summary: `Updated an exercise${displayNameEn ? ` "${displayNameEn}"` : ""} in a day`,
+    details: { exercise_id: value(formData, "exercise_id"), display_name: displayNameEn || null },
+  });
+
   revalidatePath(`/programs/${programId}`);
 }
 
@@ -574,11 +795,12 @@ export async function updatePlannedSet(formData: FormData) {
   const supabase = requireAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
+  const setNumber = intValue(formData, "set_number", 1);
 
   const { error } = await supabase
     .from("planned_exercise_sets")
     .update({
-      set_number: intValue(formData, "set_number", 1),
+      set_number: setNumber,
       set_kind: value(formData, "set_kind") || "working",
       target_weight_value: numberValue(formData, "target_weight_value"),
       target_reps_exact: numberValue(formData, "target_reps_exact"),
@@ -591,6 +813,14 @@ export async function updatePlannedSet(formData: FormData) {
 
   if (error) throw new Error(error.message);
 
+  await logAdminAction({
+    action: "update",
+    entity: "Planned set",
+    table: "planned_exercise_sets",
+    recordId: id,
+    summary: `Updated set ${setNumber}`,
+    details: { set_number: setNumber },
+  });
+
   revalidatePath(`/programs/${programId}`);
 }
-

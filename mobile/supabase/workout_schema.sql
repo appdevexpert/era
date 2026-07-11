@@ -198,6 +198,7 @@ create table if not exists public.exercise_library (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   name_translations jsonb not null default '{}'::jsonb,
+  updated_by text, -- admin display name of last editor from the web panel
   constraint exercise_library_pkey primary key (id),
   constraint exercise_library_slug_key unique (slug),
   constraint exercise_library_default_rest_seconds_check check (((default_rest_seconds is null) or (default_rest_seconds >= 0)))
@@ -217,6 +218,7 @@ create table if not exists public.workout_programs (
   gender public.user_gender,
   level public.experience_level,
   kind text not null default 'standard',
+  updated_by text, -- admin display name of last editor from the web panel
   constraint workout_programs_pkey primary key (id),
   constraint workout_programs_days_per_week_check check (((days_per_week >= 1) and (days_per_week <= 7))),
   constraint workout_programs_duration_weeks_check check ((duration_weeks > 0)),
@@ -809,10 +811,54 @@ create table if not exists public.meal_logs (
   constraint meal_logs_protein_g_check check ((protein_g >= (0)::numeric))
 );
 
+-- ------------------------------------------------------------
+-- admin_audit_log (web admin panel accountability trail)
+-- Written server-side only (service role). The acting admin comes from the
+-- signed session cookie, so it cannot be spoofed. RLS is enabled with NO
+-- policies, so anon/authenticated (the mobile app) can never read it.
+-- ------------------------------------------------------------
+create table if not exists public.admin_audit_log (
+  id uuid not null default gen_random_uuid(),
+  admin_id text not null,           -- stable account id: 'appeneure' | 'rami'
+  admin_name text not null,         -- display name captured at action time
+  action text not null,             -- 'create' | 'update' | 'delete'
+  entity text not null,             -- friendly label, e.g. 'Program'
+  table_name text not null,         -- database table affected
+  record_id text,                   -- affected row id, when known
+  summary text not null,            -- human-readable one-liner
+  details jsonb,                    -- snapshot of the new/changed values
+  created_at timestamptz not null default now(),
+  constraint admin_audit_log_pkey primary key (id)
+);
+
+alter table public.admin_audit_log enable row level security;
+
+-- ------------------------------------------------------------
+-- admin_users (web admin panel allow-list)
+-- Supabase Auth verifies the password; this table decides who is allowed into
+-- the panel and what they can see. Server-side only (service role); RLS on with
+-- no policies so the mobile app (anon key) can never read who the admins are.
+-- ------------------------------------------------------------
+create table if not exists public.admin_users (
+  user_id           uuid not null,
+  email             text not null,
+  display_name      text not null,
+  can_view_activity boolean not null default false,
+  created_at        timestamptz not null default now(),
+  constraint admin_users_pkey primary key (user_id),
+  constraint admin_users_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade
+);
+
+alter table public.admin_users enable row level security;
+
 
 -- ============================================================
 -- 4. Indexes (non-PK)
 -- ============================================================
+
+create index if not exists admin_audit_log_created_at_idx ON public.admin_audit_log USING btree (created_at DESC);
+create index if not exists admin_audit_log_admin_id_idx ON public.admin_audit_log USING btree (admin_id);
+create index if not exists admin_audit_log_table_name_idx ON public.admin_audit_log USING btree (table_name);
 
 create unique index body_weight_log_user_id_logged_for_date_key ON public.body_weight_log USING btree (user_id, logged_for_date);
 create index idx_body_weight_log_user_date ON public.body_weight_log USING btree (user_id, logged_for_date DESC);

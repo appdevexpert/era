@@ -132,6 +132,19 @@ export type PlannedSetRow = {
   rest_seconds: number | null;
 };
 
+export type AuditLogRow = {
+  id: string;
+  admin_id: string;
+  admin_name: string;
+  action: "create" | "update" | "delete" | string;
+  entity: string;
+  table_name: string;
+  record_id: string | null;
+  summary: string;
+  details: unknown;
+  created_at: string;
+};
+
 export type ProgramDetail = {
   program: ProgramRow | null;
   weeks: ProgramWeekRow[];

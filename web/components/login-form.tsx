@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useSearchParams } from "next/navigation";
 
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Alert01Icon } from "@hugeicons/core-free-icons";
+import { Alert01Icon, ViewIcon, ViewOffSlashIcon } from "@hugeicons/core-free-icons";
 
 import { signIn, type SignInState } from "@/app/login/actions";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"form">) {
   const [state, formAction] = useActionState(signIn, INITIAL_STATE);
+  const [showPassword, setShowPassword] = useState(false);
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "";
 
@@ -60,22 +61,13 @@ export function LoginForm({
             <p>{state.error}</p>
           </div>
         ) : null}
-        <div className="rounded-md border border-era-gold-dark/30 bg-accent/50 p-3 text-xs">
-          <p className="font-medium text-foreground">Demo credentials</p>
-          <p className="mt-1 text-muted-foreground">
-            Email: <code className="text-foreground">admin@era.local</code>
-          </p>
-          <p className="text-muted-foreground">
-            Password: <code className="text-foreground">era2026</code>
-          </p>
-        </div>
         <Field>
           <FieldLabel htmlFor="email">Email</FieldLabel>
           <Input
             id="email"
             name="email"
             type="email"
-            placeholder="admin@era.local"
+            placeholder="you@era.com"
             autoComplete="email"
             required
           />
@@ -90,13 +82,28 @@ export function LoginForm({
               Forgot your password?
             </a>
           </div>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <HugeiconsIcon
+                icon={showPassword ? ViewOffSlashIcon : ViewIcon}
+                size={18}
+                strokeWidth={1.8}
+              />
+            </button>
+          </div>
         </Field>
         <Field>
           <SubmitButton />

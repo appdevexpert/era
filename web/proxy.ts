@@ -1,6 +1,7 @@
+import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { SESSION_COOKIE } from "@/lib/auth/session";
+import { getSupabaseConfig, isSupabaseConfigured } from "@/lib/supabase/config";
 
 const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
@@ -11,18 +12,44 @@ function isPublicPath(pathname: string) {
 }
 
 export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request: { headers: request.headers } });
+
+  // If Supabase isn't configured, don't lock the operator out.
+  if (!isSupabaseConfigured) return response;
+
+  const { supabaseUrl, supabasePublishableKey } = getSupabaseConfig();
+
+  const supabase = createServerClient(supabaseUrl, supabasePublishableKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request: { headers: request.headers } });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
+      },
+    },
+  });
+
+  // Refreshes the session cookie AND tells us whether someone is signed in.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { pathname } = request.nextUrl;
-  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
   const onPublicPath = isPublicPath(pathname);
 
-  if (!hasSession && !onPublicPath) {
+  if (!user && !onPublicPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     if (pathname !== "/") url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  if (hasSession && pathname === "/login") {
+  if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
     const next = request.nextUrl.searchParams.get("next");
     url.pathname = next && next.startsWith("/") ? next : "/";
@@ -30,7 +57,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

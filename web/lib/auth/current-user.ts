@@ -1,8 +1,7 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-
-import { DUMMY_USER, SESSION_COOKIE } from "@/lib/auth/session";
+import { getAdminRecord } from "@/lib/auth/admin-access";
+import { createClient } from "@/lib/supabase/server";
 
 export type CurrentAdminUser = {
   id: string;
@@ -10,12 +9,26 @@ export type CurrentAdminUser = {
   full_name: string | null;
   avatar_url: string | null;
   role: string;
+  canViewActivity: boolean;
 };
 
 export async function getCurrentAdminUser(): Promise<CurrentAdminUser | null> {
-  const cookieStore = await cookies();
-  const hasSession = Boolean(cookieStore.get(SESSION_COOKIE)?.value);
-  if (!hasSession) return null;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
 
-  return { ...DUMMY_USER };
+  // Authenticated via Supabase, but only allow-listed admins get an identity.
+  const admin = await getAdminRecord(user.id);
+  if (!admin) return null;
+
+  return {
+    id: user.id,
+    email: admin.email ?? user.email ?? null,
+    full_name: admin.display_name,
+    avatar_url: null,
+    role: admin.can_view_activity ? "owner" : "admin",
+    canViewActivity: admin.can_view_activity,
+  };
 }

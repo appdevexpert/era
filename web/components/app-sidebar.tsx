@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
+  Activity01Icon,
   BookOpen01Icon,
   DashboardSquare01Icon,
   Dumbbell01Icon,
@@ -44,6 +45,8 @@ type NavItem = {
   href: string;
   label: string;
   icon: IconSvgElement;
+  /** Only render for admins allowed to see the activity log. */
+  ownerOnly?: boolean;
 };
 
 const MANAGE_NAV: NavItem[] = [
@@ -51,6 +54,7 @@ const MANAGE_NAV: NavItem[] = [
   { href: "/exercises", label: "Exercises", icon: Dumbbell01Icon },
   { href: "/programs", label: "Programs", icon: WorkoutRunIcon },
   { href: "/users", label: "Users", icon: UserGroupIcon },
+  { href: "/activity", label: "Activity", icon: Activity01Icon, ownerOnly: true },
   { href: "/guide", label: "Guide", icon: BookOpen01Icon },
 ];
 
@@ -88,7 +92,9 @@ export function AppSidebar({ user, ...props }: AppSidebarProps) {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
-              {MANAGE_NAV.map((item) => {
+              {MANAGE_NAV.filter(
+                (item) => !item.ownerOnly || user?.canViewActivity,
+              ).map((item) => {
                 const isActive =
                   item.href === "/"
                     ? pathname === item.href

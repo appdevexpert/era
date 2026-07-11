@@ -3,6 +3,7 @@ import "server-only";
 import { getAdminClient } from "@/lib/admin/supabase";
 import type {
   AdminDataState,
+  AuditLogRow,
   PaginatedDataState,
   DashboardStats,
   DayExerciseRow,
@@ -377,6 +378,24 @@ export async function getUsers(): Promise<AdminDataState<ProfileRow[]>> {
       assignmentsResult.error?.message ??
       authUsersResult.error?.message ??
       null,
+  };
+}
+
+export async function getAuditLog(
+  limit = 200,
+): Promise<AdminDataState<AuditLogRow[]>> {
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: [], configError };
+
+  const { data, error } = await supabase
+    .from("admin_audit_log")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return {
+    data: error ? [] : (data as AuditLogRow[]),
+    configError: error?.message ?? null,
   };
 }
 

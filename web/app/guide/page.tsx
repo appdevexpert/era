@@ -57,7 +57,7 @@ const TRANSLATIONS: Record<Lang, Translation> = {
     eyebrow: "Admin Guide",
     title: "How to build a workout program",
     intro:
-      "A short walkthrough for adding exercises, building a 12-week program, and getting the content live on the mobile app.",
+      "A short walkthrough for adding exercises, filling out a launch program, and getting the content live on the mobile app.",
     langLabel: "Language",
     tipLabel: "Tip:",
     buildOrder: {
@@ -66,22 +66,22 @@ const TRANSLATIONS: Record<Lang, Translation> = {
         {
           title: "Add exercises to the library first",
           detail:
-            "A program references exercises, so the library must be populated before you build a program.",
+            "Programs reference exercises. Populate the library before you open the builder.",
         },
         {
-          title: "Create the program shell",
+          title: "Open one of the four launch programs",
           detail:
-            "Give it a title and status (draft / active). Programs start as draft so they're not visible to users yet.",
+            "Programs are seeded and appear on /programs as a gender → level grid (Male / Female × Beginner / Advanced). You don't usually create new programs — you open the card and fill it out. Intermediate users share the Beginner program.",
         },
         {
-          title: "Add weeks, days, sections, exercises, sets",
+          title: "Fill weeks → days → sections → exercises → sets",
           detail:
-            "Open the builder for the program and work top-down: a week holds days, a day holds sections, a section holds assigned exercises, an exercise holds planned sets.",
+            "Inside the builder, work top-down. A week holds days, a day holds sections, a section holds assigned exercises, an exercise holds planned sets.",
         },
         {
-          title: "Flip the program to active",
+          title: "Content goes live automatically",
           detail:
-            "When the content is ready, edit the program and change status from draft to active. The mobile app picks up active programs.",
+            "There is no draft/active toggle in the admin. Launch programs are already active — the mobile app picks up whatever weeks/days/exercises/sets you've saved. Missing sets simply mean the app has nothing to show for that day yet.",
         },
       ],
     },
@@ -96,48 +96,66 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           Click <strong>+ Add exercise</strong> top-right. A dialog opens.
         </>,
         <>
-          Fill <strong>Name (EN)</strong> and <strong>Name (NB)</strong> — both
-          languages are required since the app is bilingual.
+          Fill <strong>English name</strong> and <strong>Norwegian name</strong>{" "}
+          — both languages are required since the app is bilingual.
         </>,
         <>
           Choose <strong>Modality</strong> (strength / cardio / mobility / core)
-          and <strong>Category</strong> (compound / isolation / cardio / warmup
-          / cooldown).
+          and <strong>Category</strong> (compound / isolation / core / cardio /
+          warmup / cooldown).
         </>,
         <>
-          Add primary muscles (chest, shoulders…). Comma-separated. These drive
-          the muscle tags users see.
+          Optional: <strong>Default rest seconds</strong> and{" "}
+          <strong>Primary muscles</strong> (comma-separated free text — drives
+          the muscle tags users see).
         </>,
-        <>Optional: coaching cues, default rest seconds, video URL, thumbnail.</>,
         <>
-          Click <strong>Save</strong>. The exercise is now selectable inside
-          program days.
+          Leave <strong>Active exercise</strong> ticked so it shows up in the
+          library picker.
+        </>,
+        <>
+          Click <strong>Create exercise</strong>. It&apos;s now selectable when
+          you assign exercises to a day.
         </>,
       ],
       tip: (
         <>
-          Use the <strong>Inactive</strong> tab on the Exercises page to find
-          retired exercises. Toggling an exercise to inactive hides it from new
-          assignments but keeps existing program data intact.
+          There is no video URL, thumbnail, or coaching-cue field yet — those
+          were removed. Use the <strong>Inactive</strong> status filter on the
+          Exercises page to find retired exercises. Unchecking{" "}
+          <strong>Active exercise</strong> hides it from new assignments but
+          keeps existing program data intact.
         </>
       ),
     },
     createProgram: {
-      title: "Creating a 12-week program",
+      title: "Opening (or creating) a program",
       hrefLabel: "Go to Programs",
       steps: [
         <>
-          Go to <NavCrumb>Programs</NavCrumb> and click{" "}
-          <strong>+ Create program</strong>.
+          Go to <NavCrumb>Programs</NavCrumb>. You&apos;ll see two gender
+          entry cards — <strong>Male Programs</strong> and{" "}
+          <strong>Female Programs</strong>. Click one.
         </>,
         <>
-          Fill in title <strong>(EN)</strong> and <strong>(NB)</strong>,
-          duration (12 weeks), days/week, optional goal description. Status
-          stays <Badge variant="secondary">draft</Badge> until you flip it.
+          You now see the launch programs for that gender —{" "}
+          <strong>Beginner</strong> and <strong>Advanced</strong> — and any{" "}
+          <strong>Cycle 2 alternatives</strong> (currently just Bro Split for
+          male). Click <strong>Open builder</strong> on the card you want to
+          fill.
         </>,
         <>
-          Save. The program appears in the table — click the row title or use
-          the kebab menu → <strong>Open builder</strong>.
+          You almost never need <strong>+ Create program</strong>. Use it only
+          for a brand-new Cycle 2 alternative or a one-off plan. The form asks
+          for English + Norwegian title, an internal title, duration weeks
+          (default 12), days per week (default 6),{" "}
+          <strong>Gender</strong>, <strong>Experience level</strong>, and{" "}
+          <strong>Program kind</strong> (Standard or Bro Split).
+        </>,
+        <>
+          Gender, level, and program kind are <strong>locked</strong> on the
+          launch programs — changing them silently re-routes existing users, so
+          the admin rejects the edit.
         </>,
       ],
     },
@@ -152,52 +170,57 @@ const TRANSLATIONS: Record<Lang, Translation> = {
       ),
       steps: [
         <>
-          <strong>Add weeks</strong> in the left rail. Each week has a phase tag
-          (Hypertrophy / Strength / Peak) and an optional Deload flag.
+          <strong>Add weeks</strong> from the left rail. Each week takes a{" "}
+          <strong>Week number</strong> and a <strong>Phase</strong> tag
+          (Hypertrophy / Strength / Peak). No deload flag — deloading is
+          expressed by lowering the sets/weights on that week.
         </>,
         <>
           Click a week → its days appear as cards on the right.{" "}
-          <strong>+ Add day</strong> fills the empty tile.
+          <strong>+ Add day</strong> fills the next tile.
         </>,
         <>
-          On the day form: weekday, workout kind (push / pull / legs / etc.),
-          estimated minutes, title EN + NB, target muscles.
+          Day form: <strong>Day number</strong>,{" "}
+          <strong>Weekday (1–7)</strong>, <strong>Workout kind</strong> (push /
+          pull / legs / shoulders / cardio / rest / custom),{" "}
+          <strong>Estimated minutes</strong>, <strong>Title EN + NB</strong>,{" "}
+          <strong>Subtitle EN + NB</strong>, <strong>Target muscles</strong>{" "}
+          (comma-separated).
         </>,
         <>
           Open a day card → <strong>Open editor</strong>. A side sheet slides
           in. If sections are empty, click{" "}
-          <strong>Add default sections</strong> (warmup, main, cooldown) — or
-          add your own.
+          <strong>Add default sections</strong> — otherwise use{" "}
+          <strong>Add section</strong> with a{" "}
+          <em>section kind</em> and EN + NB titles.
         </>,
         <>
-          Inside a section, click <strong>Assign exercise</strong> → pick from
-          the library you populated earlier. Set an optional initial weight.
+          Under Exercises, click <strong>Assign exercise</strong> → pick the
+          target <strong>Section</strong>, the{" "}
+          <strong>Exercise</strong> from the library, and an optional{" "}
+          <strong>Initial weight (kg)</strong>.
         </>,
         <>
-          Per exercise, add planned sets. Use <strong>Bulk sets</strong> to
-          create 3–4 identical sets in one shot (e.g. 4 working sets at 8 reps
-          and 75 kg). Or <strong>Set</strong> to add one at a time.
+          Per exercise, plan sets. <strong>Bulk sets</strong> captures count +
+          kind + weight + reps (exact or min/max) + duration + rest — good for
+          &ldquo;4 working sets at 8 reps, 75 kg, 90 s rest&rdquo;.{" "}
+          <strong>Set</strong> is a single quick row (kind + weight + reps).
         </>,
         <>
-          Repeat for every day in every week. When the structure looks right,
-          close the sheet and edit the program metadata to flip{" "}
-          <Badge variant="secondary">draft</Badge> →{" "}
-          <Badge variant="default">active</Badge>.
+          Repeat for every day in every week. Close the sheet when the day
+          looks right — changes save as you submit each dialog.
         </>,
       ],
       tip: (
         <>
-          Status dots on the program list:{" "}
-          <span className="inline-flex items-center gap-1">
-            <HugeiconsIcon
-              icon={CheckmarkCircle01Icon}
-              size={12}
-              strokeWidth={2}
-              className="text-era-success"
-            />
-            active
-          </span>{" "}
-          is live for users, draft is hidden, archived is read-only.
+          The program list doesn&apos;t show status dots — the four launch programs
+          are already live for the mobile app. The badges at the top of the
+          builder (
+          <Badge variant="outline">weeks</Badge>,{" "}
+          <Badge variant="outline">days</Badge>,{" "}
+          <Badge variant="outline">exercises</Badge>,{" "}
+          <Badge variant="outline">planned sets</Badge>) are your progress
+          meter — aim to have all four non-zero before shipping.
         </>
       ),
     },
@@ -209,8 +232,12 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           body: "Every user-visible field has EN and NB inputs. Both must be filled. The mobile app picks based on the user's app language.",
         },
         {
-          term: "Program statuses",
-          body: "draft = invisible to users · active = live in the app · archived = read-only history.",
+          term: "Launch programs",
+          body: "Four cohort programs: Male Beginner, Male Advanced, Female Beginner, Female Advanced. Beginner also serves Intermediate users (ensure_my_program_assignment RPC maps intermediate → beginner). Bro Split is a male-only Cycle 2 alternative.",
+        },
+        {
+          term: "Program kinds",
+          body: "standard = the main cohort program · bro_split = Cycle 2 alternative (currently only male). Gender + level + kind are locked on the seeded launch programs.",
         },
         {
           term: "Section kinds",
@@ -218,11 +245,11 @@ const TRANSLATIONS: Record<Lang, Translation> = {
         },
         {
           term: "Set kinds",
-          body: "warmup, working, top_set, backoff, drop_set, amrap, core, cardio. Pick the one that matches what the user should feel.",
+          body: "warmup, working, top_set, backoff, drop_set, amrap, core, cardio. Top set is the planned max for the day; back-off is a lighter follow-up at higher reps.",
         },
         {
           term: "Soft delete",
-          body: "Toggling an exercise inactive keeps it in existing programs but hides it from new assignments. Use this instead of hard delete when possible.",
+          body: "Unticking 'Active exercise' keeps it in existing programs but hides it from new assignments. Use this instead of hard delete when possible.",
         },
       ],
     },
@@ -231,7 +258,7 @@ const TRANSLATIONS: Record<Lang, Translation> = {
     eyebrow: "Admin-guide",
     title: "Hvordan bygge et treningsprogram",
     intro:
-      "En kort gjennomgang for å legge til øvelser, bygge et 12-ukers program og få innholdet live i mobilappen.",
+      "En kort gjennomgang for å legge til øvelser, fylle ut et lanseringsprogram og få innholdet live i mobilappen.",
     langLabel: "Språk",
     tipLabel: "Tips:",
     buildOrder: {
@@ -240,22 +267,22 @@ const TRANSLATIONS: Record<Lang, Translation> = {
         {
           title: "Legg til øvelser i biblioteket først",
           detail:
-            "Et program refererer til øvelser, så biblioteket må fylles før du bygger et program.",
+            "Programmer refererer til øvelser. Fyll biblioteket før du åpner byggeren.",
         },
         {
-          title: "Opprett programskallet",
+          title: "Åpne ett av de fire lanseringsprogrammene",
           detail:
-            "Gi det en tittel og status (utkast / aktiv). Programmer starter som utkast, så de er ikke synlige for brukere ennå.",
+            "Programmene er forhåndsopprettet og vises på /programs som et kjønn → nivå-rutenett (Menn / Kvinner × Nybegynner / Avansert). Vanligvis oppretter du ikke nye programmer — du åpner kortet og fyller det ut. Intermediate-brukere deler Nybegynner-programmet.",
         },
         {
-          title: "Legg til uker, dager, seksjoner, øvelser og sett",
+          title: "Fyll uker → dager → seksjoner → øvelser → sett",
           detail:
-            "Åpne byggeren for programmet og jobb ovenfra og ned: en uke inneholder dager, en dag inneholder seksjoner, en seksjon inneholder tildelte øvelser, en øvelse inneholder planlagte sett.",
+            "Inne i byggeren jobber du ovenfra og ned. En uke inneholder dager, en dag inneholder seksjoner, en seksjon inneholder tildelte øvelser, en øvelse inneholder planlagte sett.",
         },
         {
-          title: "Sett programmet til aktiv",
+          title: "Innholdet går live automatisk",
           detail:
-            "Når innholdet er klart, rediger programmet og endre status fra utkast til aktiv. Mobilappen henter aktive programmer.",
+            "Det finnes ingen utkast/aktiv-veksle i admin. Lanseringsprogrammene er allerede aktive — mobilappen henter det du har lagret av uker/dager/øvelser/sett. Manglende sett betyr bare at appen ikke har noe å vise for den dagen ennå.",
         },
       ],
     },
@@ -271,50 +298,67 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           åpnes.
         </>,
         <>
-          Fyll inn <strong>Navn (EN)</strong> og <strong>Navn (NB)</strong> —
-          begge språk er påkrevd siden appen er tospråklig.
+          Fyll inn <strong>Engelsk navn</strong> og{" "}
+          <strong>Norsk navn</strong> — begge språk er påkrevd siden appen er
+          tospråklig.
         </>,
         <>
           Velg <strong>Modalitet</strong> (styrke / kondisjon / mobilitet /
           kjerne) og <strong>Kategori</strong> (sammensatt / isolasjon /
-          kondisjon / oppvarming / nedtrapping).
+          kjerne / kondisjon / oppvarming / nedtrapping).
         </>,
         <>
-          Legg til primære muskler (bryst, skuldre …). Kommaseparert. Disse
-          styrer muskeletikettene brukerne ser.
+          Valgfritt: <strong>Standard hvilesekunder</strong> og{" "}
+          <strong>Primære muskler</strong> (kommaseparert fritekst — styrer
+          muskeletikettene brukerne ser).
         </>,
         <>
-          Valgfritt: trenerhint, standard hvilesekunder, video-URL,
-          miniatyrbilde.
+          La <strong>Aktiv øvelse</strong> være huket av så den vises i
+          bibliotekvelgeren.
         </>,
         <>
-          Klikk <strong>Lagre</strong>. Øvelsen kan nå velges inni programdager.
+          Klikk <strong>Opprett øvelse</strong>. Den er nå valgbar når du
+          tildeler øvelser til en dag.
         </>,
       ],
       tip: (
         <>
-          Bruk fanen <strong>Inaktiv</strong> på Øvelser-siden for å finne
-          pensjonerte øvelser. Å sette en øvelse til inaktiv skjuler den fra nye
-          tildelinger, men beholder eksisterende programdata.
+          Det finnes ingen video-URL, miniatyrbilde eller trenerhint-felt ennå
+          — de er fjernet. Bruk statusfilteret <strong>Inaktiv</strong> på
+          Øvelser-siden for å finne pensjonerte øvelser. Å fjerne haken for{" "}
+          <strong>Aktiv øvelse</strong> skjuler den fra nye tildelinger, men
+          beholder eksisterende programdata.
         </>
       ),
     },
     createProgram: {
-      title: "Opprette et 12-ukers program",
+      title: "Åpne (eller opprette) et program",
       hrefLabel: "Gå til Programmer",
       steps: [
         <>
-          Gå til <NavCrumb>Programmer</NavCrumb> og klikk{" "}
-          <strong>+ Opprett program</strong>.
+          Gå til <NavCrumb>Programmer</NavCrumb>. Du ser to kjønnskort —{" "}
+          <strong>Menn Programmer</strong> og{" "}
+          <strong>Kvinner Programmer</strong>. Klikk på ett.
         </>,
         <>
-          Fyll inn tittel <strong>(EN)</strong> og <strong>(NB)</strong>,
-          varighet (12 uker), dager/uke og valgfri målbeskrivelse. Statusen
-          forblir <Badge variant="secondary">utkast</Badge> til du endrer den.
+          Nå ser du lanseringsprogrammene for det kjønnet —{" "}
+          <strong>Nybegynner</strong> og <strong>Avansert</strong> — og
+          eventuelle <strong>Cycle 2-alternativer</strong> (foreløpig kun Bro
+          Split for menn). Klikk <strong>Åpne bygger</strong> på kortet du vil
+          fylle ut.
         </>,
         <>
-          Lagre. Programmet vises i tabellen — klikk radens tittel eller bruk
-          kebab-menyen → <strong>Åpne bygger</strong>.
+          Du trenger nesten aldri <strong>+ Opprett program</strong>. Bruk det
+          kun for et nytt Cycle 2-alternativ eller en engangsplan. Skjemaet ber
+          om engelsk + norsk tittel, en intern tittel, varighet i uker
+          (standard 12), dager per uke (standard 6),{" "}
+          <strong>Kjønn</strong>, <strong>Erfaringsnivå</strong> og{" "}
+          <strong>Programtype</strong> (Standard eller Bro Split).
+        </>,
+        <>
+          Kjønn, nivå og programtype er <strong>låst</strong> på
+          lanseringsprogrammene — endring omdirigerer stille eksisterende
+          brukere, så admin avviser endringen.
         </>,
       ],
     },
@@ -329,54 +373,58 @@ const TRANSLATIONS: Record<Lang, Translation> = {
       ),
       steps: [
         <>
-          <strong>Legg til uker</strong> i venstre kolonne. Hver uke har en
-          fasemerkelapp (Hypertrofi / Styrke / Topp) og et valgfritt
-          Deload-flagg.
+          <strong>Legg til uker</strong> fra venstre kolonne. Hver uke tar et{" "}
+          <strong>Ukenummer</strong> og en <strong>Fase</strong>-etikett
+          (Hypertrofi / Styrke / Topp). Ingen deload-flagg — deloading uttrykkes
+          ved å senke sett/vekter i den aktuelle uken.
         </>,
         <>
           Klikk på en uke → dagene vises som kort til høyre.{" "}
-          <strong>+ Legg til dag</strong> fyller den tomme flisen.
+          <strong>+ Legg til dag</strong> fyller neste flis.
         </>,
         <>
-          I dagsskjemaet: ukedag, økttype (push / pull / bein osv.), estimerte
-          minutter, tittel EN + NB, målmuskler.
+          Dagsskjema: <strong>Dagsnummer</strong>,{" "}
+          <strong>Ukedag (1–7)</strong>, <strong>Økttype</strong> (push /
+          pull / bein / skuldre / kondisjon / hvile / tilpasset),{" "}
+          <strong>Estimerte minutter</strong>,{" "}
+          <strong>Tittel EN + NB</strong>,{" "}
+          <strong>Undertittel EN + NB</strong>,{" "}
+          <strong>Målmuskler</strong> (kommaseparert).
         </>,
         <>
           Åpne et dagskort → <strong>Åpne editor</strong>. Et sidepanel glir
           inn. Hvis seksjonene er tomme, klikk{" "}
-          <strong>Legg til standardseksjoner</strong> (oppvarming, hoved,
-          nedtrapping) — eller legg til dine egne.
+          <strong>Legg til standardseksjoner</strong> — ellers bruk{" "}
+          <strong>Legg til seksjon</strong> med en{" "}
+          <em>seksjonstype</em> og EN + NB-titler.
         </>,
         <>
-          Inni en seksjon, klikk <strong>Tildel øvelse</strong> → velg fra
-          biblioteket du fylte tidligere. Sett en valgfri startvekt.
+          Under Øvelser, klikk <strong>Tildel øvelse</strong> → velg{" "}
+          <strong>Seksjon</strong>, <strong>Øvelse</strong> fra biblioteket, og
+          en valgfri <strong>Startvekt (kg)</strong>.
         </>,
         <>
-          Per øvelse, legg til planlagte sett. Bruk{" "}
-          <strong>Masse-sett</strong> for å lage 3–4 identiske sett på én gang
-          (f.eks. 4 arbeidssett på 8 reps og 75 kg). Eller <strong>Sett</strong>{" "}
-          for å legge til ett om gangen.
+          Per øvelse, planlegg sett. <strong>Masse-sett</strong> fanger antall +
+          type + vekt + reps (eksakt eller min/maks) + varighet + hvile — bra
+          for «4 arbeidssett på 8 reps, 75 kg, 90 s hvile».{" "}
+          <strong>Sett</strong> er en enkel hurtig-rad (type + vekt + reps).
         </>,
         <>
-          Gjenta for hver dag i hver uke. Når strukturen ser riktig ut, lukk
-          panelet og rediger programmetadataene for å bytte{" "}
-          <Badge variant="secondary">utkast</Badge> →{" "}
-          <Badge variant="default">aktiv</Badge>.
+          Gjenta for hver dag i hver uke. Lukk panelet når dagen ser riktig ut
+          — endringer lagres når du sender inn hver dialog.
         </>,
       ],
       tip: (
         <>
-          Statusprikker i programlisten:{" "}
-          <span className="inline-flex items-center gap-1">
-            <HugeiconsIcon
-              icon={CheckmarkCircle01Icon}
-              size={12}
-              strokeWidth={2}
-              className="text-era-success"
-            />
-            aktiv
-          </span>{" "}
-          er live for brukere, utkast er skjult, arkivert er kun lesbar.
+          Programlisten viser ikke statusprikker — de fire
+          lanseringsprogrammene er allerede live i mobilappen. Emblemene øverst
+          i byggeren (
+          <Badge variant="outline">uker</Badge>,{" "}
+          <Badge variant="outline">dager</Badge>,{" "}
+          <Badge variant="outline">øvelser</Badge>,{" "}
+          <Badge variant="outline">planlagte sett</Badge>) er
+          fremdriftsmåleren din — sikt på at alle fire er større enn null før
+          du sender.
         </>
       ),
     },
@@ -388,8 +436,12 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           body: "Hvert brukersynlig felt har EN- og NB-input. Begge må fylles. Mobilappen velger basert på brukerens appspråk.",
         },
         {
-          term: "Programstatuser",
-          body: "utkast = usynlig for brukere · aktiv = live i appen · arkivert = kun lesbar historikk.",
+          term: "Lanseringsprogrammer",
+          body: "Fire kohortprogrammer: Menn Nybegynner, Menn Avansert, Kvinner Nybegynner, Kvinner Avansert. Nybegynner betjener også Intermediate-brukere (ensure_my_program_assignment RPC mapper intermediate → nybegynner). Bro Split er et menns-Cycle 2-alternativ.",
+        },
+        {
+          term: "Programtyper",
+          body: "standard = hovedkohortprogrammet · bro_split = Cycle 2-alternativ (foreløpig kun menn). Kjønn + nivå + type er låst på de forhåndsopprettede lanseringsprogrammene.",
         },
         {
           term: "Seksjontyper",
@@ -397,11 +449,11 @@ const TRANSLATIONS: Record<Lang, Translation> = {
         },
         {
           term: "Sett-typer",
-          body: "oppvarming, arbeid, toppsett, backoff, drop-sett, amrap, kjerne, kondisjon. Velg den som passer det brukeren skal føle.",
+          body: "oppvarming, arbeid, toppsett, backoff, drop-sett, amrap, kjerne, kondisjon. Toppsett er dagens planlagte maks; backoff er en lettere oppfølging med høyere reps.",
         },
         {
           term: "Myk sletting",
-          body: "Å sette en øvelse til inaktiv beholder den i eksisterende programmer, men skjuler den fra nye tildelinger. Bruk dette i stedet for hard sletting når mulig.",
+          body: "Å fjerne haken for «Aktiv øvelse» beholder den i eksisterende programmer, men skjuler den fra nye tildelinger. Bruk dette i stedet for hard sletting når mulig.",
         },
       ],
     },
