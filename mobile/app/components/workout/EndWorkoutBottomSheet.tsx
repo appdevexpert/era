@@ -17,11 +17,11 @@ export interface EndWorkoutBottomSheetRef {
 
 interface EndWorkoutBottomSheetProps {
   onEnd?: () => void | Promise<void>;
-  onKeepGoing?: () => void;
+  onPause?: () => void | Promise<void>;
 }
 
 const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBottomSheetProps>(
-  function EndWorkoutBottomSheet({ onEnd, onKeepGoing }, ref) {
+  function EndWorkoutBottomSheet({ onEnd, onPause }, ref) {
     const { t } = useTranslation();
     const sheetRef = useRef<BottomSheetModal>(null);
     // While onEnd is running (finishSession → Supabase completeSession +
@@ -30,6 +30,8 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
     // that would otherwise let the user fire a second finishSession before
     // navigation replaces this screen.
     const [ending, setEnding] = useState(false);
+    const [pausing, setPausing] = useState(false);
+    const busy = ending || pausing;
 
     useImperativeHandle(ref, () => ({
       show: () => sheetRef.current?.present(),
@@ -43,14 +45,14 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
           appearsOnIndex={0}
           disappearsOnIndex={-1}
           opacity={0.6}
-          pressBehavior={ending ? "none" : "close"}
+          pressBehavior={busy ? "none" : "close"}
         />
       ),
-      [ending],
+      [busy],
     );
 
     const handleEnd = async () => {
-      if (ending) return;
+      if (ending || pausing) return;
       setEnding(true);
       try {
         await onEnd?.();
@@ -61,21 +63,28 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
       }
     };
 
-    const handleKeepGoing = () => {
-      if (ending) return;
-      sheetRef.current?.dismiss();
-      onKeepGoing?.();
+    const handlePause = async () => {
+      if (ending || pausing) return;
+      setPausing(true);
+      try {
+        await onPause?.();
+      } finally {
+        // Pause navigates away (unmounts the sheet) on the happy path; reset
+        // on failure so the user isn't stuck.
+        setPausing(false);
+      }
     };
 
     const handleDismiss = useCallback(() => {
       setEnding(false);
+      setPausing(false);
     }, []);
 
     return (
       <BottomSheetModal
         ref={sheetRef}
         enableDynamicSizing
-        enablePanDownToClose={!ending}
+        enablePanDownToClose={!busy}
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
@@ -84,27 +93,29 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
         <BottomSheetView style={styles.content}>
           <View style={styles.upper}>
             <View style={styles.titleSection}>
-              <Text style={styles.title}>{t("workout.ui.endWorkoutTitle")}</Text>
+              <Text style={styles.title}>{t("workout.ui.pauseOrEndTitle")}</Text>
             </View>
             <View style={styles.bodySection}>
-              <Text style={styles.body}>{t("workout.ui.endWorkoutBody")}</Text>
-              <Text style={styles.subtext}>{t("workout.ui.endWorkoutSubtext")}</Text>
+              <Text style={styles.body}>{t("workout.ui.pauseOrEndBody")}</Text>
+              <Text style={styles.subtext}>{t("workout.ui.pauseOrEndSubtext")}</Text>
             </View>
           </View>
           <View style={styles.actions}>
+            <TintButton
+              label={t("workout.ui.pauseWorkout")}
+              onPress={handlePause}
+              variant="gold"
+              style={styles.actionItem}
+              loading={pausing}
+              disabled={ending}
+            />
             <TintButton
               label={t("workout.ui.endWorkout")}
               onPress={handleEnd}
               variant="destructive"
               style={styles.actionItem}
               loading={ending}
-            />
-            <TintButton
-              label={t("workout.ui.keepGoing")}
-              onPress={handleKeepGoing}
-              variant="gold"
-              style={styles.actionItem}
-              disabled={ending}
+              disabled={pausing}
             />
           </View>
         </BottomSheetView>

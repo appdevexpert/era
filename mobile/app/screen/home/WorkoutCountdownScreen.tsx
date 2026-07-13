@@ -132,11 +132,12 @@ const WorkoutCountdownScreen = () => {
     firstExerciseName,
     mode = "fresh",
     startExerciseIndex = 0,
+    startSetIndex = 0,
     programDayId,
   } = route.params;
   // Pin the hook to the user-selected day so startSession initialises the
   // session for the right program_day (not bootstrap-time currentDayDetail).
-  const { ready, startSession, navigateToExercise, navigateToSessionComplete } =
+  const { ready, startSession, navigateToExercise, navigateToSessionComplete, pauseSession } =
     useWorkoutSession(programDayId);
 
   const { remaining: countdown } = useWallClockCountdown({
@@ -169,6 +170,11 @@ const WorkoutCountdownScreen = () => {
     await navigateToSessionComplete();
   }, [navigateToSessionComplete]);
 
+  const handlePauseWorkout = useCallback(() => {
+    allowLeaveRef.current = true;
+    pauseSession();
+  }, [pauseSession]);
+
   const startFadeIn = useCallback(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -193,9 +199,9 @@ const WorkoutCountdownScreen = () => {
       // The replace below would otherwise be intercepted by the beforeRemove
       // listener that was just armed by hasStarted=true.
       allowLeaveRef.current = true;
-      navigateToExercise(startExerciseIndex);
+      navigateToExercise(startExerciseIndex, startSetIndex);
     })();
-  }, [countdown, ready, startSession, navigateToExercise, mode, startExerciseIndex]);
+  }, [countdown, ready, startSession, navigateToExercise, mode, startExerciseIndex, startSetIndex]);
 
   const displayNumber = countdown > 0 ? countdown : 1;
 
@@ -235,6 +241,7 @@ const WorkoutCountdownScreen = () => {
       <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
         onEnd={handleEndWorkout}
+        onPause={handlePauseWorkout}
       />
     </View>
   );

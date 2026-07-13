@@ -78,6 +78,9 @@ export type WorkoutCountdownParams = {
   mode?: "fresh" | "resume" | "edit";
   /** 0-based exercise index to navigate to after the countdown. Defaults to 0. */
   startExerciseIndex?: number;
+  /** 0-based set index within that exercise to resume on (exact-set resume).
+   * Defaults to 0 (start of the exercise). */
+  startSetIndex?: number;
   /** program_days.id of the day the user actually selected. Threaded through
    * so the session is built from this day instead of the stale
    * workout.currentDayDetail (which captures bootstrap-time "today"). */

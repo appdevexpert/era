@@ -65,6 +65,50 @@ const segStyles = StyleSheet.create({
   },
 });
 
+/* ─── Play / pause glyph (drawn with Views — no SVG asset needed) ─── */
+
+const PlayPauseIcon = ({ paused }: { paused: boolean }) =>
+  paused ? (
+    <View style={ppStyles.playTriangle} />
+  ) : (
+    <View style={ppStyles.pauseWrap}>
+      <View style={ppStyles.pauseBar} />
+      <View style={ppStyles.pauseBar} />
+    </View>
+  );
+
+const ppStyles = StyleSheet.create({
+  button: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  pauseWrap: {
+    flexDirection: "row",
+    gap: 4,
+  },
+  pauseBar: {
+    width: 3.5,
+    height: 13,
+    borderRadius: 2,
+    backgroundColor: COLORS.neutral.white,
+  },
+  playTriangle: {
+    marginLeft: 3,
+    width: 0,
+    height: 0,
+    borderTopWidth: 7,
+    borderBottomWidth: 7,
+    borderLeftWidth: 12,
+    borderTopColor: "transparent",
+    borderBottomColor: "transparent",
+    borderLeftColor: COLORS.neutral.white,
+  },
+});
+
 /* ─── Header props ─── */
 
 type WorkoutLogHeaderProps = {
@@ -81,6 +125,10 @@ type WorkoutLogHeaderProps = {
   scrollY: SharedValue<number>;
   topInset: number;
   showSets?: boolean;
+  /** Whether the session is paused (freezes the timer, dims the set bar). */
+  isPaused?: boolean;
+  /** Toggle pause/resume from the header. Button hidden when omitted. */
+  onTogglePause?: () => void;
 };
 
 /* ─── Component ─── */
@@ -99,6 +147,8 @@ const WorkoutLogHeader = ({
   scrollY,
   topInset,
   showSets = true,
+  isPaused = false,
+  onTogglePause,
 }: WorkoutLogHeaderProps) => {
   const { t } = useTranslation();
 
@@ -176,6 +226,19 @@ const WorkoutLogHeader = ({
             <Text style={styles.collapsedTimer}>{timer}</Text>
           </Animated.View>
         </View>
+
+        {onTogglePause ? (
+          <PressableScale
+            onPress={onTogglePause}
+            hitSlop={10}
+            style={ppStyles.button}
+            accessibilityLabel={
+              isPaused ? t("workout.ui.resume") : t("workout.ui.pause")
+            }
+          >
+            <PlayPauseIcon paused={isPaused} />
+          </PressableScale>
+        ) : null}
       </View>
 
       {/* Info section — collapses on scroll */}

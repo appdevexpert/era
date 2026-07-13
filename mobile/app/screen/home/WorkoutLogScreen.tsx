@@ -26,7 +26,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
-import type { RootState } from "@/app/stores/store";
+import { useAppDispatch, type RootState } from "@/app/stores/store";
+import {
+  pauseSessionTimer,
+  startSessionTimer,
+} from "@/app/stores/slice/sessionSlice";
 import Animated, {
   Extrapolation,
   interpolate,
@@ -55,7 +59,15 @@ const WorkoutLogScreen = () => {
     currentSet: startSet = 0, // 0-based set to resume from
   } = route.params;
 
-  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getExerciseComment, ensureSessionHydrated } = useWorkoutSession();
+  const { sessionWorkout, navigateToExercise: goToEx, navigateToRest, navigateToSessionComplete, pauseSession, logSetResult, completeExerciseResult, addSet, getSetCount, getExerciseSetStats, getExerciseComment, ensureSessionHydrated } = useWorkoutSession();
+
+  const dispatch = useAppDispatch();
+  const isPaused = useSelector((state: RootState) => state.session.isPaused);
+
+  // Header ▶/⏸ — in-place freeze/resume of the session clock (not the leave flow).
+  const handleTogglePause = useCallback(() => {
+    dispatch(isPaused ? startSessionTimer() : pauseSessionTimer());
+  }, [dispatch, isPaused]);
   // Smart Weight Engine = Standard+ only. Free users get the planned weight
   // with no inter-session or intra-session auto-adjustment.
   const { hasStandard } = useEntitlement();
@@ -273,6 +285,11 @@ const WorkoutLogScreen = () => {
     await navigateToSessionComplete();
   }, [navigateToSessionComplete]);
 
+  const handlePauseWorkout = useCallback(() => {
+    allowLeaveRef.current = true;
+    pauseSession();
+  }, [pauseSession]);
+
   // Left-edge swipe → End Workout sheet. We disable the native iOS swipe-back
   // (HomeNavigator sets gestureEnabled:false) because preventDefault inside
   // `beforeRemove` can't catch a native UIKit pop. This JS pan replaces the
@@ -378,6 +395,8 @@ const WorkoutLogScreen = () => {
         onBack={() => endWorkoutSheetRef.current?.show()}
         scrollY={scrollY}
         topInset={insets.top}
+        isPaused={isPaused}
+        onTogglePause={handleTogglePause}
       />
 
       <Animated.ScrollView
@@ -494,6 +513,7 @@ const WorkoutLogScreen = () => {
           showNext={!!nextEx}
           showPrevious={!!prevEx}
           isLastSet={isLastSet}
+          paused={isPaused}
         />
       </Animated.View>
 
@@ -506,6 +526,7 @@ const WorkoutLogScreen = () => {
       <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
         onEnd={handleEndWorkout}
+        onPause={handlePauseWorkout}
       />
 
       {/* Left-edge swipe-back replacement. Thin transparent strip on top so

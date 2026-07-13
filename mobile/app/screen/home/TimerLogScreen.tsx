@@ -40,6 +40,7 @@ const TimerLogScreen = () => {
     navigateToExercise,
     navigateToRest,
     navigateToSessionComplete,
+    pauseSession,
     logSetResult,
     completeExerciseResult,
     addSet,
@@ -69,6 +70,11 @@ const TimerLogScreen = () => {
     allowLeaveRef.current = true;
     await navigateToSessionComplete();
   }, [navigateToSessionComplete]);
+
+  const handlePauseWorkout = useCallback(() => {
+    allowLeaveRef.current = true;
+    pauseSession();
+  }, [pauseSession]);
 
   const {
     exerciseName,
@@ -280,6 +286,7 @@ const TimerLogScreen = () => {
       <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
         onEnd={handleEndWorkout}
+        onPause={handlePauseWorkout}
       />
     </View>
   );

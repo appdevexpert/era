@@ -133,6 +133,7 @@ const CardioTimerScreen = () => {
     sessionWorkout,
     navigateToRest,
     navigateToSessionComplete,
+    pauseSession,
     logCardioResult,
     completeExerciseResult,
   } = useWorkoutSession();
@@ -153,6 +154,11 @@ const CardioTimerScreen = () => {
     allowLeaveRef.current = true;
     await navigateToSessionComplete();
   }, [navigateToSessionComplete]);
+
+  const handlePauseWorkout = useCallback(() => {
+    allowLeaveRef.current = true;
+    pauseSession();
+  }, [pauseSession]);
 
   const {
     exerciseName,
@@ -343,6 +349,7 @@ const CardioTimerScreen = () => {
       <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
         onEnd={handleEndWorkout}
+        onPause={handlePauseWorkout}
       />
     </View>
   );

@@ -90,6 +90,13 @@ interface SessionState {
    * don't re-increment, and finishing doesn't navigate to SessionComplete.
    */
   isEditMode: boolean;
+  /**
+   * True while the session is paused (user tapped "Pause Workout" and left).
+   * On pause, the current sitting's seconds are banked into accumulatedSeconds
+   * and sessionStartedAt is cleared so the session clock freezes. Resume
+   * (startSessionTimer) sets a fresh sessionStartedAt and clears this.
+   */
+  isPaused: boolean;
 }
 
 const initialState: SessionState = {
@@ -108,6 +115,7 @@ const initialState: SessionState = {
   completedExerciseIds: [],
   exerciseComments: {},
   isEditMode: false,
+  isPaused: false,
 };
 
 const sessionSlice = createSlice({
@@ -142,6 +150,7 @@ const sessionSlice = createSlice({
       state.sessionStartedAt = null;
       state.accumulatedSeconds = action.payload.accumulatedSeconds ?? 0;
       state.isEditMode = false;
+      state.isPaused = false;
     },
     /**
      * Bulk-restore logged set values when resuming an existing session.
@@ -228,6 +237,58 @@ const sessionSlice = createSlice({
     },
     startSessionTimer(state) {
       state.sessionStartedAt = new Date().toISOString();
+      state.isPaused = false;
+    },
+    /**
+     * Pause Workout: bank the current sitting's seconds into accumulatedSeconds
+     * and stop the clock. The session stays alive (sessionId + pending
+     * exercises intact) so it can be resumed to the exact set later. Persisted,
+     * so a pause survives an app kill.
+     */
+    pauseSessionTimer(state) {
+      if (state.sessionStartedAt) {
+        const segment = Math.max(
+          0,
+          Math.floor(
+            (Date.now() - new Date(state.sessionStartedAt).getTime()) / 1000,
+          ),
+        );
+        state.accumulatedSeconds += segment;
+      }
+      state.sessionStartedAt = null;
+      state.isPaused = true;
+    },
+    /**
+     * Heartbeat: fold the live segment so far into accumulatedSeconds and
+     * restart the segment from now — WITHOUT pausing. Called every few seconds
+     * by useSessionTimer while the clock runs, so the persisted total stays
+     * current. That's what lets a cold start (below) freeze at the right time
+     * even when the app was hard-killed without a clean "background" event.
+     * Display stays continuous: accumulatedSeconds jumps up, the live segment
+     * resets to ~0.
+     */
+    bankElapsed(state) {
+      if (!state.sessionStartedAt) return;
+      const segment = Math.floor(
+        (Date.now() - new Date(state.sessionStartedAt).getTime()) / 1000,
+      );
+      if (segment <= 0) return;
+      state.accumulatedSeconds += segment;
+      state.sessionStartedAt = new Date().toISOString();
+    },
+    /**
+     * Run ONCE on app launch (PersistGate onBeforeLift). If a running session
+     * was rehydrated (sessionStartedAt still set), the app was killed while the
+     * timer ran — the stale start would otherwise count all the time the app
+     * was closed. Freeze it: drop the stale segment (already banked to within a
+     * heartbeat) so the timer shows the saved total, then resume restarts the
+     * clock. No-op if there's no running session (already paused / finished).
+     */
+    freezeSessionOnColdStart(state) {
+      if (state.sessionStartedAt) {
+        state.sessionStartedAt = null;
+        state.isPaused = true;
+      }
     },
     /**
      * Stamp suggested weights for upcoming sets after a set is logged
@@ -267,6 +328,9 @@ export const {
   setLastLoggedSetsByExercise,
   logCompletedSet,
   startSessionTimer,
+  pauseSessionTimer,
+  bankElapsed,
+  freezeSessionOnColdStart,
   setSuggestedWeights,
   clearSuggestedWeights,
   clearSession,

@@ -142,7 +142,7 @@ const RestTimerScreen = () => {
   } = route.params;
 
   const exIdx = exerciseIndex - 1; // 0-based
-  const { navigateToExercise, navigateToSessionComplete } = useWorkoutSession();
+  const { navigateToExercise, navigateToSessionComplete, pauseSession } = useWorkoutSession();
 
   const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
   const allowLeaveRef = useRef(false);
@@ -160,6 +160,11 @@ const RestTimerScreen = () => {
     allowLeaveRef.current = true;
     await navigateToSessionComplete();
   }, [navigateToSessionComplete]);
+
+  const handlePauseWorkout = useCallback(() => {
+    allowLeaveRef.current = true;
+    pauseSession();
+  }, [pauseSession]);
 
   /** Skip rest / navigate to the exercise at the correct set */
   const goToExercise = useCallback(() => {
@@ -253,6 +258,7 @@ const RestTimerScreen = () => {
       <EndWorkoutBottomSheet
         ref={endWorkoutSheetRef}
         onEnd={handleEndWorkout}
+        onPause={handlePauseWorkout}
       />
     </View>
   );

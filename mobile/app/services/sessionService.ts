@@ -209,9 +209,16 @@ export interface DaySessionSummary {
   completedExercises: number;
   /**
    * program_day_exercise_id of the first exercise whose session_exercises row
-   * is NOT yet completed (ordered by sort_order). Null when every exercise is done.
+   * is NOT yet completed or skipped (ordered by sort_order). Null when every
+   * exercise is done (completed or skipped).
    */
   firstIncompleteProgramDayExerciseId: string | null;
+  /**
+   * 0-based index of the first not-yet-logged set within that first incomplete
+   * exercise — the exact set to resume on. 0 when the exercise is untouched or
+   * there is nothing to resume.
+   */
+  firstIncompleteSetIndex: number;
 }
 
 export async function getDaySessionSummary(params: {
@@ -226,7 +233,7 @@ export async function getDaySessionSummary(params: {
 
   const { data: exRows, error: exError } = await supabase
     .from("session_exercises")
-    .select("program_day_exercise_id, status, sort_order")
+    .select("id, program_day_exercise_id, status, sort_order")
     .eq("session_id", session.id)
     .order("sort_order", { ascending: true });
 
@@ -234,13 +241,35 @@ export async function getDaySessionSummary(params: {
 
   const rows = exRows ?? [];
   let firstIncomplete: string | null = null;
+  let firstIncompleteSessionExerciseId: string | null = null;
   let completed = 0;
   for (const row of rows) {
     if (row.status === "completed") {
       completed += 1;
+    } else if (row.status === "skipped") {
+      // Skipped counts as "done" for resume purposes — a skipped exercise is
+      // NOT pending, so it must not become the resume target and must not keep
+      // the day in "Resume" mode. (End Workout marks the rest as skipped.)
+      continue;
     } else if (firstIncomplete == null && row.program_day_exercise_id) {
       firstIncomplete = row.program_day_exercise_id as string;
+      firstIncompleteSessionExerciseId = row.id as string;
     }
+  }
+
+  // Exact-set resume: within the first incomplete exercise, find the first set
+  // whose row isn't completed/skipped (0-based). Defaults to 0.
+  let firstIncompleteSetIndex = 0;
+  if (firstIncompleteSessionExerciseId) {
+    const { data: setRows } = await supabase
+      .from("session_sets")
+      .select("status")
+      .eq("session_exercise_id", firstIncompleteSessionExerciseId)
+      .order("set_number", { ascending: true });
+    const idx = (setRows ?? []).findIndex(
+      (s) => s.status !== "completed" && s.status !== "skipped",
+    );
+    firstIncompleteSetIndex = idx >= 0 ? idx : 0;
   }
 
   return {
@@ -249,6 +278,7 @@ export async function getDaySessionSummary(params: {
     totalExercises: rows.length,
     completedExercises: completed,
     firstIncompleteProgramDayExerciseId: firstIncomplete,
+    firstIncompleteSetIndex,
   };
 }
 

@@ -105,6 +105,7 @@ export const useSyncQueue = () => {
       },
       logSet: (p) => sessionService.logSet(p),
       completeExercise: (p) => sessionService.completeExercise(p.id, p.comment),
+      skipExercise: (p) => sessionService.skipExercise(p.sessionExerciseId),
       completeSession: (p) => sessionService.completeSession(p),
       upsertUserExerciseStat: (p) => sessionService.upsertUserExerciseStat(p),
       logCardio: (p) => sessionService.logCardio(p),

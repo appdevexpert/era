@@ -13,6 +13,7 @@ import { toastConfig } from "./components/common/toastConfig";
 import Navigation from "./navigation/Navigation";
 import { configureRevenueCat } from "./services/revenueCatService";
 import { persistor, store } from "./stores/store";
+import { freezeSessionOnColdStart } from "./stores/slice/sessionSlice";
 import "./locales/i18n";
 
 SplashScreen.preventAutoHideAsync();
@@ -42,7 +43,13 @@ const App = () => {
 
   return (
     <Provider store={store}>
-      <PersistGate loading={null} persistor={persistor}>
+      <PersistGate
+        loading={null}
+        persistor={persistor}
+        onBeforeLift={() => {
+          store.dispatch(freezeSessionOnColdStart());
+        }}
+      >
         <SafeAreaProvider>
           <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
             <View style={{ flex: 1, backgroundColor: "#000000" }} onLayout={onLayoutRootView}>

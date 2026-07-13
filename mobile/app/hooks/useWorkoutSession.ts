@@ -37,6 +37,7 @@ import {
   setLastLoggedSetsByExercise,
   logCompletedSet,
   startSessionTimer,
+  pauseSessionTimer,
   setSuggestedWeights,
   hydrateCompletedSets,
   hydrateCompletedExerciseIds,
@@ -61,6 +62,7 @@ import type { ExerciseStatSnapshot, LastLoggedSetSnapshot } from "@/app/stores/s
 import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMappers";
 import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
+import { useAutoPauseOnBackground } from "@/app/hooks/useAutoPauseOnBackground";
 import * as sessionService from "@/app/services/sessionService";
 import { firePRAlert } from "@/app/utils/notifications";
 import { suggestFutureSetWeights } from "@/app/utils/setSuggestion";
@@ -81,6 +83,10 @@ export const useWorkoutSession = (programDayId?: string) => {
   const dispatch = useAppDispatch();
   const { syncWrite, enqueueWrite, flushQueue } = useSyncQueue();
   const { i18n, t } = useTranslation();
+  // Freeze the session clock if the app is backgrounded/killed mid-workout so
+  // closed time is never counted (user resumes with ▶). Lives here because this
+  // hook is only used by the active-workout screens. See PAUSE_WORKOUT.md.
+  useAutoPauseOnBackground();
   // Smart Weight Engine is a Standard+ feature — free users keep the raw
   // planned weight without auto-adjustment from feedback (PAYMENT_FEATURE.md).
   const { hasStandard } = useEntitlement();
@@ -642,10 +648,13 @@ export const useWorkoutSession = (programDayId?: string) => {
       // sources exist. Until then, those exercises only earn the +50 for
       // completing the session (and +150 if it's the Cardio 4×4 day).
       //
-      // Skip the award when (a) we're re-editing an already-completed session
-      // or (b) this exact (exercise, setNumber) was already logged once
-      // before — both cases would otherwise double-pay the user.
-      if (!isEditMode && !alreadyLogged && userId && (weight != null || reps != null)) {
+      // Award once per set, on its FIRST real log. `alreadyLogged` (from the
+      // hydrated completedSetsMap) is the dedup — it's true for any set already
+      // saved in the DB, so re-editing a completed set never re-pays. A set
+      // that was NEVER logged (e.g. a previously-skipped exercise now completed
+      // via Start Again) has alreadyLogged=false, so it correctly earns +15 the
+      // first time. This is why we key on !alreadyLogged, not !isEditMode.
+      if (!alreadyLogged && userId && (weight != null || reps != null)) {
         const awardParams = {
           userId,
           sessionId: sessionId ?? null,
@@ -668,7 +677,7 @@ export const useWorkoutSession = (programDayId?: string) => {
         );
       }
     },
-    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, isEditMode, ensureSessionHydrated, t, hasStandard],
+    [sessionWorkout, exerciseMap, setMap, completedSetsMap, dispatch, syncWrite, userId, sessionId, ensureSessionHydrated, t, hasStandard],
   );
 
   /** Complete an exercise. Returns PR detail when this exercise broke a max_weight PR. */
@@ -905,6 +914,21 @@ export const useWorkoutSession = (programDayId?: string) => {
       sessionService.completeSession(sessionParams),
     );
 
+    // End Workout with exercises still unfinished → mark every not-completed
+    // exercise as "skipped" so the day is fully accounted for (completed OR
+    // skipped, nothing pending). That's what makes the day show "Start Again"
+    // (done) instead of "Resume", and lets Start Again detect a skip→complete
+    // to award points the first time. Local-first: fire now, retry via queue.
+    // (No-op on a full completion — nothing is left un-completed.)
+    const skippedSessionExerciseIds = Object.values(exerciseMap).filter(
+      (seId) => !completedExerciseIds.includes(seId),
+    );
+    for (const seId of skippedSessionExerciseIds) {
+      void syncWrite("skipExercise", { sessionExerciseId: seId }, () =>
+        sessionService.skipExercise(seId),
+      );
+    }
+
     // Optimistically mark the day completed in Redux as soon as the server
     // write is enqueued — not at the navigation step. Any exit path after
     // finishSession (End Workout sheet, swipe-back, OS kill, mid-finish
@@ -1088,6 +1112,8 @@ export const useWorkoutSession = (programDayId?: string) => {
     userId,
     sessionProgramDayId,
     sessionDayKind,
+    exerciseMap,
+    completedExerciseIds,
     syncWrite,
     enqueueWrite,
     dispatch,
@@ -1213,6 +1239,20 @@ export const useWorkoutSession = (programDayId?: string) => {
     // Redux can't blank it; this keeps tomorrow's session start clean.
     dispatch(resetSession());
   }, [navigation, sessionWorkout, sessionStartedAt, setsLogged, finishSession, dispatch, sessionId, isEditMode]);
+
+  /**
+   * Pause Workout: freeze the session clock (banks this sitting into
+   * accumulatedSeconds) and leave the workout, landing back on the day's
+   * ExerciseList where "Resume Workout" shows. The session stays alive
+   * (sessionId + pending exercises intact, persisted), so resume re-enters
+   * via the local-first branch in startSession — which keeps accumulatedSeconds
+   * and restarts the timer, so the clock continues from where it froze.
+   * No DB write: the persisted Redux session is the source of truth here.
+   */
+  const pauseSession = useCallback(() => {
+    dispatch(pauseSessionTimer());
+    navigation.goBack();
+  }, [dispatch, navigation]);
 
   /**
    * Add a dynamic set for an exercise. Local-first: generate the UUID,
@@ -1377,6 +1417,7 @@ export const useWorkoutSession = (programDayId?: string) => {
     navigateToExercise,
     navigateToRest,
     navigateToSessionComplete,
+    pauseSession,
     logSetResult,
     logCardioResult,
     completeExerciseResult,

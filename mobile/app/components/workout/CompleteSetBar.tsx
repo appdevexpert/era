@@ -13,6 +13,8 @@ type CompleteSetBarProps = {
   showNext?: boolean;
   showPrevious?: boolean;
   isLastSet?: boolean;
+  /** When paused (break time), dim the bar and block logging. */
+  paused?: boolean;
 };
 
 const GRADIENT_COLORS = ["#FCF3C0", "#F7E06F", "#C9A84C"] as const;
@@ -45,6 +47,7 @@ const CompleteSetBar = ({
   showNext = true,
   showPrevious = false,
   isLastSet = false,
+  paused = false,
 }: CompleteSetBarProps) => {
   const { t } = useTranslation();
   const label = isLastSet
@@ -52,7 +55,10 @@ const CompleteSetBar = ({
     : t("workout.ui.completeSet");
 
   return (
-    <View style={styles.row}>
+    <View
+      style={[styles.row, paused && styles.dimmed]}
+      pointerEvents={paused ? "none" : "auto"}
+    >
       {showPrevious && onPrevious ? (
         <GoldButton onPress={onPrevious} style={styles.circleBtn}>
           <SkipNext
@@ -68,6 +74,7 @@ const CompleteSetBar = ({
         onPress={onComplete}
         variant="gold"
         style={styles.mainBtn}
+        disabled={paused}
       />
 
       {showNext && onNext ? (
@@ -86,6 +93,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     alignItems: "center",
+  },
+  dimmed: {
+    opacity: 0.8,
   },
   mainBtn: {
     flex: 1,

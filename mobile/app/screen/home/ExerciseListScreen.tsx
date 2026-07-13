@@ -437,11 +437,11 @@ const ExerciseListScreen = () => {
     return date === getToday();
   }, [activeDayDetail, programStartDate]);
 
-  // Derive the button mode from the summary + planned exercise count.
-  // "all complete" is gated on the count of exercises whose session_exercises
-  // row is status='completed' — workout_sessions.status being 'completed' is
-  // NOT enough, because the user can End Workout with exercises still skipped.
-  // In that case we want Resume so they can finish the skipped ones.
+  // Derive the button mode from the summary. "Done" = no PENDING exercise left
+  // (every session_exercises row is either 'completed' or 'skipped') — see
+  // getDaySessionSummary, where firstIncomplete excludes skipped. This is why
+  // End Workout (which marks the rest 'skipped') shows "Start Again", while a
+  // Pause (exercises still pending) shows "Resume".
   const totalPlanned = workout?.sections.reduce(
     (acc, s) => acc + s.exercises.length,
     0,
@@ -449,7 +449,7 @@ const ExerciseListScreen = () => {
   const allComplete =
     sessionSummary != null &&
     totalPlanned > 0 &&
-    sessionSummary.completedExercises >= totalPlanned;
+    sessionSummary.firstIncompleteProgramDayExerciseId == null;
   const buttonMode: "start" | "resume" | "again" = !sessionSummary
     ? "start"
     : allComplete
@@ -509,6 +509,11 @@ const ExerciseListScreen = () => {
       firstExerciseName: startingExerciseName,
       mode,
       startExerciseIndex: startIdx,
+      // Exact-set resume: jump to the first unlogged set of that exercise.
+      startSetIndex:
+        buttonMode === "resume"
+          ? sessionSummary?.firstIncompleteSetIndex ?? 0
+          : 0,
       // Pin the session to the day the user just selected. Without this the
       // hook would fall back to workout.currentDayDetail (bootstrap-time
       // "today") and run a Saturday session for a Monday tap.
@@ -711,6 +716,11 @@ const ExerciseListScreen = () => {
           style={styles.bottomFade}
         />
         <View style={[styles.buttonWrap, { paddingBottom: insets.bottom + 12 }]}>
+          {buttonMode === "resume" ? (
+            <Text style={styles.inProgressLabel}>
+              {t("workout.ui.inProgress")}
+            </Text>
+          ) : null}
           <PrimaryButton label={buttonLabel} onPress={handlePrimaryAction} />
         </View>
       </>
@@ -1132,5 +1142,14 @@ const styles = StyleSheet.create({
     left: horizontalScale(18),
     right: horizontalScale(18),
     bottom: 0,
+  },
+  inProgressLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.primary.dark,
+    textAlign: "center",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 10,
   },
 });
