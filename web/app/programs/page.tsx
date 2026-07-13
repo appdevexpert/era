@@ -41,17 +41,17 @@ export default async function ProgramsPage({ searchParams }: ProgramsPageProps) 
         eyebrow="Program Manager"
         title="Programs"
         description="Four launch programs — Male and Female × Beginner / Advanced. Intermediate users share the Beginner program. Pick a gender to manage."
-        action={
-          <ProgramFormDialog
-            program={null}
-            trigger={
-              <Button>
-                <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.8} />
-                Create program
-              </Button>
-            }
-          />
-        }
+        // action={
+        //   <ProgramFormDialog
+        //     program={null}
+        //     trigger={
+        //       <Button>
+        //         <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.8} />
+        //         Create program
+        //       </Button>
+        //     }
+        //   />
+        // }
       />
 
       <ConfigWarning message={configError} />

@@ -109,7 +109,7 @@ export default async function DashboardPage() {
 
       <div className="@container/main flex flex-col gap-4 md:gap-6">
         <SectionCards cards={cards} />
-        <ChartAreaInteractive data={activityState.data} />
+        {/* <ChartAreaInteractive data={activityState.data} /> */}
         <NewUsers users={recentUsersState.data} />
       </div>
     </>

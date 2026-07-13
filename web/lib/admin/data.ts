@@ -471,17 +471,25 @@ export async function getProgramDetail(
   // play here: Supabase REST URLs cap around 8 KB (500 UUIDs ≈ 18 KB ⇒ "fetch
   // failed"), and the server defaults to 1000 rows per response. Chunking the
   // IN-clause by 100 keeps the URL well under the URL cap, and 100 exercises
-  // × ~3 sets = ~300 rows safely under the row cap.
+  // × ~3 sets = ~300 rows safely under the row cap. Chunks run in parallel —
+  // sequential awaits added ~1–2s on 12-week programs.
+  const SET_CHUNK = 100;
+  const setChunks: string[][] = [];
+  for (let i = 0; i < dayExerciseIds.length; i += SET_CHUNK) {
+    setChunks.push(dayExerciseIds.slice(i, i + SET_CHUNK));
+  }
+  const setResults = await Promise.all(
+    setChunks.map((chunk) =>
+      supabase
+        .from("planned_exercise_sets")
+        .select("*")
+        .in("program_day_exercise_id", chunk)
+        .order("set_number"),
+    ),
+  );
   let sets: PlannedSetRow[] = [];
   let setsError: string | null = null;
-  const SET_CHUNK = 100;
-  for (let i = 0; i < dayExerciseIds.length; i += SET_CHUNK) {
-    const chunk = dayExerciseIds.slice(i, i + SET_CHUNK);
-    const result = await supabase
-      .from("planned_exercise_sets")
-      .select("*")
-      .in("program_day_exercise_id", chunk)
-      .order("set_number");
+  for (const result of setResults) {
     if (result.error) {
       setsError = result.error.message;
       break;
