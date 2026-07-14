@@ -4,13 +4,17 @@
 // the admin Modality picker when mobility content is needed.
 export const EXERCISE_MODALITIES = ["strength", "cardio", /* "mobility", */ "core"] as const;
 
+// Category is a display-only tag on the exercise card (no mobile logic branches
+// on it). "warmup" and "cooldown" hidden 2026-07-14 — section kinds already
+// cover those roles at the day level; keeping them on the exercise added noise.
+// Enum values stay in Postgres for parity.
 export const EXERCISE_CATEGORIES = [
   "compound",
   "isolation",
   "core",
   "cardio",
   // "warmup",
-  "cooldown",
+  // "cooldown",
 ] as const;
 
 export const PROGRAM_STATUSES = ["draft", "active", "archived"] as const;
