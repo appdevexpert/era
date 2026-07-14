@@ -1,4 +1,8 @@
-export const EXERCISE_MODALITIES = ["strength", "cardio", "mobility", "core"] as const;
+// "mobility" temporarily commented out 2026-07-14 — zero mobility exercises
+// seeded in the library and no immediate plan to add stretching/warm-up drills.
+// Enum value stays in Postgres for DB parity; uncomment here to re-enable in
+// the admin Modality picker when mobility content is needed.
+export const EXERCISE_MODALITIES = ["strength", "cardio", /* "mobility", */ "core"] as const;
 
 export const EXERCISE_CATEGORIES = [
   "compound",
@@ -64,7 +68,9 @@ export const PLANNED_SET_KINDS = [
 // admin Kind dropdown (filtered options) and in server actions on save.
 // - cardio modality → cardio-only sets (drives session_cardio_logs + +150 bonus)
 // - core modality   → core-only sets (no weight, no PR)
-// - strength/mobility → working plus top_set/backoff for advanced planning
+// - strength (or legacy mobility) → working plus top_set/backoff for advanced
+//   planning. mobility is hidden from the admin Modality picker as of
+//   2026-07-14 but the fallback stays so any legacy rows still validate.
 //   (warmup dropped 2026-06-25 per Rami — see PLANNED_SET_KINDS comment)
 export function allowedSetKindsForModality(modality: string | null | undefined): string[] {
   if (modality === "cardio") return ["cardio"];
