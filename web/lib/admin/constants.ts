@@ -5,7 +5,7 @@ export const EXERCISE_CATEGORIES = [
   "isolation",
   "core",
   "cardio",
-  "warmup",
+  // "warmup",
   "cooldown",
 ] as const;
 
@@ -49,16 +49,28 @@ export const SECTION_KINDS = [
   "custom",
 ] as const;
 
+// Rami locked "no warm-up sets" 2026-06-25 — warmup removed from admin picker.
+// The enum value stays in Postgres and in mobile PlannedSetKind for DB parity,
+// but no new planned rows should emit it. See mobile/app/utils/deloadTransform.ts.
 export const PLANNED_SET_KINDS = [
-  "warmup",
   "working",
   "top_set",
   "backoff",
-  "drop_set",
-  "amrap",
   "core",
   "cardio",
 ] as const;
+
+// Which Kind values are valid for a given exercise Modality. Enforced in the
+// admin Kind dropdown (filtered options) and in server actions on save.
+// - cardio modality → cardio-only sets (drives session_cardio_logs + +150 bonus)
+// - core modality   → core-only sets (no weight, no PR)
+// - strength/mobility → working plus top_set/backoff for advanced planning
+//   (warmup dropped 2026-06-25 per Rami — see PLANNED_SET_KINDS comment)
+export function allowedSetKindsForModality(modality: string | null | undefined): string[] {
+  if (modality === "cardio") return ["cardio"];
+  if (modality === "core") return ["core"];
+  return ["working", "top_set", "backoff"];
+}
 
 // The four launch programs (Male/Female × Beginner/Advanced). Intermediate
 // users share the Beginner program — ensure_my_program_assignment maps

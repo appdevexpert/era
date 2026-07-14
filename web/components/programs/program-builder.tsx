@@ -77,7 +77,7 @@ import {
   updatePlannedSet,
 } from "@/lib/admin/actions";
 import {
-  PLANNED_SET_KINDS,
+  allowedSetKindsForModality,
   SECTION_KINDS,
   WORKOUT_DAY_KINDS,
   WORKOUT_PHASES,
@@ -542,9 +542,11 @@ function setSummary(set: PlannedSetRow): string {
 function PlannedSetsList({
   exerciseSets,
   programId,
+  allowedKinds,
 }: {
   exerciseSets: PlannedSetRow[];
   programId: string;
+  allowedKinds: string[];
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -593,7 +595,7 @@ function PlannedSetsList({
                       <Hidden name="program_id" value={programId} />
                       <div className="grid gap-4 lg:grid-cols-2">
                         <FormField label="Set #" name="set_number" type="number" defaultValue={set.set_number} />
-                        <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} defaultValue={set.set_kind} />
+                        <SelectField label="Kind" name="set_kind" options={allowedKinds} defaultValue={allowedKinds.includes(set.set_kind) ? set.set_kind : allowedKinds[0]} />
                         <FormField label="Weight (kg)" name="target_weight_value" type="number" defaultValue={set.target_weight_value ?? ""} />
                         <FormField label="Reps" name="target_reps_exact" type="number" defaultValue={set.target_reps_exact ?? ""} />
                       </div>
@@ -619,13 +621,17 @@ function DayExerciseCard({
   programId,
   sectionOptions,
   exerciseLibraryOptions,
+  modality,
 }: {
   assignment: DayExerciseRow;
   exerciseSets: PlannedSetRow[];
   programId: string;
   sectionOptions: { label: string; value: string }[];
   exerciseLibraryOptions: { label: string; value: string }[];
+  modality: string | null;
 }) {
+  const allowedKinds = allowedSetKindsForModality(modality);
+  const defaultKind = allowedKinds.includes("working") ? "working" : allowedKinds[0];
   const exerciseName = translation(
     assignment.display_name_translations,
     "en",
@@ -735,7 +741,7 @@ function DayExerciseCard({
               <Hidden name="start_from" value={exerciseSets.length + 1} />
               <div className="grid gap-4 lg:grid-cols-2">
                 <FormField label="Number of sets" name="set_count" type="number" defaultValue={3} />
-                <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} />
+                <SelectField label="Kind" name="set_kind" options={allowedKinds} defaultValue={defaultKind} />
                 <FormField label="Weight (kg)" name="target_weight_value" type="number" />
                 <FormField label="Reps" name="target_reps_exact" type="number" />
                 <FormField label="Reps min" name="target_reps_min" type="number" />
@@ -764,7 +770,7 @@ function DayExerciseCard({
               <Hidden name="program_day_exercise_id" value={assignment.id} />
               <Hidden name="set_number" value={exerciseSets.length + 1} />
               <div className="grid gap-4 lg:grid-cols-2">
-                <SelectField label="Kind" name="set_kind" options={PLANNED_SET_KINDS} />
+                <SelectField label="Kind" name="set_kind" options={allowedKinds} defaultValue={defaultKind} />
                 <FormField label="Weight (kg)" name="target_weight_value" type="number" />
                 <FormField label="Reps" name="target_reps_exact" type="number" />
               </div>
@@ -772,7 +778,7 @@ function DayExerciseCard({
           </BuilderDialog>
         </div>
       </div>
-      <PlannedSetsList exerciseSets={exerciseSets} programId={programId} />
+      <PlannedSetsList exerciseSets={exerciseSets} programId={programId} allowedKinds={allowedKinds} />
     </div>
   );
 }
@@ -788,6 +794,7 @@ function DayEditorSheet({
   dayExercises,
   sets,
   exerciseLibraryOptions,
+  modalityByExerciseId,
   trigger,
 }: {
   day: ProgramDayRow;
@@ -796,6 +803,7 @@ function DayEditorSheet({
   dayExercises: DayExerciseRow[];
   sets: PlannedSetRow[];
   exerciseLibraryOptions: { label: string; value: string }[];
+  modalityByExerciseId: Map<string, string>;
   trigger: ReactElement;
 }) {
   const daySections = sections.filter((s) => s.program_day_id === day.id);
@@ -986,6 +994,7 @@ function DayEditorSheet({
                                 programId={programId}
                                 sectionOptions={sectionOptions}
                                 exerciseLibraryOptions={exerciseLibraryOptions}
+                                modality={modalityByExerciseId.get(assignment.exercise_id) ?? null}
                               />
                             ))}
                           </div>
@@ -1020,6 +1029,7 @@ function DayEditorSheet({
                               programId={programId}
                               sectionOptions={sectionOptions}
                               exerciseLibraryOptions={exerciseLibraryOptions}
+                              modality={modalityByExerciseId.get(assignment.exercise_id) ?? null}
                             />
                           ))}
                         </div>
@@ -1056,6 +1066,7 @@ function DayCard({
   dayExercises,
   sets,
   exerciseLibraryOptions,
+  modalityByExerciseId,
 }: {
   day: ProgramDayRow;
   programId: string;
@@ -1066,6 +1077,7 @@ function DayCard({
   dayExercises: DayExerciseRow[];
   sets: PlannedSetRow[];
   exerciseLibraryOptions: { label: string; value: string }[];
+  modalityByExerciseId: Map<string, string>;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -1145,6 +1157,7 @@ function DayCard({
             dayExercises={dayExercises}
             sets={sets}
             exerciseLibraryOptions={exerciseLibraryOptions}
+            modalityByExerciseId={modalityByExerciseId}
             trigger={
               <Button variant="ghost" size="sm" className="h-7 w-full justify-center text-xs">
                 <HugeiconsIcon icon={Settings02Icon} size={12} strokeWidth={1.8} />
@@ -1203,6 +1216,9 @@ export function ProgramBuilder({ detail }: { detail: ProgramDetail }) {
     label: translation(exercise.name_translations, "en", exercise.name),
     value: exercise.id,
   }));
+  const modalityByExerciseId = new Map(
+    exercises.map((exercise: ExerciseRow) => [exercise.id, exercise.modality] as const),
+  );
 
   const activeWeek = sortedWeeks.find((w) => w.id === activeWeekId) ?? null;
   const daysInActiveWeek = activeWeek
@@ -1332,6 +1348,7 @@ export function ProgramBuilder({ detail }: { detail: ProgramDetail }) {
                 dayExercises={dayExercises}
                 sets={sets}
                 exerciseLibraryOptions={exerciseLibraryOptions}
+                modalityByExerciseId={modalityByExerciseId}
               />
             ))}
             <AddDayDialog

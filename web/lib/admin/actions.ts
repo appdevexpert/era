@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdminClient } from "@/lib/admin/supabase";
-import { isMainProgramId } from "@/lib/admin/constants";
+import { allowedSetKindsForModality, isMainProgramId } from "@/lib/admin/constants";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAdminAction } from "@/lib/admin/audit";
 import { getCurrentAdminUser } from "@/lib/auth/current-user";
 
@@ -48,6 +49,31 @@ function slugify(text: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
+}
+
+// Enforces the Kind/Modality contract server-side. A row in program_day_exercises
+// pins to one exercise_library row, whose modality decides which set_kind values
+// are valid (see allowedSetKindsForModality). Called from add/update/bulk set
+// actions so a hand-crafted request can't bypass the admin dropdown filter.
+async function assertKindMatchesExerciseModality(
+  supabase: SupabaseClient,
+  programDayExerciseId: string,
+  setKind: string,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("program_day_exercises")
+    .select("exercise_library(modality)")
+    .eq("id", programDayExerciseId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const modality = (data as { exercise_library?: { modality?: string | null } | null } | null)
+    ?.exercise_library?.modality ?? null;
+  const allowed = allowedSetKindsForModality(modality);
+  if (!allowed.includes(setKind)) {
+    throw new Error(
+      `Set kind "${setKind}" is not valid for a ${modality ?? "unknown"} exercise. Allowed: ${allowed.join(", ")}.`,
+    );
+  }
 }
 
 export async function saveExercise(formData: FormData) {
@@ -343,13 +369,16 @@ export async function addPlannedSet(formData: FormData) {
   const supabase = requireAdminClient();
   const programId = value(formData, "program_id");
   const setNumber = intValue(formData, "set_number", 1);
+  const programDayExerciseId = value(formData, "program_day_exercise_id");
+  const setKind = value(formData, "set_kind") || "working";
+  await assertKindMatchesExerciseModality(supabase, programDayExerciseId, setKind);
 
   const { data, error } = await supabase
     .from("planned_exercise_sets")
     .insert({
-      program_day_exercise_id: value(formData, "program_day_exercise_id"),
+      program_day_exercise_id: programDayExerciseId,
       set_number: setNumber,
-      set_kind: value(formData, "set_kind") || "working",
+      set_kind: setKind,
       target_weight_value: numberValue(formData, "target_weight_value"),
       target_reps_exact: numberValue(formData, "target_reps_exact"),
       target_reps_min: numberValue(formData, "target_reps_min"),
@@ -416,6 +445,7 @@ export async function addBulkSets(formData: FormData) {
   const count = intValue(formData, "set_count", 3);
   const startFrom = intValue(formData, "start_from", 1);
   const setKind = value(formData, "set_kind") || "working";
+  await assertKindMatchesExerciseModality(supabase, exerciseId, setKind);
   const weight = numberValue(formData, "target_weight_value");
   const repsExact = numberValue(formData, "target_reps_exact");
   const repsMin = numberValue(formData, "target_reps_min");
@@ -796,12 +826,22 @@ export async function updatePlannedSet(formData: FormData) {
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
   const setNumber = intValue(formData, "set_number", 1);
+  const setKind = value(formData, "set_kind") || "working";
+
+  const { data: existing, error: existingError } = await supabase
+    .from("planned_exercise_sets")
+    .select("program_day_exercise_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+  if (!existing?.program_day_exercise_id) throw new Error("Set not found");
+  await assertKindMatchesExerciseModality(supabase, existing.program_day_exercise_id, setKind);
 
   const { error } = await supabase
     .from("planned_exercise_sets")
     .update({
       set_number: setNumber,
-      set_kind: value(formData, "set_kind") || "working",
+      set_kind: setKind,
       target_weight_value: numberValue(formData, "target_weight_value"),
       target_reps_exact: numberValue(formData, "target_reps_exact"),
       target_reps_min: numberValue(formData, "target_reps_min"),

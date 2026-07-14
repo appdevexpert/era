@@ -116,6 +116,7 @@ export type DayExerciseRow = {
   exercise_library?: {
     name: string;
     name_translations: TranslationMap;
+    modality?: string | null;
   } | null;
 };
 

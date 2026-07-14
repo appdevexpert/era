@@ -458,7 +458,7 @@ export async function getProgramDetail(
             .order("sort_order"),
           supabase
             .from("program_day_exercises")
-            .select("*, exercise_library(name, name_translations)")
+            .select("*, exercise_library(name, name_translations, modality)")
             .in("program_day_id", dayIds)
             .order("sort_order"),
         ])
