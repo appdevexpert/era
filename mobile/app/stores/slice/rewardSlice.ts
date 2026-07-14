@@ -8,6 +8,7 @@
 
 import { createAsyncThunk, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import {
+  fetchLifetimeVolumeKg,
   fetchRecentPointEvents,
   fetchRewardState,
   fetchStreakDays,
@@ -21,6 +22,8 @@ export interface RewardState {
   totalPoints: number;
   currentStreak: number;
   longestStreak: number;
+  /** Lifetime training volume in kg (Σ weight × reps over all completed sets). */
+  lifetimeVolumeKg: number;
   lastStreakDate: string | null;
   /** isoDate → "completed" | "rest_day" | "missed". Used by the streak sheet's 7-day pills. */
   weekByDate: Record<string, "completed" | "rest_day" | "missed">;
@@ -33,6 +36,7 @@ const initialState: RewardState = {
   totalPoints: 0,
   currentStreak: 0,
   longestStreak: 0,
+  lifetimeVolumeKg: 0,
   lastStreakDate: null,
   weekByDate: {},
   recentEvents: [],
@@ -56,6 +60,7 @@ export const loadRewardBootstrap = createAsyncThunk<
     totalPoints: number;
     currentStreak: number;
     longestStreak: number;
+    lifetimeVolumeKg: number;
     lastStreakDate: string | null;
     streakDays: StreakDayRow[];
     recentEvents: PointEventRow[];
@@ -67,16 +72,18 @@ export const loadRewardBootstrap = createAsyncThunk<
     const today = isoDate(new Date());
     const fromDate = addDays(today, -30);
 
-    const [state, streakDays, recentEvents] = await Promise.all([
+    const [state, streakDays, recentEvents, lifetimeVolumeKg] = await Promise.all([
       fetchRewardState(userId),
       fetchStreakDays({ userId, fromDate, toDate: today }),
       fetchRecentPointEvents({ userId, limit: 50 }),
+      fetchLifetimeVolumeKg(),
     ]);
 
     return {
       totalPoints: state?.total_points ?? 0,
       currentStreak: state?.current_streak_days ?? 0,
       longestStreak: state?.longest_streak_days ?? 0,
+      lifetimeVolumeKg,
       lastStreakDate: state?.last_streak_date ?? null,
       streakDays,
       recentEvents,
@@ -134,6 +141,7 @@ const rewardSlice = createSlice({
       state.totalPoints = action.payload.totalPoints;
       state.currentStreak = action.payload.currentStreak;
       state.longestStreak = action.payload.longestStreak;
+      state.lifetimeVolumeKg = action.payload.lifetimeVolumeKg;
       state.lastStreakDate = action.payload.lastStreakDate;
       state.recentEvents = action.payload.recentEvents;
       state.weekByDate = action.payload.streakDays.reduce<RewardState["weekByDate"]>(

@@ -44,6 +44,7 @@ import {
 } from "@/app/stores/selectors/prSelectors";
 import {
   selectCurrentStreak,
+  selectLifetimeVolumeKg,
   selectLongestStreak,
   selectRewardStatus,
   selectTotalPoints,
@@ -66,10 +67,10 @@ import {
 } from "@/app/stores/selectors/workoutSelectors";
 import { useAppDispatch } from "@/app/stores/store";
 import { getLocalizedText } from "@/app/utils/localization";
-import { ProgressFire, ProgressFlag, ProgressMedal } from "@/assets/icons";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { useEffect, useMemo, useRef } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { TrophyGold } from "@/assets/images";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -86,6 +87,12 @@ const CATEGORY_LABEL_KEYS: Record<string, string> = {
 };
 
 const LB_TO_KG = 0.45359237;
+
+/** Rounds to a whole number and adds thousands separators — e.g. 12230 → "12,230". */
+const formatThousands = (n: number) =>
+  Math.round(n)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
 const toLocalIsoDate = (d: Date) => {
   const y = d.getFullYear();
@@ -163,6 +170,8 @@ const ProgressScreen = () => {
   const totalPoints = useSelector(selectTotalPoints);
   const currentStreak = useSelector(selectCurrentStreak);
   const longestStreak = useSelector(selectLongestStreak);
+  const lifetimeVolumeKg = useSelector(selectLifetimeVolumeKg);
+  const workoutProgramId = useSelector((s: RootState) => s.workout.programId);
   const weekByDate = useSelector(selectWeekByDate);
   const rewardStatus = useSelector(selectRewardStatus);
   const completedWorkouts = useSelector(
@@ -193,6 +202,13 @@ const ProgressScreen = () => {
       dispatch(loadRewardBootstrap(userId));
     }
   }, [dispatch, userId, rewardStatus]);
+
+  // Warm the medal image cache so the Lifetime Volume screen shows it instantly
+  // instead of decoding the ~0.5MB PNG after the screen has already opened.
+  useEffect(() => {
+    const uri = Image.resolveAssetSource(TrophyGold)?.uri;
+    if (uri) Image.prefetch(uri).catch(() => {});
+  }, []);
 
   // Photos slice is non-persisted, so fetch on mount whenever we don't have
   // them cached yet for this session.
@@ -301,10 +317,27 @@ const ProgressScreen = () => {
         <ScreenHeader title={t("progress.title")} eyebrow={t("progress.eyebrow")} />
 
         <ProgressStatsCard
+          title={t("progress.statsCardTitle")}
           stats={[
-            { Icon: ProgressMedal, value: completedWorkouts, label: t("progress.statsWorkouts") },
-            { Icon: ProgressFlag, value: totalPoints, label: t("progress.statsEraPoints") },
-            { Icon: ProgressFire, value: currentStreak, label: t("progress.statsDayStreak") },
+            {
+              value: completedWorkouts,
+              label: t("progress.statsWorkouts"),
+              onPress: () =>
+                navigation.navigate("WorkoutPlan", {
+                  programId: workoutProgramId ?? undefined,
+                  title: t("workout.ui.workoutPlan"),
+                }),
+            },
+            {
+              value: totalPoints,
+              label: t("progress.statsEraPoints"),
+              onPress: () => navigation.navigate("Points"),
+            },
+            {
+              value: formatThousands(lifetimeVolumeKg),
+              label: t("progress.statsLifetimeVolume"),
+              onPress: () => navigation.navigate("LifetimeVolume"),
+            },
           ]}
         />
 

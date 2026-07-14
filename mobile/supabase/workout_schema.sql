@@ -1514,6 +1514,40 @@ $function$;
 grant execute on function public.get_my_progress_photos(integer) to anon, authenticated, service_role;
 
 -- ------------------------------------------------------------
+-- get_my_lifetime_volume_kg
+--   Lifetime training volume in kg = Σ (weight in kg × reps) across every
+--   completed set the caller has logged. lb weights are converted to kg so the
+--   total is unit-consistent. Server-side aggregate — returns a single number
+--   instead of shipping every set row to the client (keeps the Progress/Points
+--   reward load fast for heavy users). Scoped to auth.uid().
+-- ------------------------------------------------------------
+create or replace function public.get_my_lifetime_volume_kg()
+ RETURNS numeric
+ LANGUAGE sql
+ STABLE
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(sum(
+    (case
+       when ss.logged_weight_unit = 'lb' then ss.logged_weight_value * 0.45359237
+       else ss.logged_weight_value
+     end) * ss.logged_reps
+  ), 0)
+  from public.session_sets ss
+  join public.session_exercises se on se.id = ss.session_exercise_id
+  join public.workout_sessions ws on ws.id = se.session_id
+  where ws.user_id = auth.uid()
+    and ss.status = 'completed'
+    and ss.logged_weight_value is not null
+    and ss.logged_weight_value > 0
+    and ss.logged_reps is not null
+    and ss.logged_reps > 0;
+$function$;
+
+grant execute on function public.get_my_lifetime_volume_kg() to anon, authenticated, service_role;
+
+-- ------------------------------------------------------------
 -- record_progress_photo
 -- ------------------------------------------------------------
 create or replace function public.record_progress_photo(p_storage_path text, p_session_id uuid DEFAULT NULL::uuid)

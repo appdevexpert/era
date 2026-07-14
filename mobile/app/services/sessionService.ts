@@ -1297,6 +1297,25 @@ export async function fetchRecentPointEvents(params: {
   return (data as PointEventRow[]) ?? [];
 }
 
+/**
+ * Lifetime training volume in kg = Σ (logged weight in kg × logged reps) across
+ * every completed set the caller has logged. lb weights are converted to kg so
+ * the total is unit-consistent.
+ *
+ * Computed server-side by the `get_my_lifetime_volume_kg` RPC (scoped to
+ * auth.uid()), so we ship one number back instead of downloading every set row.
+ * Returns 0 and warns if the RPC is unavailable, so a missing/undeployed
+ * function never breaks the rest of the reward bootstrap.
+ */
+export async function fetchLifetimeVolumeKg(): Promise<number> {
+  const { data, error } = await supabase.rpc("get_my_lifetime_volume_kg");
+  if (error) {
+    console.warn("Failed to fetch lifetime volume:", error.message);
+    return 0;
+  }
+  return data == null ? 0 : Number(data);
+}
+
 /* ─── Read: completed session detail ─── */
 
 export async function getCompletedSessionDetail(

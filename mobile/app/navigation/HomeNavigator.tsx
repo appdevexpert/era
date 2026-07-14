@@ -13,6 +13,7 @@ import SettingScreen from "@/app/screen/home/SettingScreen";
 import TermsOfServiceScreen from "@/app/screen/home/TermsOfServiceScreen";
 import CardioTimerScreen from "@/app/screen/home/CardioTimerScreen";
 import LeaderboardScreen from "@/app/screen/home/LeaderboardScreen";
+import LifetimeVolumeScreen from "@/app/screen/home/LifetimeVolumeScreen";
 import PointsScreen from "@/app/screen/home/PointsScreen";
 import SessionCompleteScreen from "@/app/screen/home/SessionCompleteScreen";
 import PRScreen from "@/app/screen/home/PRScreen";
@@ -143,6 +144,10 @@ const HomeNavigator = () => (
     <Stack.Screen
       name="Leaderboard"
       component={LeaderboardScreen}
+    />
+    <Stack.Screen
+      name="LifetimeVolume"
+      component={LifetimeVolumeScreen}
     />
     <Stack.Screen
       name="SessionComplete"

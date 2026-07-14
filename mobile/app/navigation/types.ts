@@ -153,6 +153,7 @@ export type HomeStackParamList = {
   };
   Points: undefined;
   Leaderboard: undefined;
+  LifetimeVolume: undefined;
   SessionComplete: {
     sessionId?: string | null;
     programTitle: string;

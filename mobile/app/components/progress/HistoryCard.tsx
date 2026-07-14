@@ -21,12 +21,16 @@ interface HistoryCardProps {
   personalBestReps: number;
 }
 
-const HistoryCard = ({ days, phases, streakCount, personalBestReps }: HistoryCardProps) => {
+// `days` is still accepted (and passed by ProgressScreen) but no longer
+// rendered — the weekday/date strip is commented out below.
+const HistoryCard = ({ phases, streakCount, personalBestReps }: HistoryCardProps) => {
   const { t } = useTranslation();
 
   return (
     <View style={styles.card}>
-      <View style={styles.dayRow}>
+      {/* Weekday + date strip hidden per design — card now shows only the
+          phase progress bar + streak row. Kept for easy restore. */}
+      {/* <View style={styles.dayRow}>
         {days.map((day) => (
           <View key={day.label} style={styles.dayCol}>
             <Text style={styles.dayLabel}>{day.label}</Text>
@@ -48,7 +52,7 @@ const HistoryCard = ({ days, phases, streakCount, personalBestReps }: HistoryCar
         ))}
       </View>
 
-      <View style={styles.divider} />
+      <View style={styles.divider} /> */}
 
       <PlanProgressBar phases={phases} />
 
