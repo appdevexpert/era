@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
   },
   glass: { borderRadius: 16 },
   row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  textCol: { flex: 1, gap: 8 },
+  textCol: { flex: 1, gap: 8, marginRight: 64 },
   title: {
     fontFamily: FONTS.display,
     fontSize: 20,

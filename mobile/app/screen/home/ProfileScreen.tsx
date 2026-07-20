@@ -26,7 +26,6 @@ import {
   FireGold,
   IconBolt,
   InfoCircleGold,
-  MedalPrGold,
   //MedalBadge,
   ProfileBackChevron,
   SettingChevronRight,
@@ -44,12 +43,14 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   View,
 } from "react-native";
+import { LeaderboardTrophy } from "@/assets/images";
 import {
   setNotificationPermissionStatus,
   setNotificationToggle,
@@ -310,7 +311,13 @@ const ProfileScreen = () => {
               onChange={(v) => handleNotificationToggle("streakWarning", v)}
             />
             <NotificationToggleRow
-              icon={<MedalPrGold width={28} height={15} />}
+              icon={
+                <Image
+                  source={LeaderboardTrophy}
+                  style={{ width: 24, height: 24 }}
+                  resizeMode="contain"
+                />
+              }
               label={t("profile.notifications.prAlerts")}
               value={notificationPrefs.prAlerts}
               onChange={(v) => handleNotificationToggle("prAlerts", v)}
