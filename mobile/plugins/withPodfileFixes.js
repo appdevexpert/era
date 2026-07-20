@@ -25,13 +25,6 @@ const MODULAR_HEADER_PODS = [
   "SDWebImageAVIFCoder",
   "SDWebImageWebPCoder",
   "Clarity",
-  "FirebaseCore",
-  "FirebaseCoreInternal",
-  "FirebaseAnalytics",
-  "GoogleAppMeasurement",
-  "GoogleUtilities",
-  "FirebaseInstallations",
-  "nanopb",
 ];
 
 const DEPLOYMENT_TARGET = "15.1";
