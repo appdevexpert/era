@@ -16,6 +16,7 @@ import {
   identifyRevenueCatUser,
   resetRevenueCatUser,
 } from "@/app/services/revenueCatService";
+import { EVENTS, logEvent } from "@/app/services/analyticsService";
 import { reportBackgroundError } from "@/app/utils/sentry";
 import type { LoadingState } from "@/app/types";
 import { RESET_ALL } from "@/app/stores/resetAction";
@@ -104,6 +105,7 @@ export const signUpThunk = createAsyncThunk(
         userId: user.id,
       }),
     );
+    void logEvent(EVENTS.SIGN_UP);
     return user;
   },
 );

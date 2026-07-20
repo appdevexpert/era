@@ -61,6 +61,7 @@ import type { ExerciseStatSnapshot, LastLoggedSetSnapshot } from "@/app/stores/s
 import { mapSessionWorkout, getScreenForExercise } from "@/app/utils/workoutMappers";
 import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
+import { EVENTS, logEvent } from "@/app/services/analyticsService";
 import * as sessionService from "@/app/services/sessionService";
 import { firePRAlert } from "@/app/utils/notifications";
 import { suggestFutureSetWeights } from "@/app/utils/setSuggestion";
@@ -195,6 +196,21 @@ export const useWorkoutSession = (programDayId?: string) => {
     options?: { editMode?: boolean },
   ): Promise<"started" | "resumed" | "edit_mode" | "already_completed" | "failed"> => {
     if (!sessionWorkout || !userId) return "failed";
+
+    const fireOutcome = <
+      T extends "started" | "resumed" | "edit_mode" | "already_completed" | "failed",
+    >(
+      outcome: T,
+    ): T => {
+      if (outcome === "started" || outcome === "resumed" || outcome === "edit_mode") {
+        void logEvent(EVENTS.WORKOUT_STARTED, {
+          outcome,
+          week: sessionWorkout.weekNumber,
+          day: sessionWorkout.dayNumber,
+        });
+      }
+      return outcome;
+    };
 
     const editMode = options?.editMode === true;
     const programDayId = sessionWorkout.programDayId;
@@ -360,7 +376,7 @@ export const useWorkoutSession = (programDayId?: string) => {
       // Make sure any queued session-create / log writes get retried.
       flushQueue();
       if (!sessionStartedAt) dispatch(startSessionTimer());
-      return "resumed";
+      return fireOutcome("resumed");
     }
 
     try {
@@ -373,11 +389,11 @@ export const useWorkoutSession = (programDayId?: string) => {
         // Without hydration the caller would land on WorkoutLog with empty
         // exerciseMap/setMap and every logSetResult would silently bail.
         const state = await sessionService.loadSessionState(existing.id);
-        if (!state) return "already_completed";
+        if (!state) return fireOutcome("already_completed");
         hydrateFromState(existing.id, state, editMode, existing.durationSeconds);
         await dispatchHydratedExerciseData();
         dispatch(startSessionTimer());
-        return editMode ? "edit_mode" : "resumed";
+        return fireOutcome(editMode ? "edit_mode" : "resumed");
       }
 
       if (existing?.status === "in_progress") {
@@ -395,12 +411,12 @@ export const useWorkoutSession = (programDayId?: string) => {
           await dispatchHydratedExerciseData();
           dispatch(startSessionTimer());
           flushQueue();
-          return "started";
+          return fireOutcome("started");
         }
         hydrateFromState(existing.id, state, false, existing.durationSeconds);
         await dispatchHydratedExerciseData();
         dispatch(startSessionTimer());
-        return "resumed";
+        return fireOutcome("resumed");
       }
 
       // Nothing exists on the server — insert fresh locally + queue the inserts.
@@ -409,7 +425,7 @@ export const useWorkoutSession = (programDayId?: string) => {
       await dispatchHydratedExerciseData();
       dispatch(startSessionTimer());
       flushQueue();
-      return "started";
+      return fireOutcome("started");
     } catch (err) {
       // Network failure on findExistingSession or loadSessionState (the only
       // calls still made online) — fall back to a fresh local session. The
@@ -425,7 +441,7 @@ export const useWorkoutSession = (programDayId?: string) => {
       }
       dispatch(startSessionTimer());
       flushQueue();
-      return "started";
+      return fireOutcome("started");
     }
   }, [
     sessionWorkout,
@@ -575,6 +591,16 @@ export const useWorkoutSession = (programDayId?: string) => {
 
       const alreadyLogged = (completedSetsMap[ex.exerciseLibraryId] ?? {})[setNumber] != null;
       if (!alreadyLogged) dispatch(incrementSetsLogged());
+      if (!alreadyLogged && !isEditMode) {
+        void logEvent(EVENTS.SET_COMPLETED, {
+          category: ex.exerciseCategory ?? ex.category ?? "unknown",
+          set_number: setNumber,
+          has_weight: weight != null,
+          has_reps: reps != null,
+          has_duration: duration != null,
+          feedback: feedback ?? "none",
+        });
+      }
       dispatch(logCompletedSet({
         exerciseLibraryId: ex.exerciseLibraryId,
         setNumber,
@@ -846,6 +872,13 @@ export const useWorkoutSession = (programDayId?: string) => {
                   previousBestKg > 0 ? `${previousBestKg} ${weightUnit}` : "—",
                 points,
               };
+              void logEvent(EVENTS.PR_UNLOCKED, {
+                exercise_category: ex.exerciseCategory ?? ex.category ?? "unknown",
+                weight_kg: weightKg,
+                reps,
+                previous_best_kg: previousBestKg,
+                points,
+              });
 
               // Local push for the PR. Gated on the user's Profile toggle —
               // the in-app celebration screen still fires regardless.
@@ -1068,6 +1101,16 @@ export const useWorkoutSession = (programDayId?: string) => {
     } catch (err) {
       console.warn("[useWorkoutSession] PR count failed", err);
     }
+
+    void logEvent(EVENTS.WORKOUT_COMPLETED, {
+      duration_seconds: durationSeconds,
+      sets_logged: setsLogged,
+      exercises_completed: exercisesCompleted,
+      new_prs: newPRs,
+      cardio_bonus: cardioBonusPoints > 0,
+      new_streak: streakResult.newStreak,
+      seven_day_bonus: streakResult.sevenDayBonusPoints > 0,
+    });
 
     return {
       newStreak: streakResult.newStreak,

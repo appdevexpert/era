@@ -14,6 +14,7 @@ import {
 } from "@reduxjs/toolkit";
 import i18n from "@/app/locales/i18n";
 import { updateUserGoalData } from "@/app/services/onboardingService";
+import { EVENTS, logEvent } from "@/app/services/analyticsService";
 import {
   awardPoints,
   type PointEventRow,
@@ -130,6 +131,8 @@ export const logWeightThunk = createAsyncThunk<
         weightKg,
         loggedForDate: loggedDate,
       });
+
+      void logEvent(EVENTS.WEIGHT_LOGGED, { was_new: wasNew });
 
       // +10 ERA points only fire once per (user, day) — re-logging the same
       // day updates the row but does NOT award additional points.

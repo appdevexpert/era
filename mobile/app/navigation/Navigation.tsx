@@ -36,7 +36,15 @@ import {
 import { useAppDispatch } from "@/app/stores/store";
 import type { RootState } from "@/app/stores/store";
 import { mapSupabaseUser, supabase } from "@/app/utils/auth";
-// import { navigationIntegration } from "@/app/utils/sentry";
+import { clearSentryUser, navigationIntegration, setSentryUser } from "@/app/utils/sentry";
+import {
+  EVENTS,
+  identifyUser as analyticsIdentifyUser,
+  logEvent,
+  logScreenView,
+  resetUser as analyticsResetUser,
+} from "@/app/services/analyticsService";
+import { setClarityUserId, setClarityScreenName } from "@/app/services/clarityService";
 import { NavigationContainer, NavigationContainerRef } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSelector } from "react-redux";
@@ -181,6 +189,12 @@ const Navigation = () => {
             identifyRevenueCatUser(session.user.id).catch((err) =>
               console.warn("[revenueCat] identify failed", err),
             );
+            // Fan out user identity to Firebase Analytics, Clarity, and Sentry.
+            // Each call is internally guarded — never throws.
+            void analyticsIdentifyUser(session.user.id);
+            setClarityUserId(session.user.id);
+            setSentryUser({ id: session.user.id, email: session.user.email });
+            void logEvent(EVENTS.LOGIN_COMPLETED);
           }
         } else if (event === "SIGNED_OUT") {
           dispatch(clearSession());
@@ -188,6 +202,9 @@ const Navigation = () => {
           resetRevenueCatUser().catch((err) =>
             console.warn("[revenueCat] logout failed", err),
           );
+          void logEvent(EVENTS.LOGOUT);
+          void analyticsResetUser();
+          clearSentryUser();
         }
       },
     );
@@ -199,6 +216,11 @@ const Navigation = () => {
         identifyRevenueCatUser(session.user.id).catch((err) =>
           console.warn("[revenueCat] identify failed", err),
         );
+        // Cold-start identity rebind — SIGNED_IN doesn't fire when the session
+        // is restored from storage, so mirror the same fan-out here.
+        void analyticsIdentifyUser(session.user.id);
+        setClarityUserId(session.user.id);
+        setSentryUser({ id: session.user.id, email: session.user.email });
       }
     });
 
@@ -299,9 +321,37 @@ const Navigation = () => {
     dispatch(setHasAskedNotificationPermission(true));
   }, [dispatch]);
 
+  const currentRouteNameRef = useRef<string>("");
+
+  const handleNavReady = useCallback(() => {
+    const route = navigationRef.current?.getCurrentRoute();
+    currentRouteNameRef.current = route?.name ?? "";
+    if (navigationRef.current) {
+      navigationIntegration.registerNavigationContainer(navigationRef);
+    }
+    if (route?.name) {
+      void logScreenView(route.name);
+      setClarityScreenName(route.name);
+    }
+  }, []);
+
+  const handleNavStateChange = useCallback(() => {
+    const nextName = navigationRef.current?.getCurrentRoute()?.name ?? "";
+    if (nextName && nextName !== currentRouteNameRef.current) {
+      currentRouteNameRef.current = nextName;
+      void logScreenView(nextName);
+      setClarityScreenName(nextName);
+    }
+  }, []);
+
   return (
     <>
-      <NavigationContainer ref={navigationRef} linking={showAuthStack ? linking : undefined} >
+      <NavigationContainer
+        ref={navigationRef}
+        linking={showAuthStack ? linking : undefined}
+        onReady={handleNavReady}
+        onStateChange={handleNavStateChange}
+      >
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {showAuthStack ? (
             <Stack.Screen name="AuthStack" component={AuthNavigator} />

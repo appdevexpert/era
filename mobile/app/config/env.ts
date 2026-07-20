@@ -9,7 +9,8 @@ export const ENV = {
   PROMPTOT_BASE_URL: process.env.EXPO_PUBLIC_PROMPTOT_BASE_URL ?? "",
   REVENUECAT_APPLE_API_KEY: process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ?? "",
   REVENUECAT_GOOGLE_API_KEY: process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY ?? "",
-  // SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN ?? " ",
+  SENTRY_DSN: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
+  CLARITY_PROJECT_ID: process.env.EXPO_PUBLIC_CLARITY_PROJECT_ID ?? "",
 };
 
 export const validateEnv = () => {

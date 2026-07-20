@@ -1,13 +1,18 @@
 import * as Sentry from "@sentry/react-native";
+import Constants from "expo-constants";
 
 export const navigationIntegration = Sentry.reactNavigationIntegration();
 
 export const initSentry = () => {
+  const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN ?? "";
   Sentry.init({
-    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN ?? "",
+    dsn,
     integrations: [navigationIntegration],
-    tracesSampleRate: 1.0,
-    enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN,
+    environment: __DEV__ ? "development" : "production",
+    release: `com.erafit@${Constants.expoConfig?.version ?? "0.0.0"}`,
+    tracesSampleRate: __DEV__ ? 1.0 : 0.1,
+    enableAutoSessionTracking: true,
+    enabled: !!dsn,
   });
 };
 

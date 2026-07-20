@@ -4,6 +4,7 @@ import {
   insertGoal,
   type GoalData,
 } from "@/app/services/onboardingService";
+import { EVENTS, identifyUser, logEvent } from "@/app/services/analyticsService";
 import { signOutThunk } from "./authSlice";
 import type { RootState } from "@/app/stores/store";
 
@@ -59,6 +60,14 @@ export const submitGoalData = createAsyncThunk(
 
     const { error } = await insertGoal(goalData);
     if (error) return rejectWithValue(error.message ?? "Failed to save goal data");
+
+    void logEvent(EVENTS.ONBOARDING_COMPLETED);
+    // Backfill user properties on Firebase now that we know gender/level/goal.
+    // Firebase's setUserProperties merges into whatever identifyUser already set.
+    void identifyUser(userId, {
+      gender: goalData.gender ?? undefined,
+      level: goalData.level ?? undefined,
+    });
   },
 );
 

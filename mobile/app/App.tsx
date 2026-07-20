@@ -1,7 +1,7 @@
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { StatusBar, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import IntroVideoSplash from "./components/common/IntroVideoSplash";
 import { toastConfig } from "./components/common/toastConfig";
 import Navigation from "./navigation/Navigation";
 import { configureRevenueCat } from "./services/revenueCatService";
+import { initializeClarity } from "./services/clarityService";
 import { persistor, store } from "./stores/store";
 import "./locales/i18n";
 
@@ -27,6 +28,10 @@ const App = () => {
     "PlayfairDisplay": require("../assets/fonts/PlayfairDisplay.ttf"),
   });
   const [introDone, setIntroDone] = useState(false);
+
+  useEffect(() => {
+    initializeClarity();
+  }, []);
 
   const onLayoutRootView = useCallback(() => {
     if (fontsLoaded) {

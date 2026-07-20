@@ -18,6 +18,7 @@ import type {
   OnboardingStackParamList,
   PaywallParams,
 } from "@/app/navigation/types";
+import { EVENTS, logEvent } from "@/app/services/analyticsService";
 import { completeOnboarding, setHasGoals } from "@/app/stores/slice/authSlice";
 import { useAppDispatch } from "@/app/stores/store";
 
@@ -54,6 +55,10 @@ const PaywallScreen = () => {
       navigation.goBack();
     }
   }, [dispatch, navigation, source]);
+
+  useEffect(() => {
+    void logEvent(EVENTS.PAYWALL_VIEWED, { source });
+  }, [source]);
 
   useEffect(() => {
     let alive = true;
@@ -105,8 +110,15 @@ const PaywallScreen = () => {
     <RevenueCatUI.Paywall
       style={styles.root}
       options={{ offering }}
-      onPurchaseCompleted={() => {
+      onPurchaseCompleted={({ customerInfo }) => {
         didPurchaseRef.current = true;
+        const active = customerInfo.entitlements.active;
+        const tier = active.pro ? "pro" : active.standard ? "standard" : "unknown";
+        void logEvent(EVENTS.PURCHASE_COMPLETED, {
+          source,
+          tier,
+          product: active.pro?.productIdentifier ?? active.standard?.productIdentifier ?? "unknown",
+        });
         Toast.show({
           type: "success",
           text2: t("onboarding.steps.paywall.success"),
@@ -118,6 +130,9 @@ const PaywallScreen = () => {
           Object.keys(customerInfo.entitlements.active).length > 0;
         if (hasActiveEntitlement) {
           didPurchaseRef.current = true;
+          const active = customerInfo.entitlements.active;
+          const tier = active.pro ? "pro" : active.standard ? "standard" : "unknown";
+          void logEvent(EVENTS.PURCHASE_RESTORED, { source, tier });
           Toast.show({
             type: "success",
             text2: t("onboarding.steps.paywall.success"),
@@ -125,7 +140,12 @@ const PaywallScreen = () => {
           finish();
         }
       }}
-      onDismiss={finish}
+      onDismiss={() => {
+        if (!didPurchaseRef.current) {
+          void logEvent(EVENTS.PAYWALL_DISMISSED, { source });
+        }
+        finish();
+      }}
     />
   );
 };

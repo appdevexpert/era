@@ -35,6 +35,16 @@
     },
     "plugins": [
       "./plugins/withRemoveAndroidSplashIcon",
+      "./plugins/withPodfileFixes",
+      "@react-native-firebase/app",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "appeneure-3v",
+          "project": "era-fit"
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -67,6 +77,14 @@
         {
           "color": "#D4AF37",
           "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ],

@@ -33,6 +33,7 @@ import {
   selectWorkoutStatus,
 } from "@/app/stores/selectors/workoutSelectors";
 import { useAppDispatch } from "@/app/stores/store";
+import { EVENTS, logEvent } from "@/app/services/analyticsService";
 import { horizontalScale, responsiveFontSize, verticalScale } from "@/app/utils/responsive";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -263,6 +264,7 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   const isReady = completed && hasWorkoutBootstrap;
 
   const startWorkoutBootstrap = useCallback(async () => {
+    void logEvent(EVENTS.PLAN_GEN_STARTED);
     try {
       await dispatch(submitGoalData()).unwrap();
     } catch (error) {
@@ -304,12 +306,20 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   // Navigate when ready
   useEffect(() => {
     if (isReady) {
+      void logEvent(EVENTS.PLAN_GEN_COMPLETED);
       // Background prefetch all non-rest days so the 12-week overview is
       // instant on first tap. Fire-and-forget — never blocks navigation.
       dispatch(prefetchAllDays());
       dispatch(completePlanGeneration());
     }
   }, [dispatch, isReady]);
+
+  // Fire once when the bootstrap flips to failed, not every re-render.
+  useEffect(() => {
+    if (isFailed) {
+      void logEvent(EVENTS.PLAN_GEN_FAILED, { reason: workoutError ?? "unknown" });
+    }
+  }, [isFailed, workoutError]);
 
   const handleRetry = () => {
     setProgressTarget(0);
