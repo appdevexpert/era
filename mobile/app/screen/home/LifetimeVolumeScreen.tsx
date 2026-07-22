@@ -99,10 +99,22 @@ const LifetimeVolumeScreen = () => {
         })
       : null;
 
+  const elephantCount = Math.round(lifetimeVolumeKg / ELEPHANT_KG);
+  const carCount = Math.round(lifetimeVolumeKg / CAR_KG);
+  const personCount = Math.round(lifetimeVolumeKg / PERSON_KG);
   const equivalent = t("progress.lifetimeVolume.equivalentValue", {
-    elephants: formatThousands(lifetimeVolumeKg / ELEPHANT_KG),
-    cars: formatThousands(lifetimeVolumeKg / CAR_KG),
-    people: formatThousands(lifetimeVolumeKg / PERSON_KG),
+    elephants: t("progress.lifetimeVolume.equivalentElephants", {
+      count: elephantCount,
+      value: formatThousands(elephantCount),
+    }),
+    cars: t("progress.lifetimeVolume.equivalentCars", {
+      count: carCount,
+      value: formatThousands(carCount),
+    }),
+    people: t("progress.lifetimeVolume.equivalentPeople", {
+      count: personCount,
+      value: formatThousands(personCount),
+    }),
   });
 
   const onShare = async () => {
