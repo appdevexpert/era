@@ -9,6 +9,24 @@ import React, {
   useState,
 } from "react";
 import { Toast } from "@base-ui/react/toast";
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -17,6 +35,7 @@ import {
   ArrowUp01Icon,
   Clock01Icon,
   Delete02Icon,
+  DragDropVerticalIcon,
   Dumbbell01Icon,
   Layers01Icon,
   MoreHorizontalIcon,
@@ -69,6 +88,7 @@ import {
   deletePlannedSet,
   deleteProgramDay,
   deleteProgramWeek,
+  reorderDayExercises,
   saveDaySection,
   saveProgramDay,
   saveProgramWeek,
@@ -784,6 +804,105 @@ function DayExerciseCard({
 }
 
 // ---------------------------------------------------------------------------
+// Sortable list helpers (dnd-kit)
+// ---------------------------------------------------------------------------
+
+// Wraps a list of children in a DndContext + SortableContext, tracks local order
+// for optimistic UI, calls the server on drop, and reverts + toasts on failure.
+function SortableList<T extends { id: string }>({
+  items,
+  onReorder,
+  children,
+}: {
+  items: T[];
+  onReorder: (nextIds: string[]) => Promise<void>;
+  children: (orderedItems: T[]) => ReactNode;
+}) {
+  // Track the server list identity so local optimistic order resets whenever
+  // the parent re-fetches (e.g. after revalidatePath). Adjusting state during
+  // render is the React-recommended pattern for prop-derived state.
+  const [localItems, setLocalItems] = useState(items);
+  const [serverSnapshot, setServerSnapshot] = useState(items);
+  if (serverSnapshot !== items) {
+    setServerSnapshot(items);
+    setLocalItems(items);
+  }
+
+  const toastManager = Toast.useToastManager();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const ids = useMemo(() => localItems.map((item) => item.id), [localItems]);
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = localItems.findIndex((item) => item.id === active.id);
+    const newIndex = localItems.findIndex((item) => item.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const previous = localItems;
+    const next = arrayMove(localItems, oldIndex, newIndex);
+    setLocalItems(next);
+    try {
+      await onReorder(next.map((item) => item.id));
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "digest" in err) throw err;
+      setLocalItems(previous);
+      toastManager.add({
+        type: "error",
+        title: "Reorder failed",
+        description: err instanceof Error ? err.message : "An unexpected error occurred.",
+      });
+    }
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        {children(localItems)}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+// Renders a drag-handle-equipped row. The handle is a small grip button on the
+// left; the rest of the row is the child content.
+function SortableRow({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style} className="group/sortable flex items-center gap-2">
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder"
+        title="Drag to reorder"
+        style={{ cursor: isDragging ? "grabbing" : "grab", touchAction: "none" }}
+        className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-md border border-transparent text-muted-foreground/60 opacity-70 transition-all hover:border-border hover:bg-muted hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/sortable:opacity-100"
+      >
+        <HugeiconsIcon icon={DragDropVerticalIcon} size={18} strokeWidth={2} />
+      </button>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Day editor (Sheet)
 // ---------------------------------------------------------------------------
 
@@ -983,21 +1102,31 @@ function DayEditorSheet({
                           </div>
                         </div>
                         {sectionExs.length ? (
-                          <div className="grid gap-3">
-                            {sectionExs.map((assignment) => (
-                              <DayExerciseCard
-                                key={assignment.id}
-                                assignment={assignment}
-                                exerciseSets={sets.filter(
-                                  (set) => set.program_day_exercise_id === assignment.id,
-                                )}
-                                programId={programId}
-                                sectionOptions={sectionOptions}
-                                exerciseLibraryOptions={exerciseLibraryOptions}
-                                modality={modalityByExerciseId.get(assignment.exercise_id) ?? null}
-                              />
-                            ))}
-                          </div>
+                          <SortableList
+                            items={sectionExs}
+                            onReorder={(nextIds) =>
+                              reorderDayExercises(programId, section.id, nextIds)
+                            }
+                          >
+                            {(orderedExs) => (
+                              <div className="grid gap-3">
+                                {orderedExs.map((assignment) => (
+                                  <SortableRow key={assignment.id} id={assignment.id}>
+                                    <DayExerciseCard
+                                      assignment={assignment}
+                                      exerciseSets={sets.filter(
+                                        (set) => set.program_day_exercise_id === assignment.id,
+                                      )}
+                                      programId={programId}
+                                      sectionOptions={sectionOptions}
+                                      exerciseLibraryOptions={exerciseLibraryOptions}
+                                      modality={modalityByExerciseId.get(assignment.exercise_id) ?? null}
+                                    />
+                                  </SortableRow>
+                                ))}
+                              </div>
+                            )}
+                          </SortableList>
                         ) : (
                           <p className="text-xs italic text-muted-foreground">
                             No exercises in this section yet.

@@ -864,3 +864,69 @@ export async function updatePlannedSet(formData: FormData) {
 
   revalidatePath(`/programs/${programId}`);
 }
+
+// Reorders exercises within a single section by re-indexing sort_order 0..N.
+// Mobile default order comes from program_day_exercises.sort_order; users who
+// dragged in-app keep their user_program_day_exercise_order override, so this
+// admin change only affects users who haven't personalized the order.
+//
+// The table has a UNIQUE (section_id, sort_order) constraint, so we can't just
+// write the final indices in place — mid-update collisions fire 23505. We do a
+// two-pass write: first park every row at a high offset (out of realistic
+// range), then set the final 0..N values. Both passes are collision-free.
+export async function reorderDayExercises(
+  programId: string,
+  sectionId: string,
+  orderedExerciseIds: string[],
+): Promise<void> {
+  const supabase = requireAdminClient();
+  if (!programId || !sectionId) throw new Error("Missing program or section id.");
+  if (!orderedExerciseIds.length) return;
+
+  const { data: existing, error: fetchError } = await supabase
+    .from("program_day_exercises")
+    .select("id")
+    .eq("section_id", sectionId);
+  if (fetchError) throw new Error(fetchError.message);
+
+  const existingIds = new Set((existing ?? []).map((row) => row.id));
+  for (const id of orderedExerciseIds) {
+    if (!existingIds.has(id)) {
+      throw new Error("Exercise list is stale; refresh and try again.");
+    }
+  }
+  if (orderedExerciseIds.length !== existingIds.size) {
+    throw new Error("Exercise list is stale; refresh and try again.");
+  }
+
+  const PARK_OFFSET = 1_000_000;
+  const parkResults = await Promise.all(
+    orderedExerciseIds.map((id, index) =>
+      supabase
+        .from("program_day_exercises")
+        .update({ sort_order: PARK_OFFSET + index })
+        .eq("id", id),
+    ),
+  );
+  const parkFail = parkResults.find((result) => result.error);
+  if (parkFail?.error) throw new Error(parkFail.error.message);
+
+  const finalResults = await Promise.all(
+    orderedExerciseIds.map((id, index) =>
+      supabase.from("program_day_exercises").update({ sort_order: index }).eq("id", id),
+    ),
+  );
+  const finalFail = finalResults.find((result) => result.error);
+  if (finalFail?.error) throw new Error(finalFail.error.message);
+
+  await logAdminAction({
+    action: "update",
+    entity: "Exercise order",
+    table: "program_day_exercises",
+    recordId: sectionId,
+    summary: `Reordered ${orderedExerciseIds.length} exercises`,
+    details: { section_id: sectionId, order: orderedExerciseIds },
+  });
+
+  revalidatePath(`/programs/${programId}`);
+}
