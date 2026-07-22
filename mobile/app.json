@@ -40,7 +40,7 @@
         "@sentry/react-native/expo",
         {
           "url": "https://sentry.io/",
-          "organization": "appeneure-3v",
+          "organization": "era-x4",
           "project": "era-fit"
         }
       ],
