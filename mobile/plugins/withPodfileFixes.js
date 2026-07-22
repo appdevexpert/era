@@ -1,15 +1,22 @@
 /**
- * Patches the generated iOS Podfile to fix two Xcode-16 + useFrameworks:static
+ * Patches the generated iOS Podfile to fix Xcode + useFrameworks:static
  * issues that break `pod install` / build otherwise:
  *
  *   1. Some transitive Swift pods (SDWebImage family, Clarity) don't ship
  *      module maps, so they can't be built as static frameworks without
- *      `:modular_headers => true`.
+ *      `:modular_headers => true`. React-Core + friends are added for
+ *      the RN Firebase static-framework build.
  *   2. Many resource-bundle pod targets (Firebase, Google, Sentry, SDWebImage)
- *      ship with IPHONEOS_DEPLOYMENT_TARGET set to 9.0-13.4, which Xcode 16
- *      rejects as below the supported floor of 15.0.
+ *      ship with IPHONEOS_DEPLOYMENT_TARGET below the supported floor of 15.1
+ *      which recent Xcode releases reject.
+ *   3. Xcode 27 + useFrameworks:static rejects RN Firebase headers that
+ *      include non-modular Obj-C headers. The post_install block flips
+ *      CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES to allow them.
+ *   4. RN Firebase requires `$RNFirebaseAsStaticFramework = true` at the top
+ *      of the Podfile when the host app uses static frameworks. Documented
+ *      in https://rnfirebase.io/#altering-cocoapods-to-use-frameworks.
  *
- * Both patches are re-applied every `expo prebuild --clean` so the fixes
+ * All patches are re-applied every `expo prebuild --clean` so the fixes
  * survive Podfile regeneration.
  *
  * Docs: mobile/doc/ANALYTICS.md
@@ -29,6 +36,15 @@ const MODULAR_HEADER_PODS = [
 
 const DEPLOYMENT_TARGET = "15.1";
 
+const RNFB_STATIC_FLAG_BLOCK = `
+# === withPodfileFixes: rnfirebase_static ===
+# Required by RN Firebase (@react-native-firebase/*) when the host uses
+# useFrameworks:static — makes RNFB pods themselves build as static frameworks.
+# See: https://rnfirebase.io/#altering-cocoapods-to-use-frameworks
+$RNFirebaseAsStaticFramework = true
+# === /withPodfileFixes: rnfirebase_static ===
+`;
+
 const MODULAR_HEADER_BLOCK = `
   # === withPodfileFixes: modular_headers ===
   # Forced by plugins/withPodfileFixes.js — do not edit; regenerated on prebuild.
@@ -37,20 +53,36 @@ ${MODULAR_HEADER_PODS.map((name) => `  pod '${name}', :modular_headers => true`)
 `;
 
 const POST_INSTALL_BLOCK = `
-    # === withPodfileFixes: deployment_target ===
+    # === withPodfileFixes: deployment_target + non-modular headers ===
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '${DEPLOYMENT_TARGET}'
+        # Xcode 27 + useFrameworks:static rejects Firebase/RN Firebase pods that
+        # include Obj-C headers not declared in their module map. Allow them.
+        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
       end
     end
-    # === /withPodfileFixes: deployment_target ===
+    # === /withPodfileFixes: deployment_target + non-modular headers ===
 `;
 
 function patchPodfile(contents) {
   // Skip if already patched (idempotent).
   if (contents.includes("withPodfileFixes: modular_headers")) return contents;
 
-  // Insert modular_headers pods right after the use_frameworks! lines.
+  // 1. Prepend $RNFirebaseAsStaticFramework flag at the very top of the Podfile,
+  //    before any target definitions. Placed right after the require lines.
+  const requireLineMarker = /require File\.join\([\s\S]*?\)\n/;
+  if (requireLineMarker.test(contents)) {
+    contents = contents.replace(
+      requireLineMarker,
+      (match) => `${match}${RNFB_STATIC_FLAG_BLOCK}`,
+    );
+  } else {
+    // Fallback: prepend to the file.
+    contents = `${RNFB_STATIC_FLAG_BLOCK}\n${contents}`;
+  }
+
+  // 2. Insert modular_headers pods right after the use_frameworks! line.
   const useFrameworksMarker = /use_frameworks! :linkage => ENV\['USE_FRAMEWORKS'\]\.to_sym if ENV\['USE_FRAMEWORKS'\]/;
   if (!useFrameworksMarker.test(contents)) {
     throw new Error(
@@ -62,8 +94,8 @@ function patchPodfile(contents) {
     (match) => `${match}\n${MODULAR_HEADER_BLOCK}`,
   );
 
-  // Insert deployment target bump inside the post_install block, right after
-  // react_native_post_install(...).
+  // 3. Insert deployment target + non-modular header settings inside the
+  //    post_install block, right after react_native_post_install(...).
   const rnPostInstallMarker = /react_native_post_install\([\s\S]*?\)\n/;
   if (!rnPostInstallMarker.test(contents)) {
     throw new Error(
