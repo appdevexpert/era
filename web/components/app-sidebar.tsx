@@ -9,6 +9,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import {
   Activity01Icon,
   BookOpen01Icon,
+  Comment01Icon,
   DashboardSquare01Icon,
   Dumbbell01Icon,
   Logout03Icon,
@@ -54,6 +55,7 @@ const MANAGE_NAV: NavItem[] = [
   { href: "/exercises", label: "Exercises", icon: Dumbbell01Icon },
   { href: "/programs", label: "Programs", icon: WorkoutRunIcon },
   { href: "/users", label: "Users", icon: UserGroupIcon },
+  { href: "/copy", label: "Copy", icon: Comment01Icon },
   { href: "/activity", label: "Activity", icon: Activity01Icon, ownerOnly: true },
   { href: "/guide", label: "Guide", icon: BookOpen01Icon },
 ];

@@ -16,7 +16,8 @@
 import * as Notifications from "expo-notifications";
 import { Linking, Platform } from "react-native";
 import { FEATURE_FLAGS } from "@/app/config/featureFlags";
-import i18n from "@/app/locales/i18n";
+import { getCopyString } from "@/app/stores/slice/appCopySlice";
+import { store } from "@/app/stores/store";
 
 export type NotificationKind = "dailyReminder" | "streakWarning" | "prAlert";
 
@@ -112,22 +113,40 @@ const scheduleDaily = async (
 };
 
 export const scheduleDailyReminder = async () => {
+  const state = store.getState();
   await scheduleDaily(
     IDENTIFIERS.dailyReminder,
     8,
     0,
-    i18n.t("notificationContent.dailyReminder.title"),
-    i18n.t("notificationContent.dailyReminder.body"),
+    getCopyString(
+      state,
+      "notification_daily_title",
+      "notificationContent.dailyReminder.title",
+    ),
+    getCopyString(
+      state,
+      "notification_daily_body",
+      "notificationContent.dailyReminder.body",
+    ),
   );
 };
 
 export const scheduleStreakWarning = async () => {
+  const state = store.getState();
   await scheduleDaily(
     IDENTIFIERS.streakWarning,
     19,
     0,
-    i18n.t("notificationContent.streakWarning.title"),
-    i18n.t("notificationContent.streakWarning.body"),
+    getCopyString(
+      state,
+      "notification_streak_title",
+      "notificationContent.streakWarning.title",
+    ),
+    getCopyString(
+      state,
+      "notification_streak_body",
+      "notificationContent.streakWarning.body",
+    ),
   );
 };
 
@@ -137,13 +156,20 @@ export const scheduleStreakWarning = async () => {
  */
 export const firePRAlert = async (exerciseName: string, weightLabel: string) => {
   if (!FEATURE_FLAGS.ENABLE_NOTIFICATIONS) return;
+  const state = store.getState();
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: i18n.t("notificationContent.prAlert.title"),
-      body: i18n.t("notificationContent.prAlert.body", {
-        exercise: exerciseName,
-        weight: weightLabel,
-      }),
+      title: getCopyString(
+        state,
+        "notification_pr_title",
+        "notificationContent.prAlert.title",
+      ),
+      body: getCopyString(
+        state,
+        "notification_pr_body",
+        "notificationContent.prAlert.body",
+        { exercise: exerciseName, weight: weightLabel },
+      ),
       sound: true,
     },
     trigger: null,

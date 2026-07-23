@@ -3,6 +3,7 @@ import "server-only";
 import { getAdminClient } from "@/lib/admin/supabase";
 import type {
   AdminDataState,
+  AppCopyRow,
   AuditLogRow,
   PaginatedDataState,
   DashboardStats,
@@ -378,6 +379,22 @@ export async function getUsers(): Promise<AdminDataState<ProfileRow[]>> {
       assignmentsResult.error?.message ??
       authUsersResult.error?.message ??
       null,
+  };
+}
+
+export async function getAppCopyRows(): Promise<AdminDataState<AppCopyRow[]>> {
+  const { supabase, configError } = getAdminClient();
+  if (!supabase) return { data: [], configError };
+
+  const { data, error } = await supabase
+    .from("app_copy")
+    .select("key, category, description, translations, updated_at")
+    .order("category", { ascending: true })
+    .order("key", { ascending: true });
+
+  return {
+    data: error ? [] : (data as AppCopyRow[]),
+    configError: error?.message ?? null,
   };
 }
 

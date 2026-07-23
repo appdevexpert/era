@@ -930,3 +930,103 @@ export async function reorderDayExercises(
 
   revalidatePath(`/programs/${programId}`);
 }
+
+// ============================================================
+// App copy (remote-editable UI strings)
+// ============================================================
+
+// Updates one row in public.app_copy. The key itself is not editable —
+// creating new keys requires a code change on the mobile side (register
+// the key in CopyKey and dispatch loadAppCopy on the target screen),
+// so admins can only edit rows that already exist.
+export async function saveAppCopy(formData: FormData) {
+  const supabase = requireAdminClient();
+  const key = value(formData, "key");
+  const en = value(formData, "en");
+  const nb = value(formData, "nb");
+
+  if (!key) throw new Error("Copy key is required.");
+  if (!en && !nb) {
+    throw new Error("At least one language (English or Norwegian) must be filled.");
+  }
+
+  // Norwegian falls back to English if left empty, so we never ship an
+  // undefined `nb` value to the mobile client.
+  const nextTranslations = { en: en || nb, nb: nb || en };
+
+  const { error } = await supabase
+    .from("app_copy")
+    .update({
+      translations: nextTranslations,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("key", key);
+
+  if (error) throw new Error(error.message);
+
+  await logAdminAction({
+    action: "update",
+    entity: "App copy",
+    table: "app_copy",
+    recordId: key,
+    summary: `Updated app copy "${key}"`,
+    details: nextTranslations,
+  });
+
+  revalidatePath("/copy");
+}
+
+// Bulk-updates several app_copy rows in one submit. The admin form encodes
+// the list of keys as a "keys" field (comma-separated) plus one en_{key} /
+// nb_{key} pair per key. Used by grouped cards on /copy (e.g. one card holds
+// notification title + body). All updates share one audit entry so /activity
+// doesn't get spammed.
+export async function saveAppCopyGroup(formData: FormData) {
+  const supabase = requireAdminClient();
+  const keys = value(formData, "keys")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const groupLabel = value(formData, "group_label") || "group";
+
+  if (keys.length === 0) throw new Error("No keys provided.");
+
+  const updates: Array<{
+    key: string;
+    translations: { en: string; nb: string };
+  }> = [];
+
+  for (const key of keys) {
+    const en = value(formData, `en_${key}`);
+    const nb = value(formData, `nb_${key}`);
+    if (!en && !nb) {
+      throw new Error(`"${key}" must have English or Norwegian text.`);
+    }
+    updates.push({ key, translations: { en: en || nb, nb: nb || en } });
+  }
+
+  // No transaction wrapper — Supabase JS uses one HTTP call per update. If
+  // one fails mid-way, earlier rows stay updated. Acceptable for copy edits;
+  // admin can re-save. Wrap in an RPC later if that ever bites.
+  for (const update of updates) {
+    const { error } = await supabase
+      .from("app_copy")
+      .update({
+        translations: update.translations,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("key", update.key);
+    if (error) throw new Error(`${update.key}: ${error.message}`);
+  }
+
+  await logAdminAction({
+    action: "update",
+    entity: "App copy",
+    table: "app_copy",
+    recordId: keys.join(","),
+    summary: `Updated app copy group "${groupLabel}" (${keys.length} keys)`,
+    details: Object.fromEntries(updates.map((u) => [u.key, u.translations])),
+  });
+
+  revalidatePath("/copy");
+}

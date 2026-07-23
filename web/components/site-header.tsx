@@ -14,6 +14,7 @@ const SECTION_LABELS: Array<{ match: string; label: string }> = [
   { match: "/exercises", label: "Exercises" },
   { match: "/programs", label: "Programs" },
   { match: "/users", label: "Users" },
+  { match: "/copy", label: "Copy" },
   { match: "/activity", label: "Activity" },
   { match: "/guide", label: "Guide" },
 ];

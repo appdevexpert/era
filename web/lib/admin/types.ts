@@ -133,6 +133,14 @@ export type PlannedSetRow = {
   rest_seconds: number | null;
 };
 
+export type AppCopyRow = {
+  key: string;
+  category: string;
+  description: string | null;
+  translations: TranslationMap;
+  updated_at: string;
+};
+
 export type AuditLogRow = {
   id: string;
   admin_id: string;

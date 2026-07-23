@@ -4,6 +4,7 @@ import type { AnyAction, Reducer } from "@reduxjs/toolkit";
 import { useDispatch } from "react-redux";
 import { persistReducer, persistStore } from "redux-persist";
 import { RESET_ALL } from "./resetAction";
+import appCopyReducer from "./slice/appCopySlice";
 import authReducer from "./slice/authSlice";
 import nutritionReducer from "./slice/nutritionSlice";
 import onboardingReducer from "./slice/onboardingSlice";
@@ -96,6 +97,7 @@ const combinedReducer = combineReducers({
   photo: photoReducer,
   pr: prReducer,
   preferences: persistedPreferencesReducer,
+  appCopy: appCopyReducer,
 });
 
 const rootReducer: Reducer<ReturnType<typeof combinedReducer>, AnyAction> = (

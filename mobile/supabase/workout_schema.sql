@@ -2128,6 +2128,88 @@ create policy "workout_sessions_own_all" on public.workout_sessions
 
 
 -- ============================================================
+-- 7b. Remote-editable UI copy
+-- ============================================================
+--
+-- app_copy stores UI strings that admins may want to tweak without shipping a
+-- new mobile build (share captions, empty states, banners, etc.). Read on
+-- demand by the mobile client; writes go through Supabase dashboard / admin
+-- server (no client-side write policy).
+
+create table if not exists public.app_copy (
+  key text primary key,
+  category text not null default 'misc',
+  description text,
+  translations jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.app_copy enable row level security;
+
+drop policy if exists "read app_copy" on public.app_copy;
+create policy "read app_copy"
+  on public.app_copy
+  for select
+  to authenticated
+  using (true);
+
+insert into public.app_copy (key, category, description, translations)
+values
+  (
+    'lifetime_volume_share',
+    'sharing',
+    'Caption used when a user taps Share on the Lifetime Volume screen.',
+    jsonb_build_object(
+      'en', 'I''ve lifted {{volume}} kg total on ERA 💪',
+      'nb', 'Jeg har løftet {{volume}} kg totalt på ERA 💪'
+    )
+  ),
+  (
+    'notification_daily_title',
+    'notifications',
+    'Pushes at 8:00 AM local time.',
+    jsonb_build_object('en', 'Time to train', 'nb', 'På tide å trene')
+  ),
+  (
+    'notification_daily_body',
+    'notifications',
+    null,
+    jsonb_build_object(
+      'en', 'Your workout is waiting. Let''s go!',
+      'nb', 'Økten din venter. Kjør på!'
+    )
+  ),
+  (
+    'notification_streak_title',
+    'notifications',
+    'Pushes at 7:00 PM if the user has not logged today.',
+    jsonb_build_object('en', 'Don''t break your streak', 'nb', 'Ikke bryt streaken din')
+  ),
+  (
+    'notification_streak_body',
+    'notifications',
+    null,
+    jsonb_build_object(
+      'en', 'Log a workout today to keep your streak alive.',
+      'nb', 'Loggfør en økt i dag for å holde streaken i live.'
+    )
+  ),
+  (
+    'notification_pr_title',
+    'notifications',
+    'Fires instantly when a personal record is detected. The body uses {{exercise}} and {{weight}} placeholders — keep them intact.',
+    jsonb_build_object('en', 'New PR!', 'nb', 'Ny PR!')
+  ),
+  (
+    'notification_pr_body',
+    'notifications',
+    null,
+    jsonb_build_object('en', '{{exercise}} — {{weight}}', 'nb', '{{exercise}} — {{weight}}')
+  )
+on conflict (key) do nothing;
+
+
+-- ============================================================
 -- 8. Comments
 -- ============================================================
 

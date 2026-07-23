@@ -16,6 +16,7 @@ import {
   setHasGoals,
   setRecovery,
 } from "@/app/stores/slice/authSlice";
+import { loadAllAppCopy } from "@/app/stores/slice/appCopySlice";
 import { setNotificationPermissionStatus } from "@/app/stores/slice/preferencesSlice";
 import {
   ensureAndroidChannel,
@@ -264,6 +265,13 @@ const Navigation = () => {
   // Cheap network call; harmless if Redux already has fresh values.
   useEffect(() => {
     if (userId) dispatch(loadGoalDataFromSupabase());
+  }, [dispatch, userId]);
+
+  // Hydrate remote-editable UI copy (share captions, notification text, etc.)
+  // once per login. Callers fall back to locale files if this fetch fails, so
+  // no retry logic is needed.
+  useEffect(() => {
+    if (userId) dispatch(loadAllAppCopy());
   }, [dispatch, userId]);
 
   useEffect(() => {

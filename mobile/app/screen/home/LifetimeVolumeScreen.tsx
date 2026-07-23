@@ -75,12 +75,17 @@ const ShareIcon = ({ color }: { color: string }) => (
 
 const LifetimeVolumeScreen = () => {
   const insets = useSafeAreaInsets();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
 
   const lifetimeVolumeKg = useSelector(selectLifetimeVolumeKg);
   const program = useSelector((s: RootState) => s.workout.overview?.program);
+  // Remote-editable share caption. Hydrated once at login by loadAllAppCopy;
+  // falls back to the locale files if the bootstrap fetch failed.
+  const shareCopy = useSelector(
+    (s: RootState) => s.appCopy.byKey.lifetime_volume_share?.translations,
+  );
 
   // The card region that gets snapshotted for image sharing (excludes the
   // status bar, back button, and Share button).
@@ -118,9 +123,13 @@ const LifetimeVolumeScreen = () => {
   });
 
   const onShare = async () => {
-    const message = t("progress.lifetimeVolume.shareMessage", {
-      volume: formattedVolume,
-    });
+    const remoteTemplate =
+      shareCopy?.[i18n.language] ?? shareCopy?.en ?? null;
+    const message = remoteTemplate
+      ? remoteTemplate.replace("{{volume}}", formattedVolume)
+      : t("progress.lifetimeVolume.shareMessage", {
+          volume: formattedVolume,
+        });
     try {
       // Snapshot the card region to a PNG file.
       const uri = await captureRef(cardRef, { format: "png", quality: 1 });
