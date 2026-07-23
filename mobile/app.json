@@ -36,6 +36,7 @@
     "plugins": [
       "./plugins/withRemoveAndroidSplashIcon",
       "./plugins/withPodfileFixes",
+      "@react-native-firebase/app",
       [
         "@sentry/react-native/expo",
         {

@@ -1,21 +1,11 @@
 /**
- * Analytics wrapper — currently a no-op stub.
- *
- * Firebase Analytics native SDK (@react-native-firebase/analytics) was
- * removed because it doesn't compile against Xcode 27 beta / iOS 27 SDK
- * (RN Firebase's Obj-C bridge trips -Werror=non-modular-include-in-
- * framework-module and no workaround holds cleanly under useFrameworks:
- * static). Once Xcode 27 goes stable OR RN Firebase releases a fixed
- * version, restore this file to call `analytics().logEvent(...)` etc.
- *
- * All callers already use `EVENTS`, `logEvent`, `logScreenView`,
- * `identifyUser`, and `resetUser` — so re-enabling Firebase is a one-file
- * change. In dev, calls still log to console so you can verify the event
- * pipeline visually.
+ * Analytics wrapper — Firebase Analytics (@react-native-firebase/analytics).
  *
  * Session-recording + heatmaps: handled by Clarity (see clarityService.ts).
  * Crash + error tracking: handled by Sentry (see utils/sentry.ts).
  */
+
+import analytics from "@react-native-firebase/analytics";
 
 export const EVENTS = Object.freeze({
   // Auth
@@ -55,15 +45,37 @@ export type AnalyticsEvent = (typeof EVENTS)[keyof typeof EVENTS];
 
 type EventParams = Record<string, string | number | boolean | undefined>;
 
+const sanitize = (params?: EventParams): Record<string, string | number | boolean> | undefined => {
+  if (!params) return undefined;
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+};
+
 export const logEvent = async (
   event: AnalyticsEvent | string,
   params?: EventParams,
 ): Promise<void> => {
   if (__DEV__) console.log(`[analytics] ${event}`, params ?? {});
+  try {
+    await analytics().logEvent(event, sanitize(params));
+  } catch (e) {
+    if (__DEV__) console.warn(`[analytics] logEvent failed: ${event}`, e);
+  }
 };
 
 export const logScreenView = async (routeName: string): Promise<void> => {
   if (__DEV__) console.log(`[analytics] screen_view ${routeName}`);
+  try {
+    await analytics().logScreenView({
+      screen_name: routeName,
+      screen_class: routeName,
+    });
+  } catch (e) {
+    if (__DEV__) console.warn(`[analytics] logScreenView failed: ${routeName}`, e);
+  }
 };
 
 export type UserProperties = {
@@ -80,8 +92,29 @@ export const identifyUser = async (
   props?: UserProperties,
 ): Promise<void> => {
   if (__DEV__) console.log(`[analytics] identify ${userId}`, props ?? {});
+  try {
+    await analytics().setUserId(userId);
+    if (props) {
+      const entries: [string, string][] = [];
+      if (props.isPro !== undefined) entries.push(["is_pro", String(props.isPro)]);
+      if (props.isInTrial !== undefined) entries.push(["is_in_trial", String(props.isInTrial)]);
+      if (props.gender) entries.push(["gender", props.gender]);
+      if (props.level) entries.push(["level", props.level]);
+      if (props.program) entries.push(["program", props.program]);
+      if (props.trainingDaysPerWeek !== undefined)
+        entries.push(["training_days_per_week", String(props.trainingDaysPerWeek)]);
+      await analytics().setUserProperties(Object.fromEntries(entries));
+    }
+  } catch (e) {
+    if (__DEV__) console.warn(`[analytics] identifyUser failed: ${userId}`, e);
+  }
 };
 
 export const resetUser = async (): Promise<void> => {
   if (__DEV__) console.log("[analytics] reset user");
+  try {
+    await analytics().setUserId(null);
+  } catch (e) {
+    if (__DEV__) console.warn("[analytics] resetUser failed", e);
+  }
 };
