@@ -9,10 +9,7 @@
  *   2. Many resource-bundle pod targets (Firebase, Google, Sentry, SDWebImage)
  *      ship with IPHONEOS_DEPLOYMENT_TARGET below the supported floor of 15.1
  *      which recent Xcode releases reject.
- *   3. Xcode 27 + useFrameworks:static rejects RN Firebase headers that
- *      include non-modular Obj-C headers. The post_install block flips
- *      CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES to allow them.
- *   4. RN Firebase requires `$RNFirebaseAsStaticFramework = true` at the top
+ *   3. RN Firebase requires `$RNFirebaseAsStaticFramework = true` at the top
  *      of the Podfile when the host app uses static frameworks. Documented
  *      in https://rnfirebase.io/#altering-cocoapods-to-use-frameworks.
  *
@@ -53,16 +50,21 @@ ${MODULAR_HEADER_PODS.map((name) => `  pod '${name}', :modular_headers => true`)
 `;
 
 const POST_INSTALL_BLOCK = `
-    # === withPodfileFixes: deployment_target + non-modular headers ===
+    # === withPodfileFixes: deployment_target + rnfb non-modular headers ===
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '${DEPLOYMENT_TARGET}'
-        # Xcode 27 + useFrameworks:static rejects Firebase/RN Firebase pods that
-        # include Obj-C headers not declared in their module map. Allow them.
-        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        # RN Firebase pods (RNFBApp, RNFBAnalytics, ...) have headers that do
+        # \`#import <React/RCTConvert.h>\` non-modularly. Under use_frameworks!
+        # static, Clang rejects that inside a framework module. Allow it only
+        # for these pods so React-Core's own module boundary stays intact.
+        if target.name.start_with?('RNFB')
+          config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+          config.build_settings['DEFINES_MODULE'] = 'NO'
+        end
       end
     end
-    # === /withPodfileFixes: deployment_target + non-modular headers ===
+    # === /withPodfileFixes: deployment_target + rnfb non-modular headers ===
 `;
 
 function patchPodfile(contents) {
