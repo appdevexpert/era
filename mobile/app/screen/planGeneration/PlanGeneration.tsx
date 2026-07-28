@@ -16,6 +16,7 @@ import Svg, { Path } from "react-native-svg";
 import Reanimated, {
   cancelAnimation,
   Easing as ReEasing,
+  runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
@@ -278,7 +279,10 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   useAnimatedReaction(
     () => Math.round(counterSV.value),
     (current, previous) => {
-      if (current !== previous) setDisplayProgress(current);
+      // runOnJS is required: this callback runs on the UI runtime, and calling a
+      // JS-thread function (a setState setter) directly from a worklet aborts the
+      // process under the Reanimated 4 worklet runtime. Same rule as useAnimatedCounter.
+      if (current !== previous) runOnJS(setDisplayProgress)(current);
     },
   );
 
