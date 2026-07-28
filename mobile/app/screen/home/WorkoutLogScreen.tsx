@@ -210,17 +210,17 @@ const WorkoutLogScreen = () => {
     setComment("");
   }, [ensureWeightLogged, weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult, navigateToRest]);
 
-  /** Complete Exercise (last set) → log once + show bottom sheet */
+  /** Complete Exercise (last set) → log (or re-log with updated weight) + show bottom sheet */
   const handleCompleteExercise = useCallback(() => {
     // Drop the keyboard from any focused Set-N input first, otherwise the sheet's
     // keyboardBehavior="extend" opens it at the 90% detent instead of restSnap.
     Keyboard.dismiss();
-    if (lastSetLogged.current) {
-      sheetRef.current?.present();
-      return;
-    }
     if (!ensureWeightLogged()) return;
     lastSetLogged.current = true;
+    // Always dispatch so the bottom sheet reflects the latest weight/reps if the
+    // user edited them after dismissing the sheet. logSetResult's alreadyLogged
+    // guard prevents double-counting points/analytics; logSet is an UPDATE so
+    // re-calling it with a new weight is safe.
     logSetResult(exIdx, activeSet, weightKg, reps, feedback, null, comment || null);
     sheetRef.current?.present();
   }, [ensureWeightLogged, weightKg, reps, activeSet, exIdx, feedback, comment, logSetResult]);
