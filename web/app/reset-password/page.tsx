@@ -159,6 +159,9 @@ export default function ResetPasswordPage() {
     // One-time read of the URL/device on mount; safe to set state once here.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInit(computeInit());
+    // Tokens were in the hash — scrub them from the address bar and browser
+    // history immediately so they're never visible or re-replayable.
+    history.replaceState(null, "", window.location.pathname + window.location.search);
   }, []);
 
   const appDeepLink = useMemo(

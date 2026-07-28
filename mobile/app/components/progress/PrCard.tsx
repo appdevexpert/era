@@ -4,6 +4,8 @@ import { StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 
 const GOLD = "#C9A84C";
+// Shared by the delta text and its blank placeholder so both occupy one line.
+const DELTA_LINE_HEIGHT = 14.4;
 
 export interface PrEntry {
   id: string;
@@ -57,7 +59,11 @@ const PrCard = ({ entry }: PrCardProps) => {
               unit: label,
             })}
           </Text>
-        ) : null}
+        ) : (
+          // Keeps the weight row on the same baseline as cards that do show a
+          // delta, so paging between them doesn't shift the numbers.
+          <View style={styles.deltaPlaceholder} />
+        )}
       </View>
     </View>
   );
@@ -75,6 +81,11 @@ const styles = StyleSheet.create({
     gap: 16,
     alignItems: "center",
     overflow: "hidden",
+    // Fill the carousel page (which stretches to the tallest card) instead of
+    // sizing to our own content, and pin the weight block to the bottom. This
+    // is what keeps every card the same height regardless of name length.
+    flex: 1,
+    justifyContent: "space-between",
   },
   topRow: { flexDirection: "row", gap: 20, alignItems: "flex-start", width: "100%" },
   topLeft: { flex: 1, gap: 8, alignItems: "flex-start" },
@@ -95,9 +106,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: "#F0F0F0",
     lineHeight: 24,
-    // Reserve 2 lines so short names ("Squat") occupy the same height as
-    // wrapped ones ("Bulgarian Split Squat") → uniform card height, no void.
-    minHeight: 48,
   },
   latestRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: GOLD },
@@ -128,5 +136,7 @@ const styles = StyleSheet.create({
     color: GOLD,
     letterSpacing: 0.48,
     textTransform: "uppercase",
+    lineHeight: DELTA_LINE_HEIGHT,
   },
+  deltaPlaceholder: { height: DELTA_LINE_HEIGHT },
 });

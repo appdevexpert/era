@@ -2,24 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Easing,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
-import { useAnimatedCounter } from "@/app/hooks/useAnimatedCounter";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import Reanimated, {
+  cancelAnimation,
   Easing as ReEasing,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import GradientBackground from "@/app/components/common/GradientBackground";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -54,8 +57,6 @@ const STEP_KEYS = [
 ] as const;
 
 const TOTAL_STEPS = STEP_KEYS.length;
-// Single smooth animation from 0% → 100% over this duration — same pattern as
-// the nutrition kcal counter (one target, useAnimatedCounter handles the rest).
 const PROGRESS_DURATION_MS = 16000;
 const TOTAL_ESTIMATED_SECONDS = 92;
 
@@ -69,9 +70,6 @@ const getStepStatus = (index: number, progress: number): StepStatus => {
   return "pending";
 };
 
-// Distance-based fade — the loading step and the step that JUST finished both
-// read as the "now zone". Steps further from now zone fade in proportion to
-// their distance.
 const getStepOpacity = (index: number, progress: number): number => {
   const activeIndex = Math.min(
     Math.floor((progress / 100) * TOTAL_STEPS),
@@ -96,8 +94,6 @@ const formatTime = (seconds: number): string => {
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
-// 6-point asterisk used for pending steps. Three lines through the centre at
-// 0°, 60°, 120°.
 const AsteriskGlyph = ({ color }: { color: string }) => (
   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
     <Path
@@ -121,10 +117,8 @@ const AsteriskGlyph = ({ color }: { color: string }) => (
   </Svg>
 );
 
-// 8-spoke starburst used as the loading indicator — spins continuously.
 const StarburstGlyph = ({ color }: { color: string }) => (
   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-    {/* 8 dashes radiating from the centre */}
     <Path d="M12 3V7" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
     <Path d="M12 17V21" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
     <Path d="M3 12H7" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
@@ -138,8 +132,7 @@ const StarburstGlyph = ({ color }: { color: string }) => (
 
 /**
  * 22×22 icon slot that crossfades between pending / loading / completed
- * glyphs based on `status`. All three are stacked and fade in/out together
- * so the row never "snaps" between visuals.
+ * glyphs based on `status`.
  */
 const StepIcon = ({ status }: { status: StepStatus }) => {
   const spin = useSharedValue(0);
@@ -200,8 +193,6 @@ const iconStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  // Solid gold filled circle — matches Figma 5090:5506 / 5090:5498. The
-  // "done feels settled" treatment lives on the row opacity, not the icon.
   completedCircle: {
     width: 22,
     height: 22,
@@ -245,19 +236,23 @@ const StepRow = ({ stepKey, status, targetOpacity }: StepRowProps) => {
 const PlanGeneration = (_props: PlanGenerationProps) => {
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const workoutStatus = useSelector(selectWorkoutStatus);
   const workoutError = useSelector(selectWorkoutError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
 
-  // Target = 100 fires once. useAnimatedCounter tweens the displayed integer
-  // smoothly from 0 → 100 over PROGRESS_DURATION_MS on the UI thread — same
-  // model as the nutrition kcal/water counters (one target, one smooth ramp).
-  const [progressTarget, setProgressTarget] = useState(0);
   const [completed, setCompleted] = useState(false);
+
+  // progressAnim drives the visual bar (Animated API — interpolation to "%" is simpler here).
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const displayProgress = useAnimatedCounter(progressTarget, {
-    duration: PROGRESS_DURATION_MS,
-  });
+
+  // counterSV is the single source of truth for the percentage number.
+  // A Reanimated shared value gives us cancelAnimation — the only way to
+  // truly stop a withTiming mid-flight. useAnimatedCounter wraps withTiming
+  // but exposes no cancel handle, which was the root cause of both the
+  // "counter keeps running after failure" and "counter goes backward on retry" bugs.
+  const counterSV = useSharedValue(0);
+  const [displayProgress, setDisplayProgress] = useState(0);
   const progress = displayProgress;
 
   const isFailed = workoutStatus === "failed";
@@ -278,43 +273,61 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
     [progress],
   );
 
-  // Fetch workout data
+  // Bridge the UI-thread counter value back to JS so the checklist,
+  // estimated-time countdown, and completion check all read the same number.
+  useAnimatedReaction(
+    () => Math.round(counterSV.value),
+    (current, previous) => {
+      if (current !== previous) setDisplayProgress(current);
+    },
+  );
+
+  // Fetch workout data on first mount (idle state only).
   useEffect(() => {
     if (!hasWorkoutBootstrap && workoutStatus === "idle") {
       startWorkoutBootstrap();
     }
   }, [hasWorkoutBootstrap, startWorkoutBootstrap, workoutStatus]);
 
-  // Kick off the single 0 → 100 animation. The counter and the progress bar
-  // both ride the same long easing — no per-tick stepping.
+  // Start both animations from the same trigger so bar and counter stay in sync.
+  // This effect also re-fires when isFailed clears after retry, restarting
+  // both animations cleanly from their already-reset positions.
   useEffect(() => {
     if (completed || isFailed) return;
-    setProgressTarget(100);
+    counterSV.value = withTiming(100, {
+      duration: PROGRESS_DURATION_MS,
+      easing: ReEasing.out(ReEasing.cubic),
+    });
     Animated.timing(progressAnim, {
       toValue: 100,
       duration: PROGRESS_DURATION_MS,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [completed, isFailed, progressAnim]);
+  }, [completed, isFailed, progressAnim, counterSV]);
 
-  // Mark complete once the smooth display reaches 100.
+  // Stop both animations the moment the fetch fails so the bar and counter
+  // freeze at the failure point instead of running to 100% with an error shown.
+  useEffect(() => {
+    if (!isFailed) return;
+    progressAnim.stopAnimation();
+    cancelAnimation(counterSV);
+  }, [isFailed, progressAnim, counterSV]);
+
+  // Mark complete once the counter reaches 100.
   useEffect(() => {
     if (progress >= 100 && !completed) setCompleted(true);
   }, [progress, completed]);
 
-  // Navigate when ready
+  // Navigate when both the animation finished and the bootstrap data is ready.
   useEffect(() => {
     if (isReady) {
       void logEvent(EVENTS.PLAN_GEN_COMPLETED);
-      // Background prefetch all non-rest days so the 12-week overview is
-      // instant on first tap. Fire-and-forget — never blocks navigation.
       dispatch(prefetchAllDays());
       dispatch(completePlanGeneration());
     }
   }, [dispatch, isReady]);
 
-  // Fire once when the bootstrap flips to failed, not every re-render.
   useEffect(() => {
     if (isFailed) {
       void logEvent(EVENTS.PLAN_GEN_FAILED, { reason: workoutError ?? "unknown" });
@@ -322,8 +335,16 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   }, [isFailed, workoutError]);
 
   const handleRetry = () => {
-    setProgressTarget(0);
+    // Cancel before zeroing: without cancelAnimation the withTiming worklet
+    // could still tick for one frame after .value = 0, causing a ghost flash.
+    // Setting counterSV.value = 0 directly (no withTiming) means no backward
+    // animation — the old bug where the counter animated from e.g. 40 → 0
+    // before going forward was caused by setProgressTarget(0) passing through
+    // useAnimatedCounter which always wrapped every change in withTiming.
+    progressAnim.stopAnimation();
     progressAnim.setValue(0);
+    cancelAnimation(counterSV);
+    counterSV.value = 0;
     setCompleted(false);
     startWorkoutBootstrap();
   };
@@ -336,7 +357,22 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
   return (
     <GradientBackground>
       <View style={styles.container}>
-        <View style={styles.content}>
+        {/*
+          ScrollView with flexGrow: 1 replaces the plain flex: 1 View.
+          Normal (no-error) state: content fills the screen exactly as before —
+          marginTop: "auto" on the footer still pushes it to the bottom.
+          Error state: the errorContainer grows the content beyond the screen
+          height and the user can scroll down to reach the Retry button instead
+          of it being clipped off-screen.
+        */}
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, verticalScale(20)) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
+        >
           {/* Heading */}
           <Text style={styles.title}>
             {t("planGeneration.headingLine1")}
@@ -385,7 +421,9 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
             ))}
           </View>
 
-          {/* Estimated time */}
+          {/* Estimated time — marginTop: "auto" pushes this to the screen
+              bottom in the normal state; error banner sits below it in the
+              scroll area so neither element clips the other. */}
           <View style={styles.estimatedTimeRow}>
             <Text style={styles.estimatedTimeLabel}>
               {t("planGeneration.estimatedTime")}
@@ -395,7 +433,8 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
             </Text>
           </View>
 
-          {/* Error / retry */}
+          {/* Error / retry — placed after the footer inside the scroll area
+              so it never overflows off-screen */}
           {isFailed ? (
             <View style={styles.errorContainer}>
               {workoutError ? (
@@ -408,7 +447,7 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
               </PressableScale>
             </View>
           ) : null}
-        </View>
+        </ScrollView>
       </View>
     </GradientBackground>
   );
@@ -422,13 +461,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  // flexGrow: 1 lets the scroll content fill the screen in the normal state
+  // (so marginTop: "auto" still works) while allowing it to grow taller when
+  // the error banner is shown, making the Retry button reachable via scroll.
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: horizontalScale(32),
     paddingTop: verticalScale(60),
   },
 
-  // Heading
   title: {
     fontFamily: FONTS.display,
     fontWeight: "500",
@@ -442,9 +483,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // Percentage — fixed minWidth + tabular numerals keep the layout still as
-  // the counter ramps 0 → 100. Surrounding content (subtitle, progress bar)
-  // stays put instead of shifting with each new digit.
   percentage: {
     fontFamily: FONTS.bold,
     fontWeight: "700",
@@ -455,7 +493,6 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
 
-  // Subtitle
   subtitle: {
     fontFamily: FONTS.regular,
     fontWeight: "400",
@@ -465,7 +502,6 @@ const styles = StyleSheet.create({
     marginBottom: verticalScale(24),
   },
 
-  // Progress bar
   progressBarContainer: {
     height: 6,
     width: "100%",
@@ -491,7 +527,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
 
-  // Checklist
   checklistContainer: {
     gap: verticalScale(24),
     marginBottom: verticalScale(32),
@@ -509,7 +544,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Estimated time
   estimatedTimeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -531,7 +565,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary.dark,
   },
 
-  // Error
   errorContainer: {
     backgroundColor: "rgba(230,119,119,0.1)",
     borderRadius: 8,

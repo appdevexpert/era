@@ -82,10 +82,13 @@ const PrCarousel = ({ entries }: PrCarouselProps) => {
         contentContainerStyle={{
           paddingHorizontal: SCREEN_HORIZONTAL_PADDING,
           gap: PAGE_GAP,
+          // Every page stretches to the tallest one, so a long exercise name on
+          // one card no longer makes the others look shorter.
+          alignItems: "stretch",
         }}
       >
         {entries.map((entry) => (
-          <View key={entry.id} style={{ width: pageWidth }}>
+          <View key={entry.id} style={[styles.page, { width: pageWidth }]}>
             <PrCard entry={entry} />
           </View>
         ))}
@@ -103,6 +106,7 @@ export default PrCarousel;
 
 const styles = StyleSheet.create({
   wrap: { gap: 16 },
+  page: { flexShrink: 0 },
   dotsRow: {
     flexDirection: "row",
     justifyContent: "center",

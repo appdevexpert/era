@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import PressableScale from '@/app/components/common/PressableScale'
 import { Feather } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
@@ -36,6 +37,7 @@ type ForgotPasswordProps = NativeStackScreenProps<AuthStackParamList, 'ForgotPas
 
 const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
   const dispatch = useAppDispatch()
+  const insets = useSafeAreaInsets()
   const isRecovery = useSelector((state: RootState) => state.auth.isRecovery)
   const { t } = useTranslation()
 
@@ -151,88 +153,85 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
       <GradientBackground>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
+          keyboardVerticalOffset={insets.top}
           style={styles.flex}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
-            bounces={false}
           >
-          <View style={styles.navHeader}>
-            <BackButton onPress={() => { clearRecovery(); navigation.navigate('Login') }} />
-          </View>
+            <View style={styles.navHeader}>
+              <BackButton onPress={() => { clearRecovery(); navigation.navigate('Login') }} />
+            </View>
 
-          <View style={styles.header}>
-            <Text style={styles.title}>{t('auth.resetPassword')}</Text>
-            <Text style={styles.description}>{t('auth.resetPasswordDescription')}</Text>
-          </View>
+            <View style={styles.header}>
+              <Text style={styles.title}>{t('auth.resetPassword')}</Text>
+              <Text style={styles.description}>{t('auth.resetPasswordDescription')}</Text>
+            </View>
 
-          <>
-              <View style={styles.form}>
-                <View style={styles.inputWrap}>
-                  <PasswordLockIcon width={24} height={24} />
-                  <TextInput
-                    value={password}
-                    onChangeText={(v) => { setPassword(v); clearValidation() }}
-                    placeholder={t('auth.newPassword')}
-                    placeholderTextColor="rgba(240, 240, 240, 0.6)"
-                    secureTextEntry={passwordHidden}
-                    autoCapitalize="none"
-                    style={styles.input}
-                  />
-                  <PressableScale
-                    hitSlop={12}
-                    onPress={() => setPasswordHidden((prev) => !prev)}
-                    style={styles.eyeButton}
-                  >
-                    <Feather
-                      name={passwordHidden ? 'eye-off' : 'eye'}
-                      size={22}
-                      color={COLORS.primary.dark}
-                    />
-                  </PressableScale>
-                </View>
-
-                <View style={styles.inputWrap}>
-                  <PasswordLockIcon width={24} height={24} />
-                  <TextInput
-                    value={confirmPassword}
-                    onChangeText={(v) => { setConfirmPassword(v); clearValidation() }}
-                    placeholder={t('auth.confirmNewPassword')}
-                    placeholderTextColor="rgba(240, 240, 240, 0.6)"
-                    secureTextEntry={confirmPasswordHidden}
-                    autoCapitalize="none"
-                    style={styles.input}
-                  />
-                  <PressableScale
-                    hitSlop={12}
-                    onPress={() => setConfirmPasswordHidden((prev) => !prev)}
-                    style={styles.eyeButton}
-                  >
-                    <Feather
-                      name={confirmPasswordHidden ? 'eye-off' : 'eye'}
-                      size={22}
-                      color={COLORS.primary.dark}
-                    />
-                  </PressableScale>
-                </View>
-              </View>
-
-              {validationError && (
-                <Text style={styles.errorText}>{validationError}</Text>
-              )}
-
-              <View style={styles.buttonContainer}>
-                <PrimaryButton
-                  label={t('auth.resetPasswordButton')}
-                  onPress={handleResetPassword}
-                  loading={isResetLoading}
+            <View style={styles.form}>
+              <View style={styles.inputWrap}>
+                <PasswordLockIcon width={24} height={24} />
+                <TextInput
+                  value={password}
+                  onChangeText={(v) => { setPassword(v); clearValidation() }}
+                  placeholder={t('auth.newPassword')}
+                  placeholderTextColor="rgba(240, 240, 240, 0.6)"
+                  secureTextEntry={passwordHidden}
+                  autoCapitalize="none"
+                  style={styles.input}
                 />
+                <PressableScale
+                  hitSlop={12}
+                  onPress={() => setPasswordHidden((prev) => !prev)}
+                  style={styles.eyeButton}
+                >
+                  <Feather
+                    name={passwordHidden ? 'eye-off' : 'eye'}
+                    size={22}
+                    color={COLORS.primary.dark}
+                  />
+                </PressableScale>
               </View>
-            </>
+
+              <View style={styles.inputWrap}>
+                <PasswordLockIcon width={24} height={24} />
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={(v) => { setConfirmPassword(v); clearValidation() }}
+                  placeholder={t('auth.confirmNewPassword')}
+                  placeholderTextColor="rgba(240, 240, 240, 0.6)"
+                  secureTextEntry={confirmPasswordHidden}
+                  autoCapitalize="none"
+                  style={styles.input}
+                />
+                <PressableScale
+                  hitSlop={12}
+                  onPress={() => setConfirmPasswordHidden((prev) => !prev)}
+                  style={styles.eyeButton}
+                >
+                  <Feather
+                    name={confirmPasswordHidden ? 'eye-off' : 'eye'}
+                    size={22}
+                    color={COLORS.primary.dark}
+                  />
+                </PressableScale>
+              </View>
+            </View>
+
+            {validationError && (
+              <Text style={styles.errorText}>{validationError}</Text>
+            )}
           </ScrollView>
+
+          <View style={styles.buttonContainer}>
+            <PrimaryButton
+              label={t('auth.resetPasswordButton')}
+              onPress={handleResetPassword}
+              loading={isResetLoading}
+            />
+          </View>
         </KeyboardAvoidingView>
       </GradientBackground>
     )
@@ -243,46 +242,45 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
     <GradientBackground>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={insets.top}
         style={styles.flex}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          bounces={false}
         >
-        <View style={styles.navHeader}>
-          <BackButton onPress={() => navigation.goBack()} />
-        </View>
+          <View style={styles.navHeader}>
+            <BackButton onPress={() => navigation.goBack()} />
+          </View>
 
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('auth.forgotPassword')}</Text>
-          <Text style={styles.description}>{t('auth.forgotPasswordDescription')}</Text>
-        </View>
+          <View style={styles.header}>
+            <Text style={styles.title}>{t('auth.forgotPassword')}</Text>
+            <Text style={styles.description}>{t('auth.forgotPasswordDescription')}</Text>
+          </View>
 
-        <View style={[styles.inputWrap, { marginTop: verticalScale(42) }]}>
-          <EmailAddressIcon width={24} height={24} />
-          <TextInput
-            value={email}
-            onChangeText={(v) => { setEmail(v); setValidationError(null); setEmailSent(false) }}
-            placeholder={t('auth.emailAddress')}
-            placeholderTextColor="rgba(240, 240, 240, 0.6)"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
-        </View>
+          <View style={[styles.inputWrap, { marginTop: verticalScale(42) }]}>
+            <EmailAddressIcon width={24} height={24} />
+            <TextInput
+              value={email}
+              onChangeText={(v) => { setEmail(v); setValidationError(null); setEmailSent(false) }}
+              placeholder={t('auth.emailAddress')}
+              placeholderTextColor="rgba(240, 240, 240, 0.6)"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.input}
+            />
+          </View>
 
-        {validationError && (
-          <Text style={styles.errorText}>{validationError}</Text>
-        )}
+          {validationError && (
+            <Text style={styles.errorText}>{validationError}</Text>
+          )}
+        </ScrollView>
 
         <View style={styles.buttonContainer}>
           <PrimaryButton label={t('common.continue')} onPress={handleSendEmail} loading={isRequestLoading} />
         </View>
-        </ScrollView>
       </KeyboardAvoidingView>
     </GradientBackground>
   )
@@ -359,7 +357,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttonContainer: {
-    marginTop: 'auto',
+    paddingHorizontal: horizontalScale(24),
     paddingBottom: verticalScale(16),
   },
 })
