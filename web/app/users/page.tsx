@@ -9,7 +9,7 @@ export default async function UsersPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Users"
+        eyebrow="Users "
         title="App users"
         description="View users created through mobile authentication and their current program assignment state."
       />
