@@ -14,6 +14,7 @@ import {
   type ExerciseMediaGender,
 } from "@/lib/admin/constants";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 function publicUrl(path: string) {
   return createClient().storage.from(EXERCISE_MEDIA_BUCKET).getPublicUrl(path)
@@ -24,6 +25,12 @@ function megabytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+// Dropped files sometimes arrive with an empty `type` (the OS didn't hand the
+// browser a MIME type), so fall back to the extension before rejecting.
+function isMp4(file: File) {
+  return file.type === "video/mp4" || (!file.type && /\.mp4$/i.test(file.name));
+}
+
 /**
  * Upload control for one gender's demo clip.
  *
@@ -31,6 +38,9 @@ function megabytes(bytes: number) {
  * minted by a Server Action. It never passes through the Next server, which
  * caps Server Action bodies at 1 MB. The resulting storage path rides along in
  * a hidden input so the surrounding form saves it with everything else.
+ *
+ * Files arrive either from the hidden file input or from a drag-and-drop onto
+ * the preview area — both funnel into handleFile.
  */
 export function ExerciseVideoField({
   gender,
@@ -49,11 +59,15 @@ export function ExerciseVideoField({
   const [path, setPath] = useState<string | null>(savedPath);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  // dragleave fires every time the cursor crosses into a child element, so a
+  // plain boolean flickers. Counting enter/leave pairs tracks the real state.
+  const dragDepth = useRef(0);
 
   const handleFile = async (file: File) => {
     setError(null);
 
-    if (file.type !== "video/mp4") {
+    if (!isMp4(file)) {
       setError("Only MP4 files are supported.");
       return;
     }
@@ -103,6 +117,46 @@ export function ExerciseVideoField({
     setError(null);
   };
 
+  // Text selections and dragged page elements also fire these events; only
+  // react when the payload is actually a file.
+  const carriesFiles = (event: React.DragEvent) =>
+    event.dataTransfer.types.includes("Files");
+
+  const endDrag = () => {
+    dragDepth.current = 0;
+    setDragging(false);
+  };
+
+  const dropHandlers = {
+    onDragEnter: (event: React.DragEvent) => {
+      if (busy || !carriesFiles(event)) return;
+      event.preventDefault();
+      dragDepth.current += 1;
+      setDragging(true);
+    },
+    onDragOver: (event: React.DragEvent) => {
+      if (busy || !carriesFiles(event)) return;
+      // Without this the browser handles the drop itself and navigates away
+      // from the form.
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      if (!carriesFiles(event)) return;
+      dragDepth.current -= 1;
+      if (dragDepth.current <= 0) endDrag();
+    },
+    onDrop: (event: React.DragEvent) => {
+      if (busy || !carriesFiles(event)) return;
+      event.preventDefault();
+      endDrag();
+      const file = event.dataTransfer.files[0];
+      if (file) void handleFile(file);
+    },
+  };
+
+  const browse = () => inputRef.current?.click();
+
   return (
     <div className="grid gap-2">
       <Label>{label}</Label>
@@ -110,21 +164,51 @@ export function ExerciseVideoField({
       {/* The value the form actually submits. Empty string = clip removed. */}
       <input type="hidden" name={`demo_video_${gender}_path`} value={path ?? ""} />
 
-      {path ? (
-        <video
-          key={path}
-          src={publicUrl(path)}
-          controls
-          muted
-          playsInline
-          preload="metadata"
-          className="w-full rounded-lg border border-border bg-black"
-        />
-      ) : (
-        <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
-          No clip uploaded
-        </div>
-      )}
+      <div className="relative" {...dropHandlers}>
+        {path ? (
+          <video
+            key={path}
+            src={publicUrl(path)}
+            controls
+            muted
+            playsInline
+            preload="metadata"
+            className="w-full rounded-lg border border-border bg-black"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={browse}
+            disabled={busy}
+            className={cn(
+              "flex h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed px-4 text-sm transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              dragging
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/50 hover:bg-accent/40",
+            )}
+          >
+            {busy ? (
+              <span>Uploading…</span>
+            ) : dragging ? (
+              <span className="font-medium">Drop the MP4 to upload</span>
+            ) : (
+              <>
+                <span>Drag &amp; drop an MP4 here</span>
+                <span className="text-xs">or click to browse</span>
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Overlay for the replace-by-drop case, where the video already fills
+            the box. pointer-events-none keeps drag events on the container. */}
+        {path && dragging ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-background/80 text-sm font-medium text-primary">
+            Drop to replace the clip
+          </div>
+        ) : null}
+      </div>
 
       <input
         ref={inputRef}
@@ -143,7 +227,7 @@ export function ExerciseVideoField({
           variant="outline"
           size="sm"
           loading={busy}
-          onClick={() => inputRef.current?.click()}
+          onClick={browse}
         >
           {path ? "Replace clip" : "Upload clip"}
         </Button>
