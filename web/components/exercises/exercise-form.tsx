@@ -2,7 +2,8 @@
 
 import { useState, type ReactElement } from "react";
 
-import { FormField, SelectField } from "@/components/admin/form-field";
+import { FormField, SelectField, TextAreaField } from "@/components/admin/form-field";
+import { ExerciseVideoField } from "@/components/exercises/exercise-video-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -94,7 +95,70 @@ export function ExerciseFormDialog({
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <TextAreaField
+              label="English description"
+              name="description_en"
+              placeholder="How to perform the movement, cues, common mistakes."
+              defaultValue={translation(exercise?.description_translations, "en")}
+            />
+            <TextAreaField
+              label="Norwegian description"
+              name="description_nb"
+              placeholder="Samme beskrivelse på norsk."
+              defaultValue={translation(exercise?.description_translations, "nb")}
+            />
+          </div>
+
+          <div className="grid gap-4 border-t border-border pt-4">
+            <div>
+              <h3 className="text-sm font-medium">Demo clips</h3>
+              <p className="text-sm text-muted-foreground">
+                MP4 only, max 10 MB. Aim for a 3-5 second loop with no audio
+                track — the app streams these mid-workout. The male clip is used
+                whenever a user&apos;s clip is missing.
+              </p>
+            </div>
+
+            {isEditing && exercise ? (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ExerciseVideoField
+                  gender="male"
+                  label="Male demo"
+                  slug={exercise.slug}
+                  savedPath={exercise.demo_video_male_path}
+                />
+                <ExerciseVideoField
+                  gender="female"
+                  label="Female demo"
+                  slug={exercise.slug}
+                  savedPath={exercise.demo_video_female_path}
+                />
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                Create the exercise first, then reopen it to upload clips. The
+                storage folder is named after the exercise slug, which only
+                exists once the row is saved.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="demo_video_loop"
+                name="demo_video_loop"
+                defaultChecked={exercise?.demo_video_loop ?? true}
+              />
+              <Label htmlFor="demo_video_loop">
+                Loop the clip continuously
+              </Label>
+            </div>
+            <p className="-mt-2 text-sm text-muted-foreground">
+              Off = the clip plays once, then the app shows a tap-to-play button.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 border-t border-border pt-4">
             <Checkbox
               id="is_active"
               name="is_active"

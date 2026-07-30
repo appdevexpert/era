@@ -52,6 +52,10 @@ import {
   type ReorderableListReorderEvent,
 } from "react-native-reorderable-list";
 import PressableScale from "@/app/components/common/PressableScale";
+import ExerciseInfoBottomSheet, {
+  type ExerciseInfoBottomSheetRef,
+  type ExerciseInfoPayload,
+} from "@/app/components/workout/ExerciseInfoBottomSheet";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -117,6 +121,7 @@ const ExerciseRow = ({
   mode,
   stats,
   handle,
+  onInfoPress,
 }: {
   exercise: ExerciseListExerciseView;
   mode: DayStatus;
@@ -124,6 +129,9 @@ const ExerciseRow = ({
   stats?: UserExerciseStat;
   /** Drag handle element, supplied only by the reorderable variant. */
   handle?: ReactNode;
+  /** Opens the read-only info sheet. Receives the row's own resolved weight so
+   * the sheet's tile can never disagree with what the row shows. */
+  onInfoPress: (payload: ExerciseInfoPayload) => void;
 }) => {
   const { t } = useTranslation();
   // Smart Weight suggestion is Standard+ — free users always see the
@@ -151,8 +159,22 @@ const ExerciseRow = ({
       ? t("workout.ui.suggestedWeight")
       : t("workout.ui.initialWeight");
 
+  const openInfo = () =>
+    onInfoPress({
+      name: exercise.name,
+      muscleCategory: exercise.muscleCategory,
+      video: exercise.demoVideoUrl,
+      videoLoop: exercise.demoVideoLoop,
+      setCount: exercise.setCount,
+      targetLabel: exercise.targetLabel,
+      targetKind: exercise.targetKind,
+      weightLabel,
+      weightValue: displayWeight,
+      formDetail: exercise.formDetail,
+    });
+
   return (
-    <View style={styles.exerciseRow}>
+    <PressableScale style={styles.exerciseRow} onPress={openInfo}>
       {handle ?? null}
       <View style={styles.exerciseCopy}>
         <Text numberOfLines={1} style={styles.exerciseName}>
@@ -166,7 +188,7 @@ const ExerciseRow = ({
           <Text style={styles.weightValue}>{displayWeight}</Text>
         </View>
       ) : null}
-    </View>
+    </PressableScale>
   );
 };
 
@@ -234,11 +256,13 @@ const ExerciseSection = ({
   section,
   mode,
   statsByExerciseId,
+  onInfoPress,
 }: {
   section: ExerciseListSectionView;
   mode: DayStatus;
   /** Map keyed by exercise_library_id → user_exercise_stats. */
   statsByExerciseId: Map<string, UserExerciseStat>;
+  onInfoPress: (payload: ExerciseInfoPayload) => void;
 }) => (
   <View style={styles.section}>
     <SectionHeader title={section.title} />
@@ -249,6 +273,7 @@ const ExerciseSection = ({
             exercise={exercise}
             mode={mode}
             stats={statsByExerciseId.get(exercise.exerciseLibraryId)}
+            onInfoPress={onInfoPress}
           />
           {index < section.exercises.length - 1 ? <View style={styles.divider} /> : null}
         </View>
@@ -268,10 +293,12 @@ const ReorderableExerciseRow = ({
   exercise,
   stats,
   canReorder,
+  onInfoPress,
 }: {
   exercise: ExerciseListExerciseView;
   stats?: UserExerciseStat;
   canReorder: boolean;
+  onInfoPress: (payload: ExerciseInfoPayload) => void;
 }) => {
   const drag = useReorderableDrag();
 
@@ -289,7 +316,15 @@ const ReorderableExerciseRow = ({
     </Pressable>
   ) : undefined;
 
-  return <ExerciseRow exercise={exercise} mode="active" stats={stats} handle={handle} />;
+  return (
+    <ExerciseRow
+      exercise={exercise}
+      mode="active"
+      stats={stats}
+      handle={handle}
+      onInfoPress={onInfoPress}
+    />
+  );
 };
 
 /**
@@ -301,10 +336,12 @@ const ReorderableExerciseSection = ({
   section,
   statsByExerciseId,
   onReorder,
+  onInfoPress,
 }: {
   section: ExerciseListSectionView;
   statsByExerciseId: Map<string, UserExerciseStat>;
   onReorder: (event: ReorderableListReorderEvent) => void;
+  onInfoPress: (payload: ExerciseInfoPayload) => void;
 }) => {
   const canReorder = section.exercises.length > 1;
   return (
@@ -327,6 +364,7 @@ const ReorderableExerciseSection = ({
               exercise={item}
               stats={statsByExerciseId.get(item.exerciseLibraryId)}
               canReorder={canReorder}
+              onInfoPress={onInfoPress}
             />
             {index < section.exercises.length - 1 ? (
               <View style={styles.divider} />
@@ -394,12 +432,19 @@ const ExerciseListScreen = () => {
   const orderOverride = useSelector((state: RootState) =>
     activeDayId ? state.workout.userExerciseOrderByDay[activeDayId] : undefined,
   );
+  // Decides which demo clip the info sheet resolves to. Read from onboarding
+  // goals (the user's own gender), not the assigned program's — same rule as
+  // useWorkoutSession, so the sheet and the log screen show the same clip.
+  const gender = useSelector((state: RootState) => {
+    const value = state.onboarding.goalData?.gender;
+    return typeof value === "string" ? value : null;
+  });
   const workout = useMemo(
     () =>
       activeDayDetail
-        ? mapExerciseList(activeDayDetail, i18n.language, orderOverride)
+        ? mapExerciseList(activeDayDetail, i18n.language, orderOverride, gender)
         : null,
-    [activeDayDetail, i18n.language, orderOverride],
+    [activeDayDetail, i18n.language, orderOverride, gender],
   );
   const shouldLoadRequestedDay = Boolean(
     requestedDayId && !activeDayDetail,
@@ -524,6 +569,11 @@ const ExerciseListScreen = () => {
     t,
     i18n.language,
   ]);
+
+  const infoSheetRef = useRef<ExerciseInfoBottomSheetRef>(null);
+  const handleInfoPress = useCallback((payload: ExerciseInfoPayload) => {
+    infoSheetRef.current?.show(payload);
+  }, []);
 
   const handleExercisePress = useCallback(
     (exercise: CompletedExerciseView) => {
@@ -751,10 +801,12 @@ const ExerciseListScreen = () => {
               section={section}
               statsByExerciseId={statsByExerciseId}
               onReorder={(event) => handleReorder(section.id, event)}
+              onInfoPress={handleInfoPress}
             />
           ))}
         </ScrollViewContainer>
         {bottomButton}
+        <ExerciseInfoBottomSheet ref={infoSheetRef} />
       </View>
     );
   }
@@ -844,6 +896,7 @@ const ExerciseListScreen = () => {
                     section={section}
                     mode={dayStatus}
                     statsByExerciseId={statsByExerciseId}
+                    onInfoPress={handleInfoPress}
                   />
                 ))
               : null}
@@ -875,6 +928,7 @@ const ExerciseListScreen = () => {
       </ScrollView>
 
       {bottomButton}
+      <ExerciseInfoBottomSheet ref={infoSheetRef} />
     </View>
   );
 };

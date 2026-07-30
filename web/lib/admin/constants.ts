@@ -99,6 +99,21 @@ export function isMainProgramId(id: string | null | undefined): boolean {
   return !!id && (MAIN_PROGRAM_IDS as readonly string[]).includes(id);
 }
 
+/**
+ * Public storage bucket holding the per-exercise demo clips.
+ *
+ * Public (not signed) on purpose: the clips are identical for every user, so
+ * the URL is CDN-cacheable and never expires. The mobile app caches raw rows in
+ * persisted Redux, and a signed URL sitting in that cache would go dead.
+ */
+export const EXERCISE_MEDIA_BUCKET = "exercise-media";
+
+/** Matches the bucket's `file_size_limit` — keep the two in sync. */
+export const EXERCISE_VIDEO_MAX_BYTES = 10 * 1024 * 1024;
+
+export const EXERCISE_MEDIA_GENDERS = ["male", "female"] as const;
+export type ExerciseMediaGender = (typeof EXERCISE_MEDIA_GENDERS)[number];
+
 export const MUSCLE_GROUPS = [
   "chest",
   "shoulders",

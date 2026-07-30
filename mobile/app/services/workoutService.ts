@@ -305,7 +305,7 @@ async function getLibraryExercises(libraryIds: string[]) {
   const result = await supabase
     .from("exercise_library")
     .select(
-      "id,slug,name,name_translations,modality,category,primary_muscles",
+      "id,slug,name,name_translations,modality,category,primary_muscles,demo_video_male_path,demo_video_female_path,demo_video_loop,description_translations",
     )
     .in("id", libraryIds);
 

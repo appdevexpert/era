@@ -167,6 +167,14 @@ export const useWorkoutSession = (programDayId?: string) => {
   const orderOverride = useSelector((state: RootState) =>
     targetDayId ? state.workout.userExerciseOrderByDay[targetDayId] : undefined,
   );
+  // Decides which demo clip each exercise resolves to. Read from the onboarding
+  // goals (the user's own gender) rather than the assigned program's gender,
+  // because an admin can assign a program of either gender and the demo should
+  // still match the person doing the workout. Persisted, so it works offline.
+  const gender = useSelector((state: RootState) => {
+    const value = state.onboarding.goalData?.gender;
+    return typeof value === "string" ? value : null;
+  });
 
   const sessionWorkout: SessionWorkout | null = useMemo(
     () =>
@@ -175,9 +183,10 @@ export const useWorkoutSession = (programDayId?: string) => {
             isDeloadWeek,
             usesTopSetBackoff,
             orderOverride,
+            gender,
           })
         : null,
-    [currentDayDetail, i18n.language, isDeloadWeek, usesTopSetBackoff, orderOverride],
+    [currentDayDetail, i18n.language, isDeloadWeek, usesTopSetBackoff, orderOverride, gender],
   );
 
   const totalExercises = sessionWorkout?.exercises.length ?? 0;

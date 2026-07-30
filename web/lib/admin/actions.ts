@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdminClient } from "@/lib/admin/supabase";
-import { allowedSetKindsForModality, isMainProgramId } from "@/lib/admin/constants";
+import {
+  allowedSetKindsForModality,
+  isMainProgramId,
+  EXERCISE_MEDIA_BUCKET,
+  type ExerciseMediaGender,
+} from "@/lib/admin/constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAdminAction } from "@/lib/admin/audit";
 import { getCurrentAdminUser } from "@/lib/auth/current-user";
@@ -76,6 +81,68 @@ async function assertKindMatchesExerciseModality(
   }
 }
 
+/**
+ * Mints a short-lived signed upload URL so the browser can push a demo clip
+ * straight to Supabase Storage.
+ *
+ * The file deliberately never passes through this server: Next.js caps Server
+ * Action request bodies at 1 MB (`serverActions.bodySizeLimit`) and these clips
+ * are megabytes, so a normal form upload would just fail. Going direct also
+ * avoids paying for the transfer twice.
+ *
+ * The filename carries a timestamp because the bucket is public and
+ * CDN-cached. Re-uploading over a stable path like `bench-press/male.mp4` would
+ * keep serving the *old* clip to every client that already cached that URL.
+ */
+export async function createExerciseVideoUploadUrl(
+  rawSlug: string,
+  gender: ExerciseMediaGender,
+): Promise<{ path: string; token: string }> {
+  const actor = await getCurrentAdminUser();
+  if (!actor) {
+    throw new Error("Not authorised to upload exercise media.");
+  }
+  if (gender !== "male" && gender !== "female") {
+    throw new Error(`Unknown gender "${gender}".`);
+  }
+
+  const folder = slugify(rawSlug) || "unsorted";
+  const path = `${folder}/${gender}-${Date.now()}.mp4`;
+
+  const supabase = requireAdminClient();
+  const { data, error } = await supabase.storage
+    .from(EXERCISE_MEDIA_BUCKET)
+    .createSignedUploadUrl(path);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not create the upload URL.");
+  }
+
+  return { path: data.path, token: data.token };
+}
+
+/**
+ * Deletes one object from the media bucket. Used when an admin replaces a clip
+ * they uploaded but hasn't saved yet — without this, the abandoned upload would
+ * sit in the bucket forever with nothing referencing it.
+ */
+export async function removeExerciseVideoObject(path: string) {
+  const actor = await getCurrentAdminUser();
+  if (!actor) {
+    throw new Error("Not authorised to remove exercise media.");
+  }
+  if (!path) return;
+
+  const supabase = requireAdminClient();
+  const { error } = await supabase.storage
+    .from(EXERCISE_MEDIA_BUCKET)
+    .remove([path]);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function saveExercise(formData: FormData) {
   const supabase = requireAdminClient();
   const id = value(formData, "id");
@@ -87,16 +154,38 @@ export async function saveExercise(formData: FormData) {
     throw new Error("Exercise name is required.");
   }
 
+  const maleVideoPath = optionalValue(formData, "demo_video_male_path");
+  const femaleVideoPath = optionalValue(formData, "demo_video_female_path");
+
+  // Needed to spot clips that this save is replacing, so their files can be
+  // deleted once the row update lands.
+  const previous = id
+    ? (
+        await supabase
+          .from("exercise_library")
+          .select("demo_video_male_path,demo_video_female_path")
+          .eq("id", id)
+          .maybeSingle()
+      ).data
+    : null;
+
   const actor = await getCurrentAdminUser();
   const payload = {
     slug: value(formData, "slug") || slugify(name),
     name,
     name_translations: translations(nameEn || name, nameNb || name),
+    description_translations: translations(
+      value(formData, "description_en"),
+      value(formData, "description_nb"),
+    ),
     modality: value(formData, "modality") || "strength",
     category: value(formData, "category") || "compound",
     primary_muscles: textArray(formData, "primary_muscles"),
     default_rest_seconds: numberValue(formData, "default_rest_seconds"),
     is_active: formData.get("is_active") === "on",
+    demo_video_male_path: maleVideoPath,
+    demo_video_female_path: femaleVideoPath,
+    demo_video_loop: formData.get("demo_video_loop") === "on",
     updated_by: actor?.full_name ?? actor?.id ?? null,
     updated_at: new Date().toISOString(),
   };
@@ -116,6 +205,22 @@ export async function saveExercise(formData: FormData) {
 
   if (result.error) {
     throw new Error(result.error.message);
+  }
+
+  // Only after the row is committed. Deleting first would risk the update
+  // failing and leaving the row pointing at a file that no longer exists —
+  // an orphaned file is the cheaper of the two failures.
+  const replaced = [
+    previous?.demo_video_male_path !== maleVideoPath
+      ? previous?.demo_video_male_path
+      : null,
+    previous?.demo_video_female_path !== femaleVideoPath
+      ? previous?.demo_video_female_path
+      : null,
+  ].filter((path): path is string => Boolean(path));
+
+  if (replaced.length > 0) {
+    await supabase.storage.from(EXERCISE_MEDIA_BUCKET).remove(replaced);
   }
 
   await logAdminAction({
@@ -619,8 +724,23 @@ export async function deleteExercise(formData: FormData) {
   const supabase = requireAdminClient();
   const id = value(formData, "id");
 
+  // Read the clip paths before the row goes, otherwise the only reference to
+  // those files is gone and they sit in the bucket forever.
+  const { data: media } = await supabase
+    .from("exercise_library")
+    .select("demo_video_male_path,demo_video_female_path")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase.from("exercise_library").delete().eq("id", id);
   if (error) throw new Error(error.message);
+
+  const paths = [media?.demo_video_male_path, media?.demo_video_female_path].filter(
+    (path): path is string => Boolean(path),
+  );
+  if (paths.length > 0) {
+    await supabase.storage.from(EXERCISE_MEDIA_BUCKET).remove(paths);
+  }
 
   await logAdminAction({
     action: "delete",

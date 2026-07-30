@@ -1,6 +1,7 @@
 import AddComment from "@/app/components/common/AddComment";
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
 import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
+import ExerciseAnimationCard from "@/app/components/workout/ExerciseAnimationCard";
 import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";
 import RepsPicker from "@/app/components/workout/RepsPicker";
 import SetFeedback from "@/app/components/workout/SetFeedback";
@@ -389,6 +390,16 @@ const WorkoutLogScreen = () => {
         contentContainerStyle={styles.scrollContent}
       >
         <Animated.View style={contentHoldStyle}>
+          {/* Exercise demo animation — Figma "Exercise animation placement".
+              Sits directly under the header, above the set stat cards. Renders
+              nothing until a clip is uploaded for this exercise in the admin
+              panel; the gender pick and loop flag both come from the DB. */}
+          <ExerciseAnimationCard
+            video={currentEx?.demoVideoUrl}
+            loop={currentEx?.demoVideoLoop}
+            style={styles.animationCard}
+          />
+
           <SetStatCards
             bestSet={getExerciseSetStats(exIdx).bestSet}
             lastSet={getExerciseSetStats(exIdx).lastSet}
@@ -524,6 +535,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.neutral.black2,
+  },
+  animationCard: {
+    marginBottom: 12,
   },
   repsSection: {
     marginTop: 32,

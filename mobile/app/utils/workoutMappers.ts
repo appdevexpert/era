@@ -1,6 +1,7 @@
 import type { MuscleGroup } from "@/app/navigation/types";
 import { computeCurrentPosition, computeDateForDay, getCalendarWeekDates, getPartialWeekNumbers, getSkippedDaysInfo, getToday, getWeekdayFromDate, isWeekAccessible } from "@/app/utils/programSchedule";
 import type {
+  ExerciseLibraryRow,
   ExerciseListView,
   ExerciseMode,
   PlannedExerciseSetRow,
@@ -18,9 +19,11 @@ import type {
   WorkoutOverviewData,
 } from "@/app/types/workout";
 import { DELOAD_MAX_SETS, DELOAD_WEIGHT_MULTIPLIER } from "@/app/utils/deloadTransform";
+import { resolveExerciseDemoVideo } from "@/app/utils/exerciseMedia";
 import { getLocalizedText, normalizeLanguage, type AppLanguage } from "@/app/utils/localization";
 import {
   formatDayLabel,
+  formatDuration,
   formatSetSummary,
   formatWeekProgress,
   formatWeight,
@@ -50,8 +53,11 @@ const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
     glutes: "Glutes",
     hamstrings: "Hamstrings",
     legs: "Legs",
+    lower_back: "Lower Back",
     neck: "Neck",
+    obliques: "Obliques",
     quads: "Quads",
+    rear_delts: "Rear Delts",
     recovery: "Recovery",
     shoulders: "Shoulders",
     traps: "Traps",
@@ -69,8 +75,11 @@ const MUSCLE_LABELS: Record<AppLanguage, Record<string, string>> = {
     glutes: "Setemuskler",
     hamstrings: "Bakside lår",
     legs: "Bein",
+    lower_back: "Korsrygg",
     neck: "Nakke",
+    obliques: "Skrå magemuskler",
     quads: "Forside lår",
+    rear_delts: "Bakre skuldre",
     recovery: "Restitusjon",
     shoulders: "Skuldre",
     traps: "Trapezius",
@@ -97,7 +106,45 @@ export const getWeekdayLabelFull = (weekday: number | null, language: string) =>
 
 const localizeMuscle = (muscle: string, language: string) => {
   const labels = MUSCLE_LABELS[normalizeLanguage(language)];
-  return labels[muscle] ?? muscle;
+  // Lower-cased: the library is admin-entered free text, so casing drifts
+  // ("Forearms" vs "forearms") and an unmatched key would leak a raw DB string
+  // into the UI.
+  return labels[muscle.toLowerCase()] ?? muscle;
+};
+
+/** `exercise_library.category` enum — the "Compound" half of "Back • Compound". */
+const CATEGORY_LABELS: Record<AppLanguage, Record<string, string>> = {
+  en: {
+    compound: "Compound",
+    isolation: "Isolation",
+    core: "Core",
+    cardio: "Cardio",
+  },
+  nb: {
+    compound: "Sammensatt",
+    isolation: "Isolasjon",
+    core: "Kjerne",
+    cardio: "Kondisjon",
+  },
+};
+
+/**
+ * "Back • Compound" — the gold line under an exercise name in the info sheet.
+ * Both halves come from `exercise_library`, so both need localizing; either can
+ * be missing (empty `primary_muscles`, unseeded category) and the separator is
+ * dropped rather than left dangling.
+ */
+export const formatMuscleCategory = (
+  library: Pick<ExerciseLibraryRow, "primary_muscles" | "category"> | undefined,
+  language: string,
+): string => {
+  const muscle = library?.primary_muscles?.[0];
+  const labels = CATEGORY_LABELS[normalizeLanguage(language)];
+  const category = library?.category ? labels[library.category] ?? library.category : "";
+
+  return [muscle ? localizeMuscle(muscle, language) : "", category]
+    .filter(Boolean)
+    .join(" • ");
 };
 
 export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
@@ -483,10 +530,42 @@ function applyExerciseOrder<T extends { id: string; sort_order: number }>(
   });
 }
 
+/**
+ * The info sheet's middle tile: planned reps ("12-18") for a lifting exercise,
+ * or the planned duration ("45 SEC") for a timed one. Reads the first set,
+ * matching how `formatSetSummary` builds the row's prescription line.
+ */
+function deriveTargetLabel(
+  sets: PlannedExerciseSetRow[],
+  language: string,
+): { targetLabel: string; targetKind: "reps" | "time" } {
+  const firstSet = sets[0];
+  if (!firstSet) return { targetLabel: "—", targetKind: "reps" };
+
+  const reps =
+    firstSet.target_reps_exact ??
+    (firstSet.target_reps_min && firstSet.target_reps_max
+      ? `${firstSet.target_reps_min}-${firstSet.target_reps_max}`
+      : firstSet.target_reps_min ?? null);
+
+  if (reps != null) return { targetLabel: String(reps), targetKind: "reps" };
+
+  if (firstSet.target_duration_seconds) {
+    return {
+      targetLabel: formatDuration(firstSet.target_duration_seconds, language),
+      targetKind: "time",
+    };
+  }
+
+  return { targetLabel: "—", targetKind: "reps" };
+}
+
 export function mapExerciseList(
   data: ProgramDayDetailData,
   language: string,
   orderOverride?: string[],
+  /** `goals.gender` — decides which demo clip the info sheet resolves to. */
+  gender?: string | null,
 ): ExerciseListView {
   const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
     (acc, set) => {
@@ -549,6 +628,16 @@ export function mapExerciseList(
             initialWeightKg: Number.isFinite(initialWeightKg) ? initialWeightKg : null,
             weightUnit,
             weight: weight || undefined,
+            muscleCategory: formatMuscleCategory(libraryExercise, language),
+            setCount: exerciseSets.length,
+            ...deriveTargetLabel(exerciseSets, language),
+            formDetail: getLocalizedText(
+              libraryExercise?.description_translations ?? null,
+              language,
+              "",
+            ),
+            demoVideoUrl: resolveExerciseDemoVideo(libraryExercise, gender),
+            demoVideoLoop: libraryExercise?.demo_video_loop ?? true,
           };
         }),
       };
@@ -764,6 +853,8 @@ export function mapSessionWorkout(
     usesTopSetBackoff?: boolean;
     /** User's saved per-day exercise ordering (drag-and-drop preference). */
     orderOverride?: string[];
+    /** `goals.gender` — decides which demo clip each exercise resolves to. */
+    gender?: string | null;
   } = {},
 ): SessionWorkout {
   const isDeload = options.isDeloadWeek === true;
@@ -893,6 +984,8 @@ export function mapSessionWorkout(
         category,
         modality: lib?.modality ?? "strength",
         exerciseCategory: lib?.category ?? "compound",
+        demoVideoUrl: resolveExerciseDemoVideo(lib, options.gender),
+        demoVideoLoop: lib?.demo_video_loop ?? true,
         mode,
         setCount: rawSets.length,
         sets,

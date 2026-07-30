@@ -26,11 +26,17 @@ export type ExerciseRow = {
   slug: string;
   name: string;
   name_translations: TranslationMap;
+  description_translations: TranslationMap;
   modality: string;
   category: string;
   primary_muscles: string[];
   default_rest_seconds: number | null;
   is_active: boolean;
+  /** Path inside the public `exercise-media` bucket, not a URL. */
+  demo_video_male_path: string | null;
+  demo_video_female_path: string | null;
+  /** One flag per exercise: false = mobile plays once + shows tap-to-play. */
+  demo_video_loop: boolean;
   updated_at: string;
 };
 

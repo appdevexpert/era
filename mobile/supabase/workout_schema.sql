@@ -199,6 +199,16 @@ create table if not exists public.exercise_library (
   updated_at timestamptz not null default now(),
   name_translations jsonb not null default '{}'::jsonb,
   updated_by text, -- admin display name of last editor from the web panel
+  -- Demo clips live in the public `exercise-media` storage bucket; these hold
+  -- the path inside it (e.g. "bench-press/male.mp4"), not a full URL, so the
+  -- bucket/CDN host can change without a data migration. Separate per gender
+  -- because the demo shows body mechanics. See 2026_07_29_exercise_demo_videos.sql.
+  demo_video_male_path text,
+  demo_video_female_path text,
+  -- ONE flag per exercise, not per gender. False = the mobile tile plays the
+  -- clip once and then shows a tap-to-play button instead of looping.
+  demo_video_loop boolean not null default true,
+  description_translations jsonb not null default '{}'::jsonb,
   constraint exercise_library_pkey primary key (id),
   constraint exercise_library_slug_key unique (slug),
   constraint exercise_library_default_rest_seconds_check check (((default_rest_seconds is null) or (default_rest_seconds >= 0)))

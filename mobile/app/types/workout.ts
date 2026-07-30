@@ -60,6 +60,19 @@ export interface ExerciseLibraryRow {
   modality: string;
   category: string;
   primary_muscles: string[];
+  /**
+   * Demo clip paths inside the public `exercise-media` bucket — a path, not a
+   * URL. Admin-managed; null until a clip is uploaded for that gender.
+   */
+  demo_video_male_path: string | null;
+  demo_video_female_path: string | null;
+  /** One flag per exercise. False = play once, then offer tap-to-play. */
+  demo_video_loop: boolean;
+  /**
+   * Admin-authored form/technique cues, shown as "Form detail" in the exercise
+   * info sheet. Empty `{}` until someone writes copy for that exercise.
+   */
+  description_translations: TranslationMap;
 }
 
 export interface ProgramDayExerciseRow {
@@ -196,6 +209,20 @@ export interface ExerciseListExerciseView {
   /** Weight unit for display (kg | lb). */
   weightUnit: string;
   weight?: string;
+  /* ── Info-sheet fields (tap a row to open ExerciseInfoBottomSheet) ── */
+  /** Localized "Back • Compound" line under the exercise name. */
+  muscleCategory: string;
+  /** Planned set count — the sheet's SETS tile. */
+  setCount: number;
+  /** Planned reps ("12-18") or duration ("45 SEC") — the sheet's middle tile. */
+  targetLabel: string;
+  /** Which caption the middle tile shows. */
+  targetKind: "reps" | "time";
+  /** Localized form cues from `exercise_library.description_translations`. */
+  formDetail: string;
+  /** Demo clip already resolved for this user's gender, or null when none. */
+  demoVideoUrl: string | null;
+  demoVideoLoop: boolean;
 }
 
 export interface ExerciseListSectionView {
@@ -241,6 +268,13 @@ export interface SessionExercise {
   category: string;
   modality: string;
   exerciseCategory: string;
+  /**
+   * Public URL of the demo clip already resolved for this user's gender, or
+   * null when neither gender has one uploaded. See `resolveExerciseDemoVideo`.
+   */
+  demoVideoUrl: string | null;
+  /** False = the tile plays the clip once and then offers tap-to-play. */
+  demoVideoLoop: boolean;
   mode: ExerciseMode;
   setCount: number;
   sets: SessionExerciseSet[];
