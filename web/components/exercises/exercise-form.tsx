@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactElement } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { FormField, SelectField, TextAreaField } from "@/components/admin/form-field";
 import { ExerciseVideoField } from "@/components/exercises/exercise-video-field";
@@ -35,13 +36,31 @@ export function ExerciseFormDialog({
 }) {
   const isEditing = Boolean(exercise);
   const [open, setOpen] = useState(defaultOpen);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // `defaultOpen` marks the instance the server rendered from `?edit=<id>`.
+  // That param has to go when the dialog closes, or the URL keeps claiming a
+  // row is open: a reload would reopen it, and clicking the same row again
+  // would navigate to the URL we're already on — no navigation, no remount,
+  // nothing happens.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next || !defaultOpen) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("edit");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   const { handleSubmit, pending } = useFormAction(saveExercise, {
     success: isEditing ? "Exercise updated" : "Exercise created",
-    onSuccess: () => setOpen(false),
+    onSuccess: () => handleOpenChange(false),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>

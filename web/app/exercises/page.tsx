@@ -68,7 +68,11 @@ export default async function ExercisesPage({ searchParams }: ExercisesPageProps
       />
 
       {selectedExerciseState.data ? (
-        <ExerciseFormDialog exercise={selectedExerciseState.data} defaultOpen />
+        <ExerciseFormDialog
+          key={edit}
+          exercise={selectedExerciseState.data}
+          defaultOpen
+        />
       ) : null}
     </>
   );
