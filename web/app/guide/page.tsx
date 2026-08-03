@@ -201,14 +201,19 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           <strong>Initial weight (kg)</strong>.
         </>,
         <>
-          Per exercise, plan sets. <strong>Bulk sets</strong> captures count +
-          kind + weight + reps (exact or min/max) + duration + rest — good for
-          &ldquo;4 working sets at 8 reps, 75 kg, 90 s rest&rdquo;.{" "}
-          <strong>Set</strong> is a single quick row (kind + weight + reps).
+          Each exercise card shows a one-line summary of its sets — click it to
+          open the set grid. Every set is a row you edit in place: kind, kg,
+          reps, rest. <strong>Reps</strong> takes one number or a range, so type{" "}
+          <strong>10</strong> or <strong>10-12</strong>. Use{" "}
+          <strong>Add set</strong> to append a copy of the last row and{" "}
+          <strong>Copy set 1 to all</strong> for &ldquo;4 identical working
+          sets&rdquo;. Nothing is written until you press{" "}
+          <strong>Save sets</strong>.
         </>,
         <>
-          Repeat for every day in every week. Close the sheet when the day
-          looks right — changes save as you submit each dialog.
+          Repeat for every day in every week. Close the sheet when the day looks
+          right — set changes save on <strong>Save sets</strong>, everything else
+          saves as you submit its dialog.
         </>,
       ],
       tip: (

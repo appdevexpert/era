@@ -6,6 +6,7 @@ import React, {
   createContext,
   useContext,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Toast } from "@base-ui/react/toast";
@@ -69,6 +70,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
@@ -79,28 +88,33 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-  addBulkSets,
   addDefaultSections,
-  addPlannedSet,
   assignExerciseToDay,
   deleteDayExercise,
   deleteDaySection,
-  deletePlannedSet,
   deleteProgramDay,
   deleteProgramWeek,
   reorderDayExercises,
   saveDaySection,
+  savePlannedSets,
   saveProgramDay,
   saveProgramWeek,
   updateDayExercise,
   updateDaySection,
-  updatePlannedSet,
 } from "@/lib/admin/actions";
 import {
   allowedSetKindsForModality,
+  formatRepsTarget,
+  MAX_SETS_PER_EXERCISE,
+  parseOptionalNumber,
+  parseOptionalSeconds,
+  parseRepsTarget,
   SECTION_KINDS,
+  setColumnsForModality,
+  setKindOptionsFor,
   WORKOUT_DAY_KINDS,
   WORKOUT_PHASES,
+  type PlannedSetInput,
 } from "@/lib/admin/constants";
 import { translation } from "@/lib/admin/format";
 import { useFormAction } from "@/lib/admin/use-form-action";
@@ -559,72 +573,354 @@ function setSummary(set: PlannedSetRow): string {
   return parts.join(" · ") || "—";
 }
 
-function PlannedSetsList({
+function defaultKindFor(modality: string | null | undefined): string {
+  const allowed = allowedSetKindsForModality(modality);
+  return allowed.includes("working") ? "working" : allowed[0];
+}
+
+// One collapsed line describing the whole set list, so a day can be scanned
+// without opening anything. "4 × 10–12 reps · rest 60s" when every set matches,
+// a plain count when they don't.
+function describeSets(exerciseSets: PlannedSetRow[]): string {
+  if (!exerciseSets.length) return "No sets yet";
+  const shape = (set: PlannedSetRow) =>
+    [
+      set.set_kind,
+      set.target_weight_value,
+      set.target_reps_exact,
+      set.target_reps_min,
+      set.target_reps_max,
+      set.target_duration_seconds,
+      set.rest_seconds,
+    ].join("|");
+
+  const uniform = exerciseSets.every((set) => shape(set) === shape(exerciseSets[0]));
+  if (!uniform) return `${exerciseSets.length} sets · mixed`;
+  return `${exerciseSets.length} × ${setSummary(exerciseSets[0])}`;
+}
+
+// One editable row of the grid. Values are held as the strings the operator
+// typed and only parsed on save, so a half-typed "10-" doesn't fight the input.
+type SetDraft = {
+  key: string;
+  id: string | null;
+  kind: string;
+  weight: string;
+  reps: string;
+  duration: string;
+  rest: string;
+};
+
+function toDrafts(exerciseSets: PlannedSetRow[]): SetDraft[] {
+  // numeric columns arrive as strings ("0.00"); Number() first so the input
+  // shows 0 and 62.5 rather than 0.00 and 62.50.
+  const num = (raw: number | string | null | undefined) =>
+    raw === null || raw === undefined ? "" : String(Number(raw));
+
+  return [...exerciseSets]
+    .sort((a, b) => a.set_number - b.set_number)
+    .map((set) => ({
+      key: set.id,
+      id: set.id,
+      kind: set.set_kind,
+      weight: num(set.target_weight_value),
+      reps: formatRepsTarget(set),
+      duration: num(set.target_duration_seconds),
+      rest: num(set.rest_seconds),
+    }));
+}
+
+const BLANK_DRAFT: Omit<SetDraft, "key" | "id" | "kind"> = {
+  weight: "",
+  reps: "",
+  duration: "",
+  rest: "",
+};
+
+/**
+ * Every set of an exercise, editable in place, saved in one call.
+ *
+ * Replaces a "Sets" count dialog plus one "Edit set" dialog per set. That shape
+ * meant setting up four sets of 10–12 at 60s rest took five dialogs and four
+ * revalidations, and the edit dialog only rendered 4 of the 8 columns — so a rep
+ * range and a rest time could not be entered at all, and saving nulled the ones
+ * that were off-screen. Here every column the action writes is on screen.
+ */
+// `expanded` lives in the parent and the component is keyed on the server data,
+// so a save remounts it with real row ids while the grid stays open. Without the
+// remount a freshly inserted row keeps `id: null` in the draft after saving, and
+// pressing Save again inserts it a second time.
+function PlannedSetsEditor({
   exerciseSets,
   programId,
-  allowedKinds,
+  programDayExerciseId,
+  modality,
+  expanded,
+  onExpandedChange,
 }: {
   exerciseSets: PlannedSetRow[];
   programId: string;
-  allowedKinds: string[];
+  programDayExerciseId: string;
+  modality: string | null;
+  expanded: boolean;
+  onExpandedChange: (next: boolean) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [drafts, setDrafts] = useState<SetDraft[]>(() => toDrafts(exerciseSets));
+  const [pending, setPending] = useState(false);
+  const nextKey = useRef(0);
+  const toastManager = Toast.useToastManager();
 
-  if (!exerciseSets.length) {
-    return <p className="mt-2 text-xs text-muted-foreground">0 planned sets</p>;
+  const columns = setColumnsForModality(modality);
+  const initial = useMemo(() => toDrafts(exerciseSets), [exerciseSets]);
+  const dirty = JSON.stringify(drafts) !== JSON.stringify(initial);
+
+  const patch = (index: number, next: Partial<SetDraft>) =>
+    setDrafts((rows) => rows.map((row, i) => (i === index ? { ...row, ...next } : row)));
+
+  const addRow = () =>
+    setDrafts((rows) => {
+      const last = rows[rows.length - 1];
+      return [
+        ...rows,
+        {
+          // Copies the previous row, which is what "one more set" almost always
+          // means and is why a new set can no longer land with empty reps and
+          // rest beside populated siblings.
+          ...(last ? { ...last } : { ...BLANK_DRAFT, kind: defaultKindFor(modality) }),
+          key: `new-${nextKey.current++}`,
+          id: null,
+        },
+      ];
+    });
+
+  const removeRow = (index: number) =>
+    setDrafts((rows) => rows.filter((_, i) => i !== index));
+
+  const copyFirstToAll = () =>
+    setDrafts((rows) =>
+      rows.map((row) =>
+        row.key === rows[0].key
+          ? row
+          : {
+              ...row,
+              kind: rows[0].kind,
+              weight: rows[0].weight,
+              reps: rows[0].reps,
+              duration: rows[0].duration,
+              rest: rows[0].rest,
+            },
+      ),
+    );
+
+  async function handleSave() {
+    let rows: PlannedSetInput[];
+    try {
+      rows = drafts.map((draft, index) => {
+        try {
+          return {
+            id: draft.id,
+            set_kind: draft.kind,
+            target_weight_value: columns.weight
+              ? parseOptionalNumber(draft.weight, "Weight")
+              : null,
+            ...(columns.reps
+              ? parseRepsTarget(draft.reps)
+              : { target_reps_exact: null, target_reps_min: null, target_reps_max: null }),
+            target_duration_seconds: columns.duration
+              ? parseOptionalSeconds(draft.duration, "Duration")
+              : null,
+            rest_seconds: parseOptionalSeconds(draft.rest, "Rest"),
+          };
+        } catch (err) {
+          throw new Error(
+            `Set ${index + 1}: ${err instanceof Error ? err.message : "invalid value"}`,
+          );
+        }
+      });
+    } catch (err) {
+      toastManager.add({
+        type: "error",
+        title: "Check the sets",
+        description: err instanceof Error ? err.message : "An unexpected error occurred.",
+      });
+      return;
+    }
+
+    setPending(true);
+    try {
+      await savePlannedSets(programId, programDayExerciseId, rows);
+      toastManager.add({ type: "success", title: "Sets saved" });
+    } catch (err: unknown) {
+      if (err && typeof err === "object" && "digest" in err) throw err;
+      toastManager.add({
+        type: "error",
+        title: "Save failed",
+        description: err instanceof Error ? err.message : "An unexpected error occurred.",
+      });
+    } finally {
+      setPending(false);
+    }
   }
+
+  const gridTemplate = [
+    "1.5rem",
+    "8.5rem",
+    columns.weight ? "5rem" : null,
+    columns.reps ? "5rem" : null,
+    columns.duration ? "5rem" : null,
+    "5rem",
+    "1.75rem",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div className="mt-2">
       <button
         type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => onExpandedChange(!expanded)}
+        className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
       >
-        {exerciseSets.length} planned sets
-        {expanded ? <HugeiconsIcon icon={ArrowUp01Icon} size={12} strokeWidth={1.8} /> : <HugeiconsIcon icon={ArrowDown01Icon} size={12} strokeWidth={1.8} />}
+        {describeSets(exerciseSets)}
+        {dirty ? <span className="text-primary">• unsaved</span> : null}
+        <HugeiconsIcon
+          icon={expanded ? ArrowUp01Icon : ArrowDown01Icon}
+          size={12}
+          strokeWidth={1.8}
+        />
       </button>
 
       {expanded ? (
-        <div className="mt-2 grid gap-1.5">
-          {[...exerciseSets]
-            .sort((a, b) => a.set_number - b.set_number)
-            .map((set) => (
+        <div className="mt-2 rounded border border-border bg-background p-2">
+          <div className="overflow-x-auto">
+            <div className="min-w-max">
               <div
-                key={set.id}
-                className="flex items-center justify-between rounded border border-border bg-background px-2 py-1"
+                className="grid items-center gap-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground"
+                style={{ gridTemplateColumns: gridTemplate }}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-foreground">Set {set.set_number}</span>
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {set.set_kind}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{setSummary(set)}</span>
-                </div>
-                <div className="flex gap-1">
-                  <BuilderDialog
-                    title="Edit set"
-                    trigger={
-                      <Button type="button" variant="ghost" size="icon-sm">
-                        <HugeiconsIcon icon={PencilEdit01Icon} size={12} strokeWidth={1.8} />
-                      </Button>
-                    }
-                  >
-                    <ActionForm action={updatePlannedSet} successMessage="Set updated" submitLabel="Save set">
-                      <Hidden name="id" value={set.id} />
-                      <Hidden name="program_id" value={programId} />
-                      <div className="grid gap-4 lg:grid-cols-2">
-                        <FormField label="Set #" name="set_number" type="number" defaultValue={set.set_number} />
-                        <SelectField label="Kind" name="set_kind" options={allowedKinds} defaultValue={allowedKinds.includes(set.set_kind) ? set.set_kind : allowedKinds[0]} />
-                        <FormField label="Weight (kg)" name="target_weight_value" type="number" defaultValue={set.target_weight_value ?? ""} />
-                        <FormField label="Reps" name="target_reps_exact" type="number" defaultValue={set.target_reps_exact ?? ""} />
-                      </div>
-                    </ActionForm>
-                  </BuilderDialog>
-                  <DeleteButton action={deletePlannedSet} id={set.id} programId={programId} label="set" />
-                </div>
+                <span>#</span>
+                <span>Kind</span>
+                {columns.weight ? <span>Kg</span> : null}
+                {columns.reps ? <span>Reps</span> : null}
+                {columns.duration ? <span>Sec</span> : null}
+                <span>Rest</span>
+                <span />
               </div>
-            ))}
+
+              {drafts.map((draft, index) => (
+                <div
+                  key={draft.key}
+                  className="grid items-center gap-2 py-0.5"
+                  style={{ gridTemplateColumns: gridTemplate }}
+                >
+                  <span className="text-xs text-muted-foreground">{index + 1}</span>
+                  <Select
+                    value={draft.kind}
+                    onValueChange={(next: string | null) =>
+                      patch(index, { kind: next ?? draft.kind })
+                    }
+                    items={setKindOptionsFor(modality, draft.kind).map((kind) => ({
+                      label: kind,
+                      value: kind,
+                    }))}
+                  >
+                    <SelectTrigger size="sm" className="h-7 w-full text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {setKindOptionsFor(modality, draft.kind).map((kind) => (
+                        <SelectItem key={kind} value={kind}>
+                          {kind}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {columns.weight ? (
+                    <Input
+                      className="h-7 text-xs"
+                      value={draft.weight}
+                      onChange={(event) => patch(index, { weight: event.target.value })}
+                      placeholder="—"
+                      inputMode="decimal"
+                    />
+                  ) : null}
+                  {columns.reps ? (
+                    <Input
+                      className="h-7 text-xs"
+                      value={draft.reps}
+                      onChange={(event) => patch(index, { reps: event.target.value })}
+                      placeholder="10-12"
+                    />
+                  ) : null}
+                  {columns.duration ? (
+                    <Input
+                      className="h-7 text-xs"
+                      value={draft.duration}
+                      onChange={(event) => patch(index, { duration: event.target.value })}
+                      placeholder="—"
+                      inputMode="numeric"
+                    />
+                  ) : null}
+                  <Input
+                    className="h-7 text-xs"
+                    value={draft.rest}
+                    onChange={(event) => patch(index, { rest: event.target.value })}
+                    placeholder="60"
+                    inputMode="numeric"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Remove set ${index + 1}`}
+                    disabled={drafts.length <= 1}
+                    onClick={() => removeRow(index)}
+                  >
+                    <HugeiconsIcon icon={Delete02Icon} size={12} strokeWidth={1.8} />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={drafts.length >= MAX_SETS_PER_EXERCISE}
+              onClick={addRow}
+            >
+              <HugeiconsIcon icon={Add01Icon} size={14} strokeWidth={1.8} />
+              Add set
+            </Button>
+            {drafts.length > 1 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={copyFirstToAll}>
+                Copy set 1 to all
+              </Button>
+            ) : null}
+            <span className="ml-auto flex items-center gap-2">
+              {dirty ? (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setDrafts(initial)}>
+                  Reset
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                loading={pending}
+                disabled={!dirty}
+                onClick={handleSave}
+              >
+                Save sets
+              </Button>
+            </span>
+          </div>
+
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            Reps takes a single number or a range — {`"10"`} or {`"10-12"`}. Leave a
+            field empty to clear it.
+          </p>
         </div>
       ) : null}
     </div>
@@ -650,12 +946,15 @@ function DayExerciseCard({
   exerciseLibraryOptions: { label: string; value: string }[];
   modality: string | null;
 }) {
-  const allowedKinds = allowedSetKindsForModality(modality);
-  const defaultKind = allowedKinds.includes("working") ? "working" : allowedKinds[0];
   const exerciseName = translation(
     assignment.display_name_translations,
     "en",
     assignment.display_name || assignment.exercise_library?.name || "Exercise",
+  );
+  const [setsOpen, setSetsOpen] = useState(false);
+  const setsSignature = useMemo(
+    () => JSON.stringify(toDrafts(exerciseSets)),
+    [exerciseSets],
   );
 
   return (
@@ -741,64 +1040,24 @@ function DayExerciseCard({
             programId={programId}
             label="exercise"
           />
-          <BuilderDialog
-            title="Add bulk sets"
-            description="Create multiple identical sets at once."
-            trigger={
-              <Button type="button" variant="secondary" size="sm">
-                <HugeiconsIcon icon={Layers01Icon} size={16} strokeWidth={1.8} />
-                Bulk sets
-              </Button>
-            }
-          >
-            <ActionForm
-              action={addBulkSets}
-              successMessage="Sets added"
-              submitLabel="Add sets"
-            >
-              <Hidden name="program_id" value={programId} />
-              <Hidden name="program_day_exercise_id" value={assignment.id} />
-              <Hidden name="start_from" value={exerciseSets.length + 1} />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <FormField label="Number of sets" name="set_count" type="number" defaultValue={3} />
-                <SelectField label="Kind" name="set_kind" options={allowedKinds} defaultValue={defaultKind} />
-                <FormField label="Weight (kg)" name="target_weight_value" type="number" />
-                <FormField label="Reps" name="target_reps_exact" type="number" />
-                <FormField label="Reps min" name="target_reps_min" type="number" />
-                <FormField label="Reps max" name="target_reps_max" type="number" />
-                <FormField label="Duration sec" name="target_duration_seconds" type="number" />
-                <FormField label="Rest sec" name="rest_seconds" type="number" />
-              </div>
-            </ActionForm>
-          </BuilderDialog>
-          <BuilderDialog
-            title="Add set"
-            description="Add one planned set to this exercise."
-            trigger={
-              <Button type="button" variant="secondary" size="sm">
-                <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={1.8} />
-                Set
-              </Button>
-            }
-          >
-            <ActionForm
-              action={addPlannedSet}
-              successMessage="Set added"
-              submitLabel="Add set"
-            >
-              <Hidden name="program_id" value={programId} />
-              <Hidden name="program_day_exercise_id" value={assignment.id} />
-              <Hidden name="set_number" value={exerciseSets.length + 1} />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <SelectField label="Kind" name="set_kind" options={allowedKinds} defaultValue={defaultKind} />
-                <FormField label="Weight (kg)" name="target_weight_value" type="number" />
-                <FormField label="Reps" name="target_reps_exact" type="number" />
-              </div>
-            </ActionForm>
-          </BuilderDialog>
         </div>
       </div>
-      <PlannedSetsList exerciseSets={exerciseSets} programId={programId} allowedKinds={allowedKinds} />
+      {/* Sets live in the card, not behind a dialog. "Bulk sets", "Set", "Edit
+          set" and "Delete set" were four entry points onto one list — and the
+          two add paths appended while reading as totals.
+
+          Keyed on the server rows so a save remounts the editor with the real
+          ids it just created; `setsOpen` sits out here so that remount doesn't
+          fold the grid shut under the operator. */}
+      <PlannedSetsEditor
+        key={setsSignature}
+        exerciseSets={exerciseSets}
+        programId={programId}
+        programDayExerciseId={assignment.id}
+        modality={modality}
+        expanded={setsOpen}
+        onExpandedChange={setSetsOpen}
+      />
     </div>
   );
 }

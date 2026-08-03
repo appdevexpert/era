@@ -7,7 +7,9 @@ import {
   allowedSetKindsForModality,
   isMainProgramId,
   EXERCISE_MEDIA_BUCKET,
+  MAX_SETS_PER_EXERCISE,
   type ExerciseMediaGender,
+  type PlannedSetInput,
 } from "@/lib/admin/constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAdminAction } from "@/lib/admin/audit";
@@ -470,44 +472,6 @@ export async function assignExerciseToDay(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function addPlannedSet(formData: FormData) {
-  const supabase = requireAdminClient();
-  const programId = value(formData, "program_id");
-  const setNumber = intValue(formData, "set_number", 1);
-  const programDayExerciseId = value(formData, "program_day_exercise_id");
-  const setKind = value(formData, "set_kind") || "working";
-  await assertKindMatchesExerciseModality(supabase, programDayExerciseId, setKind);
-
-  const { data, error } = await supabase
-    .from("planned_exercise_sets")
-    .insert({
-      program_day_exercise_id: programDayExerciseId,
-      set_number: setNumber,
-      set_kind: setKind,
-      target_weight_value: numberValue(formData, "target_weight_value"),
-      target_reps_exact: numberValue(formData, "target_reps_exact"),
-      target_reps_min: numberValue(formData, "target_reps_min"),
-      target_reps_max: numberValue(formData, "target_reps_max"),
-      target_duration_seconds: numberValue(formData, "target_duration_seconds"),
-      rest_seconds: numberValue(formData, "rest_seconds"),
-    })
-    .select("id")
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-
-  await logAdminAction({
-    action: "create",
-    entity: "Planned set",
-    table: "planned_exercise_sets",
-    recordId: data?.id,
-    summary: `Added set ${setNumber}`,
-    details: { program_day_exercise_id: value(formData, "program_day_exercise_id"), set_number: setNumber },
-  });
-
-  revalidatePath(`/programs/${programId}`);
-}
-
 export async function addDefaultSections(formData: FormData) {
   const supabase = requireAdminClient();
   const programId = value(formData, "program_id");
@@ -543,44 +507,154 @@ export async function addDefaultSections(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function addBulkSets(formData: FormData) {
+function plannedSetValues(row: PlannedSetInput) {
+  return {
+    set_kind: row.set_kind,
+    target_weight_value: row.target_weight_value,
+    target_reps_exact: row.target_reps_exact,
+    target_reps_min: row.target_reps_min,
+    target_reps_max: row.target_reps_max,
+    target_duration_seconds: row.target_duration_seconds,
+    rest_seconds: row.rest_seconds,
+  };
+}
+
+/**
+ * Writes an exercise's entire set list in one call: the rows that stay, the
+ * values on each, the ones that were removed, and the ones that are new.
+ *
+ * Replaces four separate operations — "Add bulk sets", "Add set", "Edit set"
+ * (one dialog per set) and "Delete set". That split is what produced the two
+ * bugs Rami reported on 30 Jul:
+ *
+ *  - Both add paths APPENDED, while the bulk field was labelled "Number of
+ *    sets". A 3-set exercise plus a typed "4" became 7, which read as sets
+ *    multiplying on their own during a page reload.
+ *  - "Edit set" rendered 4 of the 8 set columns while updatePlannedSet wrote
+ *    all 8, so fixing a weight nulled the rep range and the rest timer. The
+ *    single-set add dialog had the same gap in reverse: it could only ever
+ *    create a set with no rep range and no rest.
+ *
+ * One array in, one reconcile, one revalidate. Nothing is written that the
+ * operator could not see on screen.
+ */
+export async function savePlannedSets(
+  programId: string,
+  programDayExerciseId: string,
+  rows: PlannedSetInput[],
+): Promise<void> {
   const supabase = requireAdminClient();
-  const programId = value(formData, "program_id");
-  const exerciseId = value(formData, "program_day_exercise_id");
-  const count = intValue(formData, "set_count", 3);
-  const startFrom = intValue(formData, "start_from", 1);
-  const setKind = value(formData, "set_kind") || "working";
-  await assertKindMatchesExerciseModality(supabase, exerciseId, setKind);
-  const weight = numberValue(formData, "target_weight_value");
-  const repsExact = numberValue(formData, "target_reps_exact");
-  const repsMin = numberValue(formData, "target_reps_min");
-  const repsMax = numberValue(formData, "target_reps_max");
-  const durationSeconds = numberValue(formData, "target_duration_seconds");
-  const restSeconds = numberValue(formData, "rest_seconds");
+  if (!programId || !programDayExerciseId) {
+    throw new Error("Missing program or exercise id.");
+  }
+  if (!rows.length) throw new Error("An exercise needs at least one set.");
+  if (rows.length > MAX_SETS_PER_EXERCISE) {
+    throw new Error(`${MAX_SETS_PER_EXERCISE} sets is the cap — check the count.`);
+  }
 
-  const rows = Array.from({ length: count }, (_, i) => ({
-    program_day_exercise_id: exerciseId,
-    set_number: startFrom + i,
-    set_kind: setKind,
-    target_weight_value: weight,
-    target_reps_exact: repsExact,
-    target_reps_min: repsMin,
-    target_reps_max: repsMax,
-    target_duration_seconds: durationSeconds,
-    rest_seconds: restSeconds,
-  }));
+  const { data: existingRows, error: fetchError } = await supabase
+    .from("planned_exercise_sets")
+    .select("id, set_kind")
+    .eq("program_day_exercise_id", programDayExerciseId);
+  if (fetchError) throw new Error(fetchError.message);
 
-  const { error } = await supabase.from("planned_exercise_sets").insert(rows);
+  const existing = existingRows ?? [];
+  const storedById = new Map(existing.map((row) => [row.id, row]));
 
-  if (error) throw new Error(error.message);
+  // An id the grid carries that this exercise does not own means the page is
+  // stale — refuse rather than reach into another exercise's sets.
+  for (const row of rows) {
+    if (row.id && !storedById.has(row.id)) {
+      throw new Error("This set list is out of date — refresh and try again.");
+    }
+  }
+
+  // Kind is validated only where it actually changed. 705 live sets hold a kind
+  // their modality no longer allows (see setKindOptionsFor); re-checking those
+  // would block an edit to an unrelated column, and quietly coercing them would
+  // move sets in and out of PR eligibility.
+  const changedKinds = new Set(
+    rows
+      .filter((row) => !row.id || storedById.get(row.id)?.set_kind !== row.set_kind)
+      .map((row) => row.set_kind),
+  );
+  for (const kind of changedKinds) {
+    await assertKindMatchesExerciseModality(supabase, programDayExerciseId, kind);
+  }
+
+  const positioned = rows.map((row, index) => ({ row, position: index + 1 }));
+  const keptIds = new Set(rows.map((row) => row.id).filter(Boolean) as string[]);
+  const doomed = existing.filter((row) => !keptIds.has(row.id)).map((row) => row.id);
+
+  // 1. Drop what the grid removed, so its set_numbers free up.
+  if (doomed.length) {
+    const { error } = await supabase
+      .from("planned_exercise_sets")
+      .delete()
+      .in("id", doomed);
+    if (error) throw new Error(error.message);
+  }
+
+  // 2. Park the survivors above the realistic range before writing final
+  //    numbers. UNIQUE (program_day_exercise_id, set_number) turns any
+  //    mid-update overlap into a raw 23505 — same trick as reorderDayExercises.
+  const survivors = positioned.filter((entry) => entry.row.id);
+  if (survivors.length) {
+    const PARK_OFFSET = 1_000_000;
+    const parked = await Promise.all(
+      survivors.map((entry, index) =>
+        supabase
+          .from("planned_exercise_sets")
+          .update({ set_number: PARK_OFFSET + index })
+          .eq("id", entry.row.id as string),
+      ),
+    );
+    const parkFail = parked.find((result) => result.error);
+    if (parkFail?.error) throw new Error(parkFail.error.message);
+
+    const written = await Promise.all(
+      survivors.map((entry) =>
+        supabase
+          .from("planned_exercise_sets")
+          .update({ set_number: entry.position, ...plannedSetValues(entry.row) })
+          .eq("id", entry.row.id as string),
+      ),
+    );
+    const writeFail = written.find((result) => result.error);
+    if (writeFail?.error) throw new Error(writeFail.error.message);
+  }
+
+  // 3. Insert the new rows straight at their final positions.
+  const fresh = positioned.filter((entry) => !entry.row.id);
+  if (fresh.length) {
+    const { error } = await supabase.from("planned_exercise_sets").insert(
+      fresh.map((entry) => ({
+        program_day_exercise_id: programDayExerciseId,
+        set_number: entry.position,
+        target_weight_unit: "kg",
+        ...plannedSetValues(entry.row),
+      })),
+    );
+    if (error) throw new Error(error.message);
+  }
 
   await logAdminAction({
-    action: "create",
+    action: "update",
     entity: "Planned sets",
     table: "planned_exercise_sets",
-    recordId: exerciseId,
-    summary: `Added ${count} sets`,
-    details: { program_day_exercise_id: exerciseId, set_count: count, start_from: startFrom },
+    recordId: programDayExerciseId,
+    summary: `Saved ${rows.length} set${rows.length === 1 ? "" : "s"}`,
+    details: {
+      program_day_exercise_id: programDayExerciseId,
+      total: rows.length,
+      kept: survivors.length,
+      added: fresh.length,
+      removed: doomed.length,
+      sets: positioned.map((entry) => ({
+        set_number: entry.position,
+        ...plannedSetValues(entry.row),
+      })),
+    },
   });
 
   revalidatePath(`/programs/${programId}`);
@@ -851,24 +925,8 @@ export async function deleteDayExercise(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function deletePlannedSet(formData: FormData) {
-  const supabase = requireAdminClient();
-  const id = value(formData, "id");
-  const programId = value(formData, "program_id");
-
-  const { error } = await supabase.from("planned_exercise_sets").delete().eq("id", id);
-  if (error) throw new Error(error.message);
-
-  await logAdminAction({
-    action: "delete",
-    entity: "Planned set",
-    table: "planned_exercise_sets",
-    recordId: id,
-    summary: "Deleted a planned set",
-  });
-
-  revalidatePath(`/programs/${programId}`);
-}
+// deletePlannedSet is gone: removing a row is part of savePlannedSets now, so a
+// set can't be deleted without the operator seeing the list it leaves behind.
 
 // ============================================================
 // Update actions (for entities that only had insert)
@@ -941,49 +999,10 @@ export async function updateDayExercise(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function updatePlannedSet(formData: FormData) {
-  const supabase = requireAdminClient();
-  const id = value(formData, "id");
-  const programId = value(formData, "program_id");
-  const setNumber = intValue(formData, "set_number", 1);
-  const setKind = value(formData, "set_kind") || "working";
-
-  const { data: existing, error: existingError } = await supabase
-    .from("planned_exercise_sets")
-    .select("program_day_exercise_id")
-    .eq("id", id)
-    .maybeSingle();
-  if (existingError) throw new Error(existingError.message);
-  if (!existing?.program_day_exercise_id) throw new Error("Set not found");
-  await assertKindMatchesExerciseModality(supabase, existing.program_day_exercise_id, setKind);
-
-  const { error } = await supabase
-    .from("planned_exercise_sets")
-    .update({
-      set_number: setNumber,
-      set_kind: setKind,
-      target_weight_value: numberValue(formData, "target_weight_value"),
-      target_reps_exact: numberValue(formData, "target_reps_exact"),
-      target_reps_min: numberValue(formData, "target_reps_min"),
-      target_reps_max: numberValue(formData, "target_reps_max"),
-      target_duration_seconds: numberValue(formData, "target_duration_seconds"),
-      rest_seconds: numberValue(formData, "rest_seconds"),
-    })
-    .eq("id", id);
-
-  if (error) throw new Error(error.message);
-
-  await logAdminAction({
-    action: "update",
-    entity: "Planned set",
-    table: "planned_exercise_sets",
-    recordId: id,
-    summary: `Updated set ${setNumber}`,
-    details: { set_number: setNumber },
-  });
-
-  revalidatePath(`/programs/${programId}`);
-}
+// updatePlannedSet is gone too. It wrote all eight set columns from a dialog
+// that rendered four, so correcting a weight nulled the rep range and the rest
+// timer on that set — 12 rows in the live data still carry the damage.
+// savePlannedSets writes the whole row from the whole row.
 
 // Reorders exercises within a single section by re-indexing sort_order 0..N.
 // Mobile default order comes from program_day_exercises.sort_order; users who
