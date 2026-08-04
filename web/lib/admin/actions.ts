@@ -571,6 +571,7 @@ export async function assignExerciseToDay(formData: FormData): Promise<string | 
   // this day that actually has a section of the same kind.
   let placements = [{ programDayId, sectionId }];
   let totalDays = 1;
+  const skippedNotes: string[] = [];
 
   if (scope === "all_weeks") {
     const { data: section, error: sectionError } = await supabase
@@ -614,6 +615,23 @@ export async function assignExerciseToDay(formData: FormData): Promise<string | 
     placements = siblings.sections.filter((entry) => !occupied.has(entry.sectionId));
     if (!placements.length) {
       return `Already present in all ${totalDays} weeks — nothing to add.`;
+    }
+
+    // Two different reasons a week gets skipped, reported separately. Lumping
+    // them together told the operator their sections were missing when the real
+    // answer was "those weeks already have it".
+    const missingSection = totalDays - siblings.sections.length;
+    if (missingSection > 0) {
+      skippedNotes.push(
+        `${weeksPhrase(missingSection)} ${
+          missingSection === 1 ? "has" : "have"
+        } no ${section.section_kind} section`,
+      );
+    }
+    if (occupied.size > 0) {
+      skippedNotes.push(
+        `${weeksPhrase(occupied.size)} already ${occupied.size === 1 ? "has" : "have"} it`,
+      );
     }
   }
 
@@ -664,7 +682,7 @@ export async function assignExerciseToDay(formData: FormData): Promise<string | 
   });
 
   revalidatePath(`/programs/${programId}`);
-  if (scope === "all_weeks") return describeReach(rows.length, totalDays, "day section");
+  if (scope === "all_weeks") return describeReach(rows.length, skippedNotes);
 }
 
 export async function addDefaultSections(formData: FormData) {
@@ -826,15 +844,29 @@ async function siblingDayExercises(
   return { ids: (rows ?? []).map((row) => row.id), totalDays };
 }
 
-// "Applied to 12 weeks" / "Applied to 9 weeks — 3 weeks don't have this exercise".
-// The count always comes from what was written, never from what was intended.
-function describeReach(written: number, totalDays: number, noun: string): string {
+function weeksPhrase(count: number): string {
+  return `${count} week${count === 1 ? "" : "s"}`;
+}
+
+// "Applied to 12 weeks." / "Applied to 9 weeks — 3 weeks already have it."
+//
+// The written count always comes from what was written, never from what was
+// intended. The reasons are passed in rather than derived from a total, because
+// a skipped week is not one thing: it can be missing the section, or it can
+// already hold the exercise. Reporting "11 weeks do not have this section" when
+// the sections are all fine — which is what a single shared message did — sends
+// the operator hunting a problem that isn't there.
+function describeReach(written: number, skipped: string[] = []): string {
+  if (!skipped.length) return `Applied to ${weeksPhrase(written)}.`;
+  return `Applied to ${weeksPhrase(written)} — ${skipped.join(", ")}.`;
+}
+
+// The common case for editing something that already exists: the weeks that
+// were skipped simply don't have this exercise.
+function missingExerciseNote(written: number, totalDays: number): string[] {
   const skipped = Math.max(0, totalDays - written);
-  const weeks = `${written} week${written === 1 ? "" : "s"}`;
-  if (!skipped) return `Applied to ${weeks}.`;
-  return `Applied to ${weeks} — ${skipped} ${
-    skipped === 1 ? "week does not" : "weeks do not"
-  } have this ${noun}.`;
+  if (!skipped) return [];
+  return [`${weeksPhrase(skipped)} ${skipped === 1 ? "does" : "do"} not have this exercise`];
 }
 
 /**
@@ -1323,7 +1355,9 @@ export async function deleteDayExercise(formData: FormData): Promise<string | vo
   });
 
   revalidatePath(`/programs/${programId}`);
-  if (scope === "all_weeks") return describeReach(targets.length, totalDays, "exercise");
+  if (scope === "all_weeks") {
+    return describeReach(targets.length, missingExerciseNote(targets.length, totalDays));
+  }
 }
 
 // deletePlannedSet is gone: removing a row is part of savePlannedSets now, so a
@@ -1510,7 +1544,9 @@ export async function updateDayExercise(formData: FormData): Promise<string | vo
   });
 
   revalidatePath(`/programs/${programId}`);
-  if (scope === "all_weeks") return describeReach(targets.length, totalDays, "exercise");
+  if (scope === "all_weeks") {
+    return describeReach(targets.length, missingExerciseNote(targets.length, totalDays));
+  }
 }
 
 // updatePlannedSet is gone too. It wrote all eight set columns from a dialog

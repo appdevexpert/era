@@ -653,16 +653,17 @@ function setSummary(set: PlannedSetRow): string {
   return parts.join(" · ") || "—";
 }
 
-// Mirrors describeReach in actions.ts, for the one caller that gets counts back
-// instead of a ready-made sentence (the set grid calls its action directly
-// rather than through ActionForm).
+// Mirrors describeReach + missingExerciseNote in actions.ts, for the one caller
+// that gets counts back instead of a ready-made sentence (the set grid calls its
+// action directly rather than through ActionForm). Saving sets only ever skips a
+// week for one reason — the exercise isn't in it.
 function describeReach(written: number, totalDays: number): string {
+  const weeks = (count: number) => `${count} week${count === 1 ? "" : "s"}`;
   const skipped = Math.max(0, totalDays - written);
-  const weeks = `${written} week${written === 1 ? "" : "s"}`;
-  if (!skipped) return `Applied to ${weeks}.`;
-  return `Applied to ${weeks} — ${skipped} ${
-    skipped === 1 ? "week does not" : "weeks do not"
-  } have this exercise.`;
+  if (!skipped) return `Applied to ${weeks(written)}.`;
+  return `Applied to ${weeks(written)} — ${weeks(skipped)} ${
+    skipped === 1 ? "does" : "do"
+  } not have this exercise.`;
 }
 
 function defaultKindFor(modality: string | null | undefined): string {
