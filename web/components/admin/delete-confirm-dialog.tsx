@@ -6,6 +6,7 @@ import { Delete02Icon } from "@hugeicons/core-free-icons"
 import { Toast } from "@base-ui/react/toast"
 
 import { Button } from "@/components/ui/button"
+import { isFrameworkControlFlow } from "@/lib/admin/use-form-action"
 import {
   Dialog,
   DialogContent,
@@ -69,7 +70,7 @@ export function DeleteConfirmDialog({
       })
       onClose()
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err
+      if (isFrameworkControlFlow(err)) throw err
       toastManager.add({
         type: "error",
         title: "Delete failed",

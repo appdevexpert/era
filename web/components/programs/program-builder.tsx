@@ -120,7 +120,7 @@ import {
   type PlannedSetInput,
 } from "@/lib/admin/constants";
 import { translation } from "@/lib/admin/format";
-import { useFormAction } from "@/lib/admin/use-form-action";
+import { isFrameworkControlFlow, useFormAction } from "@/lib/admin/use-form-action";
 import type {
   DayExerciseRow,
   DaySectionRow,
@@ -296,7 +296,7 @@ function DefaultSectionsButton({ programId, dayId }: { programId: string; dayId:
       await addDefaultSections(fd);
       toastManager.add({ type: "success", title: "Default sections added" });
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err;
+      if (isFrameworkControlFlow(err)) throw err;
       toastManager.add({
         type: "error",
         title: "Failed",
@@ -343,7 +343,7 @@ function ConfirmDeleteButton({
       });
       close();
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err;
+      if (isFrameworkControlFlow(err)) throw err;
       toastManager.add({
         type: "error",
         title: "Delete failed",
@@ -600,7 +600,7 @@ function DeleteDayDialog({
       toastManager.add({ type: "success", title: "Day deleted" });
       onOpenChange(false);
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err;
+      if (isFrameworkControlFlow(err)) throw err;
       toastManager.add({
         type: "error",
         title: "Delete failed",
@@ -860,7 +860,7 @@ function PlannedSetsEditor({
           : undefined,
       });
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err;
+      if (isFrameworkControlFlow(err)) throw err;
       toastManager.add({
         type: "error",
         title: "Save failed",
@@ -1226,7 +1226,7 @@ function SortableList<T extends { id: string }>({
     try {
       await onReorder(next.map((item) => item.id));
     } catch (err: unknown) {
-      if (err && typeof err === "object" && "digest" in err) throw err;
+      if (isFrameworkControlFlow(err)) throw err;
       setLocalItems(previous);
       toastManager.add({
         type: "error",

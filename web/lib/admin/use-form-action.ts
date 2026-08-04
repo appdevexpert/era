@@ -4,6 +4,26 @@ import { useState, useCallback } from "react"
 import { Toast } from "@base-ui/react/toast"
 
 /**
+ * Whether an error is Next.js signalling control flow rather than a failure.
+ *
+ * `redirect()` and `notFound()` work by throwing, and those have to be re-thrown
+ * so the framework can act on them. But Next.js also attaches a `digest` hash to
+ * every ordinary error a Server Action throws on its way to the client, so the
+ * old check — `"digest" in err` — caught those too and re-threw them instead of
+ * showing a toast. Every server-side failure in the panel was therefore silent:
+ * renumbering a week onto an existing number hit a unique constraint, threw, and
+ * looked exactly like the Save button doing nothing.
+ *
+ * Control-flow digests are prefixed strings ("NEXT_REDIRECT;replace;/login;307;",
+ * "NEXT_NOT_FOUND"). Server-action error digests are bare hashes.
+ */
+export function isFrameworkControlFlow(err: unknown): boolean {
+  if (!err || typeof err !== "object" || !("digest" in err)) return false
+  const digest = (err as { digest?: unknown }).digest
+  return typeof digest === "string" && digest.startsWith("NEXT_")
+}
+
+/**
  * Wraps a server action with loading state and toast notifications.
  * Use on <form onSubmit={handleSubmit}> instead of <form action={fn}>.
  */
@@ -34,7 +54,7 @@ export function useFormAction(
         })
         options.onSuccess?.()
       } catch (err: unknown) {
-        if (err && typeof err === "object" && "digest" in err) throw err
+        if (isFrameworkControlFlow(err)) throw err
         toastManager.add({
           type: "error",
           title: "Something went wrong",
