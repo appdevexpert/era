@@ -9,8 +9,9 @@ import {
   WrenchIcon,
 } from "@hugeicons/core-free-icons";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { translation } from "@/lib/admin/format";
+import { cn } from "@/lib/utils";
 import {
   GENDER_LABELS,
   LEVEL_LABELS,
@@ -109,7 +110,11 @@ function ProgramCard({
           size="sm"
           variant="outline"
           nativeButton={false}
-          render={<Link href={`/programs?edit=${program.id}`} />}
+          // Carries `gender` through. Without it the URL becomes /programs?edit=…,
+          // and the dialog's close handler — which only strips `edit` — lands on
+          // bare /programs, throwing the operator back to the gender picker
+          // instead of the list they opened the dialog from.
+          render={<Link href={`/programs?gender=${gender}&edit=${program.id}`} />}
         >
           <HugeiconsIcon icon={PencilEdit01Icon} size={14} strokeWidth={1.8} />
           Edit
@@ -133,28 +138,38 @@ function GenderEntryCard({
       href={`/programs?gender=${gender}`}
       className="group grid gap-3 rounded-xl border border-border bg-card p-6 transition-colors hover:border-primary/40"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
-            Gender
-          </p>
-          <h3 className="mt-1 font-display text-2xl text-foreground">
-            {GENDER_LABELS[gender]} Programs
-          </h3>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {GENDER_BLURB[gender]}
-          </p>
-        </div>
-        <HugeiconsIcon
-          icon={ArrowRight01Icon}
-          size={20}
-          strokeWidth={1.8}
-          className="mt-1 text-muted-foreground transition-colors group-hover:text-primary"
-        />
+      <div>
+        <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          Gender
+        </p>
+        <h3 className="mt-1 font-display text-2xl text-foreground">
+          {GENDER_LABELS[gender]} Programs
+        </h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {GENDER_BLURB[gender]}
+        </p>
       </div>
-      <p className="text-xs uppercase tracking-[0.14em] text-era-gold-dark">
-        {count} {count === 1 ? "program" : "programs"}
-      </p>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs uppercase tracking-[0.14em] text-era-gold-dark">
+          {count} {count === 1 ? "program" : "programs"}
+        </p>
+        {/* Styled as a button but rendered as a span: the whole card is already
+            the link, and a real button or anchor nested inside another anchor is
+            invalid HTML and hands screen readers two targets for one
+            destination. aria-hidden keeps it decorative — the card's heading is
+            what gets announced. */}
+        <span
+          aria-hidden
+          className={cn(
+            buttonVariants({ variant: "default", size: "sm" }),
+            "transition-transform group-hover:translate-x-0.5",
+          )}
+        >
+          Open
+          <HugeiconsIcon icon={ArrowRight01Icon} size={14} strokeWidth={1.8} />
+        </span>
+      </div>
     </Link>
   );
 }

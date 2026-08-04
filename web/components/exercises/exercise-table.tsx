@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -106,6 +106,23 @@ export function ExerciseTable({
     return `/exercises${qs ? `?${qs}` : ""}`;
   }
 
+  // Keeps page / pageSize / search / status alongside `edit`. Linking to a bare
+  // /exercises?edit=<id> dropped all four, and the dialog's close handler only
+  // strips `edit` — so editing a row on page 3 of a filtered list used to land
+  // back on page 1 with the filter cleared.
+  //
+  // Memoised because the column definitions below close over it: a fresh
+  // function each render would either go stale in their useMemo or invalidate it
+  // on every keystroke in the search box.
+  const editHref = useCallback(
+    (id: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("edit", id);
+      return `/exercises?${params.toString()}`;
+    },
+    [searchParams],
+  );
+
   function pushSearch(term: string) {
     router.push(buildHref({ page: 1, search: term }));
   }
@@ -157,7 +174,7 @@ export function ExerciseTable({
           return (
             <div className="min-w-0">
               <Link
-                href={`/exercises?edit=${ex.id}`}
+                href={editHref(ex.id)}
                 className="font-medium text-foreground transition-colors hover:text-primary"
               >
                 {translation(ex.name_translations, "en", ex.name)}
@@ -239,7 +256,7 @@ export function ExerciseTable({
                 }
               />
               <DropdownMenuContent align="end" className="w-36">
-                <DropdownMenuItem render={<Link href={`/exercises?edit=${ex.id}`} />}>
+                <DropdownMenuItem render={<Link href={editHref(ex.id)} />}>
                   <HugeiconsIcon icon={PencilEdit01Icon} size={16} strokeWidth={1.8} />
                   Edit
                 </DropdownMenuItem>
@@ -259,7 +276,7 @@ export function ExerciseTable({
         },
       },
     ],
-    [],
+    [editHref],
   );
 
   const table = useReactTable({
