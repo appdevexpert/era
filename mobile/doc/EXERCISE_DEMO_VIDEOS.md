@@ -25,13 +25,18 @@ Mobile: loadWorkoutBootstrap / getProgramDayDetail
 | `demo_video_male_path` | Path inside the bucket, e.g. `bench-press/male-1753800000000.mp4`. Null = not uploaded. |
 | `demo_video_female_path` | Same, female variant. |
 | `demo_video_loop` | **One flag per exercise**, not per gender. |
-| `description_translations` | `{ en, nb }`. Admin writes it; **mobile does not render it yet.** |
+| `description_translations` | `{ en, nb }`. Rendered as "Form detail" in the exercise info sheet — see `doc/EXERCISE_INFO_SHEET.md`. No admin field for it yet. |
 
 Paths, not URLs — the bucket/CDN host can change without a data migration.
 
 ## Storage
 
-Bucket `exercise-media`, **public**, 10 MB limit, `video/mp4` only.
+Bucket `exercise-media`, **public**, 50 MB limit, `video/mp4` only.
+
+The limit was 10 MB until 2026-07-30. Raised to 50 MB for the bulk import of the
+ERA review-sheet masters, which run 1-11 MB each. An oversized upload fails with a
+bare **HTTP 400** and no useful message, so check the cap first when an upload
+mysteriously refuses.
 
 Public rather than signed on purpose: the clips are byte-identical for every
 user, so the URL is CDN-cacheable and never expires. A signed URL would rot —
@@ -84,7 +89,17 @@ ability to *list every file in the bucket* — the database linter flags it as
 - Metro silently drops bundled assets whose filenames contain spaces — relevant
   if you ever add a local fallback clip. Keep names lowercase-hyphenated.
 
+- **The card is now used in two places** — the Workout Log tile and the exercise
+  info sheet. The sheet portals it outside `NavigationContainer`, which is why the
+  card reads `NavigationContext` directly instead of calling `useIsFocused()`.
+  See gotcha 1 in `doc/EXERCISE_INFO_SHEET.md` before changing that hook.
+- **Never add horizontal margin to the card** — it is `width: "100%"`, so margins
+  add to the width instead of insetting it and the video gets clipped. Put gutters
+  on a parent with padding.
+
 ## Not done yet
 
-- `description_translations` is stored but not shown anywhere in the app.
-  Placement was deferred; wiring it is a mapper field plus a UI block.
+- No admin field for `description_translations`, so Rami cannot edit the form-detail
+  copy from the panel.
+- 20 of 67 exercises still have no clip — list and coverage query in
+  `doc/EXERCISE_INFO_SHEET.md`.

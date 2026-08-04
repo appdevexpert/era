@@ -4,11 +4,13 @@ import React, {
   type ReactElement,
   type ReactNode,
   createContext,
+  useCallback,
   useContext,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { useSearchParams } from "next/navigation";
 import { Toast } from "@base-ui/react/toast";
 import {
   DndContext,
@@ -104,6 +106,7 @@ import {
 } from "@/lib/admin/actions";
 import {
   allowedSetKindsForModality,
+  ALL_WEEKS_FIELD,
   formatRepsTarget,
   MAX_SETS_PER_EXERCISE,
   parseOptionalNumber,
@@ -139,6 +142,63 @@ function Hidden({ name, value }: { name: string; value: string | number | null |
 // Lets any form/button rendered inside a BuilderDialog close it after a
 // successful action — no prop-drilling through the many builder dialogs.
 const DialogCloseContext = createContext<() => void>(() => {});
+
+// Display-only context for the "apply to all weeks" control: which day the
+// operator is in and how many weeks the program has. Provided by DayCard so the
+// four components between it and the control don't have to thread two props
+// that neither of them uses.
+const DayScopeContext = createContext<{ dayLabel: string; weekCount: number }>({
+  dayLabel: "this day",
+  weekCount: 1,
+});
+
+/**
+ * The choice between "this day" and "the same day in every week".
+ *
+ * Sits next to the action it modifies rather than behind a menu, and names the
+ * actual day — "Monday in all 12 weeks" says what will happen, "all weeks"
+ * leaves the operator guessing whether it means every day too.
+ *
+ * Default is on. Rami's complaint was the repetition, so the common case should
+ * not need a click; the label and the button text both state the consequence.
+ *
+ * With `name` set this is a plain uncontrolled form field. Native forms only
+ * submit a checkbox when it is checked, so the server reads an absent field as
+ * "this day only" — no hidden presence marker needed.
+ */
+function ScopeChoice({
+  name,
+  checked,
+  onChange,
+  defaultChecked = true,
+}: {
+  name?: string;
+  checked?: boolean;
+  onChange?: (next: boolean) => void;
+  defaultChecked?: boolean;
+}) {
+  const { dayLabel, weekCount } = useContext(DayScopeContext);
+  const controlled = checked !== undefined;
+
+  if (weekCount < 2) return null;
+
+  return (
+    <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-muted-foreground">
+      <input
+        type="checkbox"
+        className="size-3.5 accent-primary"
+        {...(name ? { name, value: "all_weeks" } : {})}
+        {...(controlled
+          ? { checked, onChange: (event) => onChange?.(event.target.checked) }
+          : { defaultChecked })}
+      />
+      <span>
+        Apply to <span className="font-medium text-foreground">{dayLabel}</span> in all{" "}
+        {weekCount} weeks
+      </span>
+    </label>
+  );
+}
 
 function BuilderDialog({
   title,
@@ -198,7 +258,9 @@ function ActionForm({
   children,
   className,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  // May resolve to a string, which becomes the toast description — the
+  // propagate-to-all-weeks paths use it to report the real week count.
+  action: (formData: FormData) => Promise<void | string>;
   successMessage: string;
   submitLabel: string;
   children: ReactNode;
@@ -260,7 +322,7 @@ function ConfirmDeleteButton({
   formFields,
   label,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<void | string>;
   formFields: Record<string, string>;
   label: string;
 }) {
@@ -273,10 +335,11 @@ function ConfirmDeleteButton({
     try {
       const fd = new FormData();
       for (const [key, val] of Object.entries(formFields)) fd.set(key, val);
-      await action(fd);
+      const detail = await action(fd);
       toastManager.add({
         type: "success",
         title: `${label.charAt(0).toUpperCase() + label.slice(1)} deleted`,
+        description: typeof detail === "string" && detail ? detail : undefined,
       });
       close();
     } catch (err: unknown) {
@@ -303,17 +366,29 @@ function DeleteButton({
   id,
   programId,
   label,
+  scoped = false,
   ...props
 }: {
-  action: (formData: FormData) => Promise<void>;
+  action: (formData: FormData) => Promise<void | string>;
   id: string;
   programId: string;
   label: string;
+  // Offers the "same day in every week" choice. Only for things that exist once
+  // per week — an exercise inside a day. A week or a day itself has no siblings.
+  scoped?: boolean;
 } & Omit<React.ComponentProps<typeof Button>, "type">) {
+  const { dayLabel, weekCount } = useContext(DayScopeContext);
+  const offerScope = scoped && weekCount > 1;
+  const [allWeeks, setAllWeeks] = useState(true);
+
   return (
     <BuilderDialog
       title={`Delete ${label}?`}
-      description={`This will permanently delete this ${label} and all data inside it. This cannot be undone.`}
+      description={
+        offerScope && allWeeks
+          ? `This removes the ${label} from ${dayLabel} in all ${weekCount} weeks, along with its sets. Logged workouts keep what was actually lifted. This cannot be undone.`
+          : `This will permanently delete this ${label} and all data inside it. This cannot be undone.`
+      }
       trigger={
         <Button type="button" variant="ghost" size="icon-sm" {...props}>
           <HugeiconsIcon icon={Delete02Icon} size={14} strokeWidth={1.8} className="text-destructive" />
@@ -321,10 +396,15 @@ function DeleteButton({
       }
     >
       <div className="grid gap-4">
+        {offerScope ? <ScopeChoice checked={allWeeks} onChange={setAllWeeks} /> : null}
         <SubmitRow>
           <ConfirmDeleteButton
             action={action}
-            formFields={{ id, program_id: programId }}
+            formFields={{
+              id,
+              program_id: programId,
+              ...(offerScope && allWeeks ? { [ALL_WEEKS_FIELD]: "all_weeks" } : {}),
+            }}
             label={label}
           />
         </SubmitRow>
@@ -573,6 +653,18 @@ function setSummary(set: PlannedSetRow): string {
   return parts.join(" · ") || "—";
 }
 
+// Mirrors describeReach in actions.ts, for the one caller that gets counts back
+// instead of a ready-made sentence (the set grid calls its action directly
+// rather than through ActionForm).
+function describeReach(written: number, totalDays: number): string {
+  const skipped = Math.max(0, totalDays - written);
+  const weeks = `${written} week${written === 1 ? "" : "s"}`;
+  if (!skipped) return `Applied to ${weeks}.`;
+  return `Applied to ${weeks} — ${skipped} ${
+    skipped === 1 ? "week does not" : "weeks do not"
+  } have this exercise.`;
+}
+
 function defaultKindFor(modality: string | null | undefined): string {
   const allowed = allowedSetKindsForModality(modality);
   return allowed.includes("working") ? "working" : allowed[0];
@@ -667,8 +759,10 @@ function PlannedSetsEditor({
 }) {
   const [drafts, setDrafts] = useState<SetDraft[]>(() => toDrafts(exerciseSets));
   const [pending, setPending] = useState(false);
+  const [allWeeks, setAllWeeks] = useState(true);
   const nextKey = useRef(0);
   const toastManager = Toast.useToastManager();
+  const { weekCount } = useContext(DayScopeContext);
 
   const columns = setColumnsForModality(modality);
   const initial = useMemo(() => toDrafts(exerciseSets), [exerciseSets]);
@@ -748,8 +842,22 @@ function PlannedSetsEditor({
 
     setPending(true);
     try {
-      await savePlannedSets(programId, programDayExerciseId, rows);
-      toastManager.add({ type: "success", title: "Sets saved" });
+      const reach = await savePlannedSets(
+        programId,
+        programDayExerciseId,
+        rows,
+        allWeeks ? "all_weeks" : "day",
+      );
+      toastManager.add({
+        type: "success",
+        title: "Sets saved",
+        // The number comes from what was written, not from what was asked for:
+        // weeks whose day doesn't have this exercise are skipped, and a silent
+        // partial save is the whole reason we're here.
+        description: allWeeks
+          ? describeReach(reach.written, reach.totalDays)
+          : undefined,
+      });
     } catch (err: unknown) {
       if (err && typeof err === "object" && "digest" in err) throw err;
       toastManager.add({
@@ -899,6 +1007,10 @@ function PlannedSetsEditor({
                 Copy set 1 to all
               </Button>
             ) : null}
+            {/* The scope sits with the Save it modifies, and the button label
+                repeats it — the operator should never have to remember which
+                mode a click is in. */}
+            <ScopeChoice checked={allWeeks} onChange={setAllWeeks} />
             <span className="ml-auto flex items-center gap-2">
               {dirty ? (
                 <Button type="button" variant="ghost" size="sm" onClick={() => setDrafts(initial)}>
@@ -912,7 +1024,7 @@ function PlannedSetsEditor({
                 disabled={!dirty}
                 onClick={handleSave}
               >
-                Save sets
+                {allWeeks && weekCount > 1 ? `Save to ${weekCount} weeks` : "Save sets"}
               </Button>
             </span>
           </div>
@@ -1032,6 +1144,10 @@ function DayExerciseCard({
                   defaultValue={assignment.display_name_translations?.nb || ""}
                 />
               </div>
+              {/* Section and Sort order are per-week values: each week owns its
+                  own section rows. updateDayExercise resolves the destination
+                  section inside every week rather than carrying this one's id. */}
+              <ScopeChoice name={ALL_WEEKS_FIELD} />
             </ActionForm>
           </BuilderDialog>
           <DeleteButton
@@ -1039,6 +1155,7 @@ function DayExerciseCard({
             id={assignment.id}
             programId={programId}
             label="exercise"
+            scoped
           />
         </div>
       </div>
@@ -1174,6 +1291,8 @@ function DayEditorSheet({
   exerciseLibraryOptions,
   modalityByExerciseId,
   trigger,
+  open,
+  onOpenChange,
 }: {
   day: ProgramDayRow;
   programId: string;
@@ -1183,6 +1302,8 @@ function DayEditorSheet({
   exerciseLibraryOptions: { label: string; value: string }[];
   modalityByExerciseId: Map<string, string>;
   trigger: ReactElement;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const daySections = sections.filter((s) => s.program_day_id === day.id);
   const dayExs = dayExercises.filter((e) => e.program_day_id === day.id);
@@ -1192,7 +1313,7 @@ function DayEditorSheet({
   }));
 
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger render={trigger} />
       <SheetContent
         side="right"
@@ -1235,7 +1356,6 @@ function DayEditorSheet({
                     >
                       <Hidden name="program_id" value={programId} />
                       <Hidden name="program_day_id" value={day.id} />
-                      <Hidden name="sort_order" value={daySections.length + 1} />
                       <SelectField label="Section kind" name="section_kind" options={SECTION_KINDS} />
                       <FormField label="Title EN" name="title_en" required />
                       <FormField label="Title NO" name="title_nb" required />
@@ -1330,7 +1450,6 @@ function DayEditorSheet({
                     >
                       <Hidden name="program_id" value={programId} />
                       <Hidden name="program_day_id" value={day.id} />
-                      <Hidden name="sort_order" value={dayExs.length + 1} />
                       <div className="grid gap-4 lg:grid-cols-2">
                         <OptionSelectField label="Section" name="section_id" options={sectionOptions} />
                         <OptionSelectField
@@ -1340,6 +1459,11 @@ function DayEditorSheet({
                         />
                         <FormField label="Initial weight (kg)" name="initial_weight_value" type="number" />
                       </div>
+                      {/* Lands in each week's own section of the same kind. A
+                          week whose day already has this exercise is skipped —
+                          no day holds a duplicate, and the sibling key depends
+                          on that staying true. */}
+                      <ScopeChoice name={ALL_WEEKS_FIELD} />
                     </ActionForm>
                   </BuilderDialog>
                 ) : null}
@@ -1455,6 +1579,8 @@ function DayCard({
   sets,
   exerciseLibraryOptions,
   modalityByExerciseId,
+  editorOpen,
+  onEditorOpenChange,
 }: {
   day: ProgramDayRow;
   programId: string;
@@ -1466,6 +1592,8 @@ function DayCard({
   sets: PlannedSetRow[];
   exerciseLibraryOptions: { label: string; value: string }[];
   modalityByExerciseId: Map<string, string>;
+  editorOpen: boolean;
+  onEditorOpenChange: (open: boolean) => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -1473,8 +1601,19 @@ function DayCard({
   const titleEn = translation(day.title_translations, "en", day.title);
   const titleNb = translation(day.title_translations, "nb", day.title);
 
+  // weekOptions is the program's week list, so its length is the week count
+  // the "apply to all weeks" control reports.
+  const dayScope = useMemo(
+    () => ({
+      dayLabel:
+        (day.weekday && WEEKDAY_LABELS[day.weekday]) || `day ${day.day_number}`,
+      weekCount: weekOptions.length,
+    }),
+    [day.weekday, day.day_number, weekOptions.length],
+  );
+
   return (
-    <>
+    <DayScopeContext.Provider value={dayScope}>
       <Card
         size="sm"
         className="group !gap-1.5 !py-2.5 transition-shadow hover:ring-era-gold-dark/40"
@@ -1546,6 +1685,8 @@ function DayCard({
             sets={sets}
             exerciseLibraryOptions={exerciseLibraryOptions}
             modalityByExerciseId={modalityByExerciseId}
+            open={editorOpen}
+            onOpenChange={onEditorOpenChange}
             trigger={
               <Button variant="ghost" size="sm" className="h-7 w-full justify-center text-xs">
                 <HugeiconsIcon icon={Settings02Icon} size={12} strokeWidth={1.8} />
@@ -1569,7 +1710,7 @@ function DayCard({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
       />
-    </>
+    </DayScopeContext.Provider>
   );
 }
 
@@ -1585,14 +1726,38 @@ export function ProgramBuilder({ detail }: { detail: ProgramDetail }) {
     [weeks],
   );
 
-  const [selectedWeekId, setSelectedWeekId] = useState<string | null>(null);
+  // Which week is open, and which day's editor is open, live in the URL rather
+  // than in component state. Every mutation here ends in a revalidatePath, and
+  // any remount of this tree used to drop the operator back to Week 1 with the
+  // day editor shut — which is what made a multi-step edit feel like being
+  // kicked out mid-save.
+  //
+  // Updates go through the History API, not router.replace: replace() would
+  // re-fetch this (fully dynamic) route's RSC payload on every week click and
+  // flash the loading spinner. pushState/replaceState is the supported way to
+  // sync searchParams without a navigation.
+  const searchParams = useSearchParams();
+  const setLocation = useCallback(
+    (next: { week?: string | null; day?: string | null }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [key, val] of Object.entries(next)) {
+        if (val) params.set(key, val);
+        else params.delete(key);
+      }
+      const qs = params.toString();
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    },
+    [searchParams],
+  );
 
-  // Derive the effective active week. If user's selection no longer exists
-  // (e.g. deleted), fall back to first week without syncing state.
+  // Both fall back rather than sync state, so a stale or deleted id in the URL
+  // degrades to "first week / editor closed" instead of rendering nothing.
+  const weekParam = searchParams.get("week");
   const activeWeekId =
-    selectedWeekId && sortedWeeks.some((w) => w.id === selectedWeekId)
-      ? selectedWeekId
+    weekParam && sortedWeeks.some((w) => w.id === weekParam)
+      ? weekParam
       : sortedWeeks[0]?.id ?? null;
+  const openDayId = searchParams.get("day");
 
   if (!program) return null;
 
@@ -1664,7 +1829,7 @@ export function ProgramBuilder({ detail }: { detail: ProgramDetail }) {
                     />
                     <button
                       type="button"
-                      onClick={() => setSelectedWeekId(week.id)}
+                      onClick={() => setLocation({ week: week.id, day: null })}
                       aria-pressed={isActive}
                       className="flex flex-1 min-w-0 items-center gap-3 px-3 py-2.5 text-left"
                     >
@@ -1737,6 +1902,10 @@ export function ProgramBuilder({ detail }: { detail: ProgramDetail }) {
                 sets={sets}
                 exerciseLibraryOptions={exerciseLibraryOptions}
                 modalityByExerciseId={modalityByExerciseId}
+                editorOpen={openDayId === day.id}
+                onEditorOpenChange={(next) =>
+                  setLocation({ day: next ? day.id : null })
+                }
               />
             ))}
             <AddDayDialog

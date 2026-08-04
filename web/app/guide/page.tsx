@@ -211,9 +211,18 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           <strong>Save sets</strong>.
         </>,
         <>
-          Repeat for every day in every week. Close the sheet when the day looks
-          right — set changes save on <strong>Save sets</strong>, everything else
-          saves as you submit its dialog.
+          Assigning, editing, removing an exercise and saving its sets each show
+          an <strong>Apply to Mon in all 12 weeks</strong> checkbox, ticked by
+          default. Leave it on and one edit lands on that weekday in every week —
+          you never repeat the same change twelve times. Untick it to change only
+          the week you are looking at. The confirmation afterwards names the real
+          number, so if three weeks don&apos;t have that exercise you are told
+          rather than left assuming.
+        </>,
+        <>
+          Close the sheet when the day looks right — set changes save on{" "}
+          <strong>Save sets</strong>, everything else saves as you submit its
+          dialog.
         </>,
       ],
       tip: (

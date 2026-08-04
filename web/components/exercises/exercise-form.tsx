@@ -100,12 +100,17 @@ export function ExerciseFormDialog({
               options={EXERCISE_CATEGORIES}
               defaultValue={exercise?.category}
             />
-            <FormField
-              label="Default rest seconds"
-              name="default_rest_seconds"
-              type="number"
-              defaultValue={exercise?.default_rest_seconds}
-            />
+            {/* "Default rest seconds" used to sit here, editing
+                exercise_library.default_rest_seconds. The mobile app never
+                reads that column — getLibraryExercises() doesn't select it, and
+                the rest a user sees resolves as
+                  planned_exercise_sets.rest_seconds
+                  -> program_day_exercises.default_rest_seconds
+                  -> 60
+                so the field looked like a program-wide rest control and did
+                nothing. Rest is edited per assignment in the program builder.
+                The column is left in place (still written by nothing) rather
+                than dropped, so existing values survive if it's ever wired up. */}
             <FormField
               label="Primary muscles"
               name="primary_muscles"

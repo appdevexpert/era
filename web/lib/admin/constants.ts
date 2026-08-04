@@ -196,6 +196,24 @@ export function parseOptionalSeconds(input: string, label: string): number | nul
 
 export const MAX_SETS_PER_EXERCISE = 20;
 
+/**
+ * Whether an edit lands on the one day the operator is looking at, or on that
+ * same day in every week of the program.
+ *
+ * Rami, 30 Jul: "If I make a change to an exercise, it should apply across all
+ * weeks automatically — not require me to manually update every single week and
+ * every single day." The schema keeps one row per week (program_days is keyed by
+ * week_id), so there is nothing to share — "all weeks" means fanning the same
+ * write across the sibling rows. See siblingDayExercises in actions.ts.
+ */
+export type PropagateScope = "day" | "all_weeks";
+
+export const ALL_WEEKS_FIELD = "propagate_scope";
+
+export function scopeFromForm(raw: string | null | undefined): PropagateScope {
+  return raw === "all_weeks" ? "all_weeks" : "day";
+}
+
 // The four launch programs (Male/Female × Beginner/Advanced). Intermediate
 // users share the Beginner program — ensure_my_program_assignment maps
 // `level = 'intermediate'` to the Beginner row of the user's gender.

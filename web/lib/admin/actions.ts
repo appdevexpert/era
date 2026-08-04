@@ -8,8 +8,11 @@ import {
   isMainProgramId,
   EXERCISE_MEDIA_BUCKET,
   MAX_SETS_PER_EXERCISE,
+  scopeFromForm,
+  ALL_WEEKS_FIELD,
   type ExerciseMediaGender,
   type PlannedSetInput,
+  type PropagateScope,
 } from "@/lib/admin/constants";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAdminAction } from "@/lib/admin/audit";
@@ -34,6 +37,75 @@ function intValue(formData: FormData, key: string, fallback: number) {
   const text = value(formData, key);
   const number = Number.parseInt(text, 10);
   return Number.isFinite(number) ? number : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Patch helpers — UPDATE paths only.
+//
+// The helpers above treat a missing FormData key exactly like an empty one.
+// That's right for an INSERT: a field the operator left blank and a field the
+// dialog never rendered both mean "use the default". On an UPDATE the same
+// conflation destroys data — a dialog that renders 4 of a row's 8 columns
+// nulls the other 4 on every save.
+//
+// So update paths use these instead:
+//   absent key           -> undefined -> stripped from the payload by defined()
+//   present but empty    -> null      -> an explicit clear by the operator
+// ---------------------------------------------------------------------------
+
+function patchText(formData: FormData, key: string) {
+  if (!formData.has(key)) return undefined;
+  return value(formData, key) || null;
+}
+
+function patchNumber(formData: FormData, key: string) {
+  if (!formData.has(key)) return undefined;
+  const text = value(formData, key);
+  return text ? Number(text) : null;
+}
+
+function patchInt(formData: FormData, key: string) {
+  if (!formData.has(key)) return undefined;
+  const parsed = Number.parseInt(value(formData, key), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+// Checkboxes send nothing at all when unchecked, so absence alone can't tell
+// "off" from "not on screen". A form that wants its checkbox patchable has to
+// ship a `<name>__present` hidden marker next to it.
+function patchBool(formData: FormData, key: string) {
+  if (!formData.has(`${key}__present`)) return undefined;
+  return formData.get(key) === "on";
+}
+
+function defined<T extends Record<string, unknown>>(row: T) {
+  return Object.fromEntries(
+    Object.entries(row).filter(([, entry]) => entry !== undefined),
+  ) as Partial<T>;
+}
+
+// Positions are derived from what's in the table, never from a count the client
+// had on screen. `list.length + 1` is wrong the moment anything was deleted
+// (length ≠ max) or reordered, and every one of these columns sits under a
+// UNIQUE constraint that turns the mistake into a raw 23505 in the operator's
+// face — or, for set_number, into silent appending past the existing rows.
+async function nextPosition(
+  supabase: SupabaseClient,
+  table: string,
+  column: string,
+  parentColumn: string,
+  parentId: string,
+) {
+  const { data, error } = await supabase
+    .from(table)
+    .select(column)
+    .eq(parentColumn, parentId)
+    .order(column, { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const current = (data as Record<string, number | null> | null)?.[column];
+  return (current ?? 0) + 1;
 }
 
 function textArray(formData: FormData, key: string) {
@@ -183,7 +255,10 @@ export async function saveExercise(formData: FormData) {
     modality: value(formData, "modality") || "strength",
     category: value(formData, "category") || "compound",
     primary_muscles: textArray(formData, "primary_muscles"),
-    default_rest_seconds: numberValue(formData, "default_rest_seconds"),
+    // The form no longer renders this (see exercise-form.tsx — the mobile app
+    // never read it). patchNumber keeps an absent field from nulling whatever
+    // is already stored, so removing the input can't wipe the column.
+    default_rest_seconds: patchNumber(formData, "default_rest_seconds"),
     is_active: formData.get("is_active") === "on",
     demo_video_male_path: maleVideoPath,
     demo_video_female_path: femaleVideoPath,
@@ -195,13 +270,13 @@ export async function saveExercise(formData: FormData) {
   const result = id
     ? await supabase
         .from("exercise_library")
-        .update(payload)
+        .update(defined(payload))
         .eq("id", id)
         .select("id")
         .maybeSingle()
     : await supabase
         .from("exercise_library")
-        .insert(payload)
+        .insert(defined(payload))
         .select("id")
         .maybeSingle();
 
@@ -317,34 +392,48 @@ export async function saveProgram(formData: FormData) {
 
 export async function saveProgramWeek(formData: FormData) {
   const supabase = requireAdminClient();
+  const id = value(formData, "id");
   const programId = value(formData, "program_id");
   const weekNumber = intValue(formData, "week_number", 1);
-  const title = value(formData, "title") || `Week ${weekNumber}`;
   const focus = value(formData, "focus");
+  // Neither week dialog renders a title field, so an update has to leave the
+  // stored title alone. It used to be rewritten to "Week N" on every save,
+  // which would have silently erased any custom week title.
+  const title = patchText(formData, "title") ?? (id ? undefined : `Week ${weekNumber}`);
 
-  const { data, error } = await supabase
-    .from("program_weeks")
-    .upsert(
-      {
-        program_id: programId,
-        week_number: weekNumber,
-        title,
-        title_translations: translations(title, title),
-        focus,
-        focus_translations: translations(focus, focus),
-      },
-      { onConflict: "program_id,week_number" },
-    )
-    .select("id")
-    .maybeSingle();
+  const row = defined({
+    program_id: programId,
+    week_number: weekNumber,
+    title,
+    title_translations: title ? translations(title, title) : undefined,
+    focus,
+    focus_translations: translations(focus, focus),
+  });
+
+  // Same identity fix as saveProgramDay: an upsert on (program_id, week_number)
+  // meant changing a week's number didn't renumber it, it overwrote whichever
+  // week already held that number.
+  const { data, error } = id
+    ? await supabase
+        .from("program_weeks")
+        .update(row)
+        .eq("id", id)
+        .select("id")
+        .maybeSingle()
+    : await supabase
+        .from("program_weeks")
+        .upsert(row, { onConflict: "program_id,week_number" })
+        .select("id")
+        .maybeSingle();
 
   if (error) throw new Error(error.message);
+  if (id && !data) throw new Error("That week no longer exists — refresh and try again.");
 
   await logAdminAction({
-    action: "update",
+    action: id ? "update" : "create",
     entity: "Program week",
     table: "program_weeks",
-    recordId: data?.id,
+    recordId: data?.id ?? id,
     summary: `Saved Week ${weekNumber}`,
     details: { program_id: programId, week_number: weekNumber, title, focus },
   });
@@ -354,6 +443,7 @@ export async function saveProgramWeek(formData: FormData) {
 
 export async function saveProgramDay(formData: FormData) {
   const supabase = requireAdminClient();
+  const id = value(formData, "id");
   const programId = value(formData, "program_id");
   const weekId = value(formData, "week_id");
   const dayNumber = intValue(formData, "day_number", 1);
@@ -361,33 +451,49 @@ export async function saveProgramDay(formData: FormData) {
   const titleNb = value(formData, "title_nb");
   const title = titleEn || titleNb || `Day ${dayNumber}`;
 
-  const { data, error } = await supabase
-    .from("program_days")
-    .upsert(
-      {
-        program_id: programId,
-        week_id: weekId,
-        day_number: dayNumber,
-        weekday: numberValue(formData, "weekday"),
-        workout_kind: value(formData, "workout_kind") || "custom",
-        title,
-        title_translations: translations(titleEn || title, titleNb || title),
-        subtitle: optionalValue(formData, "subtitle_en"),
-        subtitle_translations: translations(
-          value(formData, "subtitle_en"),
-          value(formData, "subtitle_nb"),
-        ),
-        target_muscles: textArray(formData, "target_muscles"),
-        estimated_minutes: numberValue(formData, "estimated_minutes"),
-        is_rest_day: formData.get("is_rest_day") === "on",
-        sort_order: dayNumber,
-      },
-      { onConflict: "week_id,day_number" },
-    )
-    .select("id")
-    .maybeSingle();
+  const row = {
+    program_id: programId,
+    week_id: weekId,
+    day_number: dayNumber,
+    weekday: numberValue(formData, "weekday"),
+    workout_kind: value(formData, "workout_kind") || "custom",
+    title,
+    title_translations: translations(titleEn || title, titleNb || title),
+    subtitle: optionalValue(formData, "subtitle_en"),
+    subtitle_translations: translations(
+      value(formData, "subtitle_en"),
+      value(formData, "subtitle_nb"),
+    ),
+    target_muscles: textArray(formData, "target_muscles"),
+    estimated_minutes: numberValue(formData, "estimated_minutes"),
+    // No dialog renders this yet, so it stays undefined and is stripped: the
+    // column default covers inserts and an edit leaves an existing rest day
+    // alone. Previously every metadata save forced it back to false.
+    is_rest_day: patchBool(formData, "is_rest_day"),
+    sort_order: dayNumber,
+  };
+
+  // Identity comes from the row id whenever the form carries one. Upserting on
+  // (week_id, day_number) meant editing a day's number didn't renumber that
+  // day — it forked a new row, or overwrote whichever day already held the
+  // target number. The unique constraint now surfaces a real collision instead.
+  const { data, error } = id
+    ? await supabase
+        .from("program_days")
+        .update(defined(row))
+        .eq("id", id)
+        .select("id")
+        .maybeSingle()
+    : await supabase
+        .from("program_days")
+        .upsert(defined(row), { onConflict: "week_id,day_number" })
+        .select("id")
+        .maybeSingle();
 
   if (error) throw new Error(error.message);
+  // An id that matches nothing updates zero rows and reports success, which is
+  // the same "it said saved but nothing changed" trap we're fixing elsewhere.
+  if (id && !data) throw new Error("That day no longer exists — refresh and try again.");
 
   await logAdminAction({
     action: "update",
@@ -416,7 +522,13 @@ export async function saveDaySection(formData: FormData) {
       section_kind: value(formData, "section_kind") || "main_exercises",
       title,
       title_translations: translations(titleEn || title, titleNb || title),
-      sort_order: intValue(formData, "sort_order", 0),
+      sort_order: await nextPosition(
+        supabase,
+        "program_day_sections",
+        "sort_order",
+        "program_day_id",
+        programDayId,
+      ),
     })
     .select("id")
     .maybeSingle();
@@ -435,28 +547,99 @@ export async function saveDaySection(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function assignExerciseToDay(formData: FormData) {
+export async function assignExerciseToDay(formData: FormData): Promise<string | void> {
   const supabase = requireAdminClient();
   const programId = value(formData, "program_id");
   const exerciseId = value(formData, "exercise_id");
+  const sectionId = value(formData, "section_id");
+  const programDayId = value(formData, "program_day_id");
   const displayNameEn = value(formData, "display_name_en");
   const displayNameNb = value(formData, "display_name_nb");
+  const scope = scopeFromForm(value(formData, ALL_WEEKS_FIELD));
+
+  const shared = {
+    exercise_id: exerciseId,
+    display_name: displayNameEn || null,
+    display_name_translations: translations(displayNameEn, displayNameNb),
+    initial_weight_value: numberValue(formData, "initial_weight_value"),
+    initial_weight_unit: "kg",
+    default_rest_seconds: numberValue(formData, "default_rest_seconds"),
+  };
+
+  // Which (day, section) pairs receive the exercise. For a single day that is
+  // just the one the operator is in; for all weeks it is every week's copy of
+  // this day that actually has a section of the same kind.
+  let placements = [{ programDayId, sectionId }];
+  let totalDays = 1;
+
+  if (scope === "all_weeks") {
+    const { data: section, error: sectionError } = await supabase
+      .from("program_day_sections")
+      .select("section_kind")
+      .eq("id", sectionId)
+      .maybeSingle();
+    if (sectionError) throw new Error(sectionError.message);
+    if (!section) throw new Error("Section not found");
+
+    const { data: day, error: dayError } = await supabase
+      .from("program_days")
+      .select("program_id, day_number")
+      .eq("id", programDayId)
+      .maybeSingle();
+    if (dayError) throw new Error(dayError.message);
+    if (!day) throw new Error("Program day not found");
+
+    const siblings = await siblingDaySections(supabase, {
+      programId: day.program_id,
+      dayNumber: day.day_number,
+      sectionKind: section.section_kind,
+      exerciseId,
+    });
+    totalDays = siblings.totalDays;
+
+    // Never create a second copy in a day that already has this exercise — no
+    // day holds a duplicate today and the sibling key depends on that staying
+    // true.
+    const { data: alreadyThere, error: alreadyError } = await supabase
+      .from("program_day_exercises")
+      .select("section_id")
+      .in(
+        "section_id",
+        siblings.sections.map((entry) => entry.sectionId),
+      )
+      .eq("exercise_id", exerciseId);
+    if (alreadyError) throw new Error(alreadyError.message);
+
+    const occupied = new Set((alreadyThere ?? []).map((row) => row.section_id));
+    placements = siblings.sections.filter((entry) => !occupied.has(entry.sectionId));
+    if (!placements.length) {
+      return `Already present in all ${totalDays} weeks — nothing to add.`;
+    }
+  }
+
+  // UNIQUE is (section_id, sort_order), so the position has to be resolved per
+  // section. The client used to send a day-wide `dayExs.length + 1`, which
+  // collided as soon as a day had more than one section.
+  const rows = [];
+  for (const placement of placements) {
+    rows.push({
+      program_day_id: placement.programDayId,
+      section_id: placement.sectionId,
+      sort_order: await nextPosition(
+        supabase,
+        "program_day_exercises",
+        "sort_order",
+        "section_id",
+        placement.sectionId,
+      ),
+      ...shared,
+    });
+  }
 
   const { data, error } = await supabase
     .from("program_day_exercises")
-    .insert({
-      program_day_id: value(formData, "program_day_id"),
-      section_id: value(formData, "section_id"),
-      exercise_id: exerciseId,
-      sort_order: intValue(formData, "sort_order", 0),
-      display_name: displayNameEn || null,
-      display_name_translations: translations(displayNameEn, displayNameNb),
-      initial_weight_value: numberValue(formData, "initial_weight_value"),
-      initial_weight_unit: "kg",
-      default_rest_seconds: numberValue(formData, "default_rest_seconds"),
-    })
-    .select("id")
-    .maybeSingle();
+    .insert(rows)
+    .select("id");
 
   if (error) throw new Error(error.message);
 
@@ -464,12 +647,24 @@ export async function assignExerciseToDay(formData: FormData) {
     action: "create",
     entity: "Exercise in day",
     table: "program_day_exercises",
-    recordId: data?.id,
-    summary: `Added exercise${displayNameEn ? ` "${displayNameEn}"` : ""} to a day`,
-    details: { program_day_id: value(formData, "program_day_id"), exercise_id: exerciseId },
+    recordId: data?.[0]?.id,
+    summary:
+      scope === "all_weeks"
+        ? `Added exercise${displayNameEn ? ` "${displayNameEn}"` : ""} to ${rows.length} week${
+            rows.length === 1 ? "" : "s"
+          }`
+        : `Added exercise${displayNameEn ? ` "${displayNameEn}"` : ""} to a day`,
+    details: {
+      program_day_id: programDayId,
+      exercise_id: exerciseId,
+      scope,
+      weeks_written: rows.length,
+      weeks_with_this_day: totalDays,
+    },
   });
 
   revalidatePath(`/programs/${programId}`);
+  if (scope === "all_weeks") return describeReach(rows.length, totalDays, "day section");
 }
 
 export async function addDefaultSections(formData: FormData) {
@@ -507,6 +702,226 @@ export async function addDefaultSections(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
+// ---------------------------------------------------------------------------
+// Propagating an edit across weeks
+//
+// A program keeps one row per week all the way down: program_weeks -> the same
+// six program_days -> sections -> program_day_exercises -> planned_exercise_sets.
+// A 12-week program therefore holds twelve independent copies of every exercise,
+// and editing one changes exactly one week. That is what Rami reported on 30 Jul
+// as "having to edit exercises week by week is not workable".
+//
+// There is nothing to share, so "all weeks" means resolving the sibling rows and
+// repeating the write. The slot key is:
+//
+//     program_id + day_number + section_kind + exercise_id
+//
+// Verified unique against live data on 2026-08-03: no day holds two sections of
+// the same kind, and no day holds the same exercise twice. So this matches at
+// most one row per week — never two, never the wrong one.
+//
+// Weeks whose matching day lacks the section, or lacks the exercise entirely, are
+// counted and reported rather than silently skipped. That drift is real: 13 slots
+// across two programs sit in some weeks and not others, left behind by edits made
+// before this existed.
+// ---------------------------------------------------------------------------
+
+type SlotAnchor = {
+  programId: string;
+  dayNumber: number;
+  sectionKind: string;
+  exerciseId: string;
+};
+
+async function readSlotAnchor(
+  supabase: SupabaseClient,
+  programDayExerciseId: string,
+): Promise<SlotAnchor & { sectionId: string; programDayId: string }> {
+  const { data: assignment, error: assignmentError } = await supabase
+    .from("program_day_exercises")
+    .select("exercise_id, section_id, program_day_id")
+    .eq("id", programDayExerciseId)
+    .maybeSingle();
+  if (assignmentError) throw new Error(assignmentError.message);
+  if (!assignment) throw new Error("Exercise assignment not found");
+
+  const { data: section, error: sectionError } = await supabase
+    .from("program_day_sections")
+    .select("section_kind")
+    .eq("id", assignment.section_id)
+    .maybeSingle();
+  if (sectionError) throw new Error(sectionError.message);
+  if (!section) throw new Error("Section not found");
+
+  const { data: day, error: dayError } = await supabase
+    .from("program_days")
+    .select("program_id, day_number")
+    .eq("id", assignment.program_day_id)
+    .maybeSingle();
+  if (dayError) throw new Error(dayError.message);
+  if (!day) throw new Error("Program day not found");
+
+  return {
+    programId: day.program_id,
+    dayNumber: day.day_number,
+    sectionKind: section.section_kind,
+    exerciseId: assignment.exercise_id,
+    sectionId: assignment.section_id,
+    programDayId: assignment.program_day_id,
+  };
+}
+
+// Every day in the program that shares this day_number — one per week — paired
+// with its section of the given kind when it has one.
+async function siblingDaySections(
+  supabase: SupabaseClient,
+  anchor: SlotAnchor,
+): Promise<{ sections: Array<{ programDayId: string; sectionId: string }>; totalDays: number }> {
+  const { data: days, error: daysError } = await supabase
+    .from("program_days")
+    .select("id")
+    .eq("program_id", anchor.programId)
+    .eq("day_number", anchor.dayNumber);
+  if (daysError) throw new Error(daysError.message);
+
+  const dayIds = (days ?? []).map((day) => day.id);
+  if (!dayIds.length) return { sections: [], totalDays: 0 };
+
+  const { data: sections, error: sectionsError } = await supabase
+    .from("program_day_sections")
+    .select("id, program_day_id")
+    .in("program_day_id", dayIds)
+    .eq("section_kind", anchor.sectionKind);
+  if (sectionsError) throw new Error(sectionsError.message);
+
+  return {
+    sections: (sections ?? []).map((section) => ({
+      programDayId: section.program_day_id,
+      sectionId: section.id,
+    })),
+    totalDays: dayIds.length,
+  };
+}
+
+// The same exercise in every week's copy of this day. `totalDays` is how many
+// weeks have the day at all, so `totalDays - matched.length` is the honest
+// "couldn't apply here" count.
+async function siblingDayExercises(
+  supabase: SupabaseClient,
+  anchor: SlotAnchor,
+): Promise<{ ids: string[]; totalDays: number }> {
+  const { sections, totalDays } = await siblingDaySections(supabase, anchor);
+  if (!sections.length) return { ids: [], totalDays };
+
+  const { data: rows, error } = await supabase
+    .from("program_day_exercises")
+    .select("id")
+    .in(
+      "section_id",
+      sections.map((section) => section.sectionId),
+    )
+    .eq("exercise_id", anchor.exerciseId);
+  if (error) throw new Error(error.message);
+
+  return { ids: (rows ?? []).map((row) => row.id), totalDays };
+}
+
+// "Applied to 12 weeks" / "Applied to 9 weeks — 3 weeks don't have this exercise".
+// The count always comes from what was written, never from what was intended.
+function describeReach(written: number, totalDays: number, noun: string): string {
+  const skipped = Math.max(0, totalDays - written);
+  const weeks = `${written} week${written === 1 ? "" : "s"}`;
+  if (!skipped) return `Applied to ${weeks}.`;
+  return `Applied to ${weeks} — ${skipped} ${
+    skipped === 1 ? "week does not" : "weeks do not"
+  } have this ${noun}.`;
+}
+
+/**
+ * Brings one exercise to exactly this list of sets, matched by POSITION.
+ *
+ * Position rather than row id, because the ids in a grid submission belong to
+ * the one week the operator was looking at and the same write has to land on
+ * eleven other weeks whose rows carry different ids. An id-based path for the
+ * anchor plus a position-based one for the siblings is exactly how the four
+ * original set actions drifted apart, so there is one path here.
+ *
+ * Row identity is not preserved when the list shrinks — deleting the middle row
+ * of four leaves rows 1..3 holding the surviving values. That is harmless:
+ * nothing references planned_exercise_sets.id except session_sets.planned_set_id,
+ * which is ON DELETE SET NULL provenance next to a full snapshot of the target.
+ */
+async function writeSetShape(
+  supabase: SupabaseClient,
+  exerciseId: string,
+  values: ReturnType<typeof plannedSetValues>[],
+): Promise<void> {
+  const { data: existingRows, error: fetchError } = await supabase
+    .from("planned_exercise_sets")
+    .select("id, set_number")
+    .eq("program_day_exercise_id", exerciseId)
+    .order("set_number");
+  if (fetchError) throw new Error(fetchError.message);
+
+  const existing = existingRows ?? [];
+  const reused = existing.slice(0, values.length);
+  const doomed = existing.slice(values.length);
+
+  // Drop the tail first so its set_numbers are free.
+  if (doomed.length) {
+    const { error } = await supabase
+      .from("planned_exercise_sets")
+      .delete()
+      .in(
+        "id",
+        doomed.map((row) => row.id),
+      );
+    if (error) throw new Error(error.message);
+  }
+
+  // Park before writing final numbers. UNIQUE (program_day_exercise_id,
+  // set_number) turns any mid-update overlap into a raw 23505, and these updates
+  // run concurrently so their order isn't guaranteed. Same trick as
+  // reorderDayExercises.
+  if (reused.length) {
+    const PARK_OFFSET = 1_000_000;
+    const parked = await Promise.all(
+      reused.map((row, index) =>
+        supabase
+          .from("planned_exercise_sets")
+          .update({ set_number: PARK_OFFSET + index })
+          .eq("id", row.id),
+      ),
+    );
+    const parkFail = parked.find((result) => result.error);
+    if (parkFail?.error) throw new Error(parkFail.error.message);
+
+    const written = await Promise.all(
+      reused.map((row, index) =>
+        supabase
+          .from("planned_exercise_sets")
+          .update({ set_number: index + 1, ...values[index] })
+          .eq("id", row.id),
+      ),
+    );
+    const writeFail = written.find((result) => result.error);
+    if (writeFail?.error) throw new Error(writeFail.error.message);
+  }
+
+  const fresh = values.slice(reused.length);
+  if (fresh.length) {
+    const { error } = await supabase.from("planned_exercise_sets").insert(
+      fresh.map((entry, index) => ({
+        program_day_exercise_id: exerciseId,
+        set_number: reused.length + index + 1,
+        target_weight_unit: "kg",
+        ...entry,
+      })),
+    );
+    if (error) throw new Error(error.message);
+  }
+}
+
 function plannedSetValues(row: PlannedSetInput) {
   return {
     set_kind: row.set_kind,
@@ -542,7 +957,8 @@ export async function savePlannedSets(
   programId: string,
   programDayExerciseId: string,
   rows: PlannedSetInput[],
-): Promise<void> {
+  scope: PropagateScope = "day",
+): Promise<{ written: number; totalDays: number }> {
   const supabase = requireAdminClient();
   if (!programId || !programDayExerciseId) {
     throw new Error("Missing program or exercise id.");
@@ -552,90 +968,51 @@ export async function savePlannedSets(
     throw new Error(`${MAX_SETS_PER_EXERCISE} sets is the cap — check the count.`);
   }
 
-  const { data: existingRows, error: fetchError } = await supabase
+  const { data: storedRows, error: fetchError } = await supabase
     .from("planned_exercise_sets")
     .select("id, set_kind")
     .eq("program_day_exercise_id", programDayExerciseId);
   if (fetchError) throw new Error(fetchError.message);
-
-  const existing = existingRows ?? [];
-  const storedById = new Map(existing.map((row) => [row.id, row]));
+  const stored = storedRows ?? [];
 
   // An id the grid carries that this exercise does not own means the page is
   // stale — refuse rather than reach into another exercise's sets.
+  const storedIds = new Set(stored.map((row) => row.id));
   for (const row of rows) {
-    if (row.id && !storedById.has(row.id)) {
+    if (row.id && !storedIds.has(row.id)) {
       throw new Error("This set list is out of date — refresh and try again.");
     }
   }
 
-  // Kind is validated only where it actually changed. 705 live sets hold a kind
-  // their modality no longer allows (see setKindOptionsFor); re-checking those
-  // would block an edit to an unrelated column, and quietly coercing them would
-  // move sets in and out of PR eligibility.
-  const changedKinds = new Set(
-    rows
-      .filter((row) => !row.id || storedById.get(row.id)?.set_kind !== row.set_kind)
-      .map((row) => row.set_kind),
-  );
-  for (const kind of changedKinds) {
-    await assertKindMatchesExerciseModality(supabase, programDayExerciseId, kind);
+  // A kind already present on this exercise is left alone: 705 live sets hold a
+  // kind their modality no longer allows (see setKindOptionsFor), and either
+  // rejecting them or coercing them would move sets in and out of PR
+  // eligibility over an edit to an unrelated column. Anything genuinely new
+  // still has to pass. Siblings share the exercise_id, so they share the
+  // modality — checking here covers every week.
+  const alreadyUsed = new Set(stored.map((row) => row.set_kind));
+  for (const kind of new Set(rows.map((row) => row.set_kind))) {
+    if (!alreadyUsed.has(kind)) {
+      await assertKindMatchesExerciseModality(supabase, programDayExerciseId, kind);
+    }
   }
 
-  const positioned = rows.map((row, index) => ({ row, position: index + 1 }));
-  const keptIds = new Set(rows.map((row) => row.id).filter(Boolean) as string[]);
-  const doomed = existing.filter((row) => !keptIds.has(row.id)).map((row) => row.id);
+  const values = rows.map(plannedSetValues);
 
-  // 1. Drop what the grid removed, so its set_numbers free up.
-  if (doomed.length) {
-    const { error } = await supabase
-      .from("planned_exercise_sets")
-      .delete()
-      .in("id", doomed);
-    if (error) throw new Error(error.message);
+  // Resolve the targets before writing anything, so a failure to work out the
+  // sibling set can't leave one week updated and eleven untouched.
+  let targets = [programDayExerciseId];
+  let totalDays = 1;
+  if (scope === "all_weeks") {
+    const anchor = await readSlotAnchor(supabase, programDayExerciseId);
+    const siblings = await siblingDayExercises(supabase, anchor);
+    totalDays = siblings.totalDays;
+    // The anchor is in this list already — it matches its own key.
+    targets = siblings.ids.length ? siblings.ids : [programDayExerciseId];
   }
 
-  // 2. Park the survivors above the realistic range before writing final
-  //    numbers. UNIQUE (program_day_exercise_id, set_number) turns any
-  //    mid-update overlap into a raw 23505 — same trick as reorderDayExercises.
-  const survivors = positioned.filter((entry) => entry.row.id);
-  if (survivors.length) {
-    const PARK_OFFSET = 1_000_000;
-    const parked = await Promise.all(
-      survivors.map((entry, index) =>
-        supabase
-          .from("planned_exercise_sets")
-          .update({ set_number: PARK_OFFSET + index })
-          .eq("id", entry.row.id as string),
-      ),
-    );
-    const parkFail = parked.find((result) => result.error);
-    if (parkFail?.error) throw new Error(parkFail.error.message);
-
-    const written = await Promise.all(
-      survivors.map((entry) =>
-        supabase
-          .from("planned_exercise_sets")
-          .update({ set_number: entry.position, ...plannedSetValues(entry.row) })
-          .eq("id", entry.row.id as string),
-      ),
-    );
-    const writeFail = written.find((result) => result.error);
-    if (writeFail?.error) throw new Error(writeFail.error.message);
-  }
-
-  // 3. Insert the new rows straight at their final positions.
-  const fresh = positioned.filter((entry) => !entry.row.id);
-  if (fresh.length) {
-    const { error } = await supabase.from("planned_exercise_sets").insert(
-      fresh.map((entry) => ({
-        program_day_exercise_id: programDayExerciseId,
-        set_number: entry.position,
-        target_weight_unit: "kg",
-        ...plannedSetValues(entry.row),
-      })),
-    );
-    if (error) throw new Error(error.message);
+  for (const target of targets) {
+    await writeSetShape(supabase, target, values);
   }
 
   await logAdminAction({
@@ -643,21 +1020,24 @@ export async function savePlannedSets(
     entity: "Planned sets",
     table: "planned_exercise_sets",
     recordId: programDayExerciseId,
-    summary: `Saved ${rows.length} set${rows.length === 1 ? "" : "s"}`,
+    summary:
+      scope === "all_weeks"
+        ? `Saved ${rows.length} set${rows.length === 1 ? "" : "s"} across ${targets.length} week${
+            targets.length === 1 ? "" : "s"
+          }`
+        : `Saved ${rows.length} set${rows.length === 1 ? "" : "s"}`,
     details: {
       program_day_exercise_id: programDayExerciseId,
+      scope,
+      weeks_written: targets.length,
+      weeks_with_this_day: totalDays,
       total: rows.length,
-      kept: survivors.length,
-      added: fresh.length,
-      removed: doomed.length,
-      sets: positioned.map((entry) => ({
-        set_number: entry.position,
-        ...plannedSetValues(entry.row),
-      })),
+      sets: values.map((entry, index) => ({ set_number: index + 1, ...entry })),
     },
   });
 
   revalidatePath(`/programs/${programId}`);
+  return { written: targets.length, totalDays };
 }
 
 export async function duplicateDay(formData: FormData) {
@@ -906,12 +1286,28 @@ export async function deleteDaySection(formData: FormData) {
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function deleteDayExercise(formData: FormData) {
+export async function deleteDayExercise(formData: FormData): Promise<string | void> {
   const supabase = requireAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
+  const scope = scopeFromForm(value(formData, ALL_WEEKS_FIELD));
 
-  const { error } = await supabase.from("program_day_exercises").delete().eq("id", id);
+  // Resolve the siblings before deleting: the key includes exercise_id and
+  // section_kind, and the anchor row has to still exist to be read.
+  let targets = [id];
+  let totalDays = 1;
+  if (scope === "all_weeks") {
+    const anchor = await readSlotAnchor(supabase, id);
+    const siblings = await siblingDayExercises(supabase, anchor);
+    totalDays = siblings.totalDays;
+    targets = siblings.ids.length ? siblings.ids : [id];
+  }
+
+  // planned_exercise_sets cascade. Logged history does not: session_exercises
+  // keeps its own exercise_id, display_name_snapshot and section_kind, and
+  // session_sets keeps both the target snapshot and the logged values — the two
+  // pointers back to the plan are ON DELETE SET NULL provenance only.
+  const { error } = await supabase.from("program_day_exercises").delete().in("id", targets);
   if (error) throw new Error(error.message);
 
   await logAdminAction({
@@ -919,10 +1315,15 @@ export async function deleteDayExercise(formData: FormData) {
     entity: "Exercise in day",
     table: "program_day_exercises",
     recordId: id,
-    summary: "Removed an exercise from a day",
+    summary:
+      scope === "all_weeks"
+        ? `Removed an exercise from ${targets.length} week${targets.length === 1 ? "" : "s"}`
+        : "Removed an exercise from a day",
+    details: { scope, weeks_written: targets.length, weeks_with_this_day: totalDays, ids: targets },
   });
 
   revalidatePath(`/programs/${programId}`);
+  if (scope === "all_weeks") return describeReach(targets.length, totalDays, "exercise");
 }
 
 // deletePlannedSet is gone: removing a row is part of savePlannedSets now, so a
@@ -940,14 +1341,19 @@ export async function updateDaySection(formData: FormData) {
   const titleNb = value(formData, "title_nb");
   const title = titleEn || titleNb || "Section";
 
+  // sort_order is not on this dialog, so it must not be written. It used to
+  // fall back to 0, which silently moved the edited section to the top of the
+  // day every time someone fixed a title.
+  const payload = defined({
+    section_kind: patchText(formData, "section_kind") || "main_exercises",
+    title,
+    title_translations: translations(titleEn || title, titleNb || title),
+    sort_order: patchInt(formData, "sort_order"),
+  });
+
   const { error } = await supabase
     .from("program_day_sections")
-    .update({
-      section_kind: value(formData, "section_kind") || "main_exercises",
-      title,
-      title_translations: translations(titleEn || title, titleNb || title),
-      sort_order: intValue(formData, "sort_order", 0),
-    })
+    .update(payload)
     .eq("id", id);
 
   if (error) throw new Error(error.message);
@@ -958,51 +1364,160 @@ export async function updateDaySection(formData: FormData) {
     table: "program_day_sections",
     recordId: id,
     summary: `Updated section "${title}"`,
-    details: { title, sort_order: intValue(formData, "sort_order", 0) },
+    details: payload,
   });
 
   revalidatePath(`/programs/${programId}`);
 }
 
-export async function updateDayExercise(formData: FormData) {
+export async function updateDayExercise(formData: FormData): Promise<string | void> {
   const supabase = requireAdminClient();
   const id = value(formData, "id");
   const programId = value(formData, "program_id");
   const displayNameEn = value(formData, "display_name_en");
   const displayNameNb = value(formData, "display_name_nb");
+  const sectionId = patchText(formData, "section_id");
+  const scope = scopeFromForm(value(formData, ALL_WEEKS_FIELD));
 
-  const { error } = await supabase
+  const { data: current, error: currentError } = await supabase
     .from("program_day_exercises")
-    .update({
-      section_id: value(formData, "section_id"),
-      exercise_id: value(formData, "exercise_id"),
-      sort_order: intValue(formData, "sort_order", 0),
-      display_name: displayNameEn || null,
-      display_name_translations: translations(displayNameEn, displayNameNb),
-      initial_weight_value: numberValue(formData, "initial_weight_value"),
-      initial_weight_unit: "kg",
-      default_rest_seconds: numberValue(formData, "default_rest_seconds"),
-    })
-    .eq("id", id);
+    .select("section_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (currentError) throw new Error(currentError.message);
+  if (!current) throw new Error("Exercise assignment not found");
 
-  if (error) throw new Error(error.message);
+  // Read before writing: the sibling key is built from the CURRENT exercise_id
+  // and section_kind, and this update can change both.
+  let targets = [id];
+  let totalDays = 1;
+  let siblingSectionKind: string | null = null;
+  if (scope === "all_weeks") {
+    const anchor = await readSlotAnchor(supabase, id);
+    const siblings = await siblingDayExercises(supabase, anchor);
+    totalDays = siblings.totalDays;
+    siblingSectionKind = anchor.sectionKind;
+    targets = siblings.ids.length ? siblings.ids : [id];
+  }
+
+  // Moving to another section is per-week work: every week has its own section
+  // rows, so each sibling has to land in ITS week's section of the destination
+  // kind. Carrying one section_id across weeks would point eleven rows at a
+  // section belonging to week 1.
+  let destinationKind: string | null = null;
+  const movingSection = Boolean(sectionId) && sectionId !== current.section_id;
+  if (movingSection && scope === "all_weeks") {
+    const { data: destination, error: destinationError } = await supabase
+      .from("program_day_sections")
+      .select("section_kind")
+      .eq("id", sectionId as string)
+      .maybeSingle();
+    if (destinationError) throw new Error(destinationError.message);
+    if (!destination) throw new Error("Destination section not found");
+    destinationKind = destination.section_kind;
+    if (destinationKind === siblingSectionKind) destinationKind = null;
+  }
+
+  const shared = defined({
+    exercise_id: patchText(formData, "exercise_id"),
+    display_name: formData.has("display_name_en") ? displayNameEn || null : undefined,
+    display_name_translations: formData.has("display_name_en")
+      ? translations(displayNameEn, displayNameNb)
+      : undefined,
+    initial_weight_value: patchNumber(formData, "initial_weight_value"),
+    initial_weight_unit: "kg",
+    default_rest_seconds: patchNumber(formData, "default_rest_seconds"),
+  });
+
+  let moved = 0;
+  for (const target of targets) {
+    const row: Record<string, unknown> = { ...shared };
+
+    if (destinationKind) {
+      // Find this row's own week's section of the destination kind.
+      const { data: assignment, error: assignmentError } = await supabase
+        .from("program_day_exercises")
+        .select("program_day_id")
+        .eq("id", target)
+        .maybeSingle();
+      if (assignmentError) throw new Error(assignmentError.message);
+
+      const { data: localSection, error: localError } = await supabase
+        .from("program_day_sections")
+        .select("id")
+        .eq("program_day_id", assignment?.program_day_id ?? "")
+        .eq("section_kind", destinationKind)
+        .maybeSingle();
+      if (localError) throw new Error(localError.message);
+
+      // A week whose day has no section of that kind keeps the exercise where
+      // it is rather than being left pointing at another week's section.
+      if (localSection) {
+        row.section_id = localSection.id;
+        // UNIQUE (section_id, sort_order) — append rather than carry the old
+        // position into a section that probably already uses it.
+        row.sort_order = await nextPosition(
+          supabase,
+          "program_day_exercises",
+          "sort_order",
+          "section_id",
+          localSection.id,
+        );
+        moved += 1;
+      }
+    } else if (movingSection) {
+      row.section_id = sectionId;
+      row.sort_order = await nextPosition(
+        supabase,
+        "program_day_exercises",
+        "sort_order",
+        "section_id",
+        sectionId as string,
+      );
+      moved += 1;
+    } else {
+      const sortOrder = patchInt(formData, "sort_order");
+      if (sortOrder !== undefined && targets.length === 1) row.sort_order = sortOrder;
+    }
+
+    if (!Object.keys(row).length) continue;
+    const { error } = await supabase
+      .from("program_day_exercises")
+      .update(row)
+      .eq("id", target);
+    if (error) throw new Error(error.message);
+  }
 
   await logAdminAction({
     action: "update",
     entity: "Exercise in day",
     table: "program_day_exercises",
     recordId: id,
-    summary: `Updated an exercise${displayNameEn ? ` "${displayNameEn}"` : ""} in a day`,
-    details: { exercise_id: value(formData, "exercise_id"), display_name: displayNameEn || null },
+    summary:
+      scope === "all_weeks"
+        ? `Updated an exercise${displayNameEn ? ` "${displayNameEn}"` : ""} in ${
+            targets.length
+          } week${targets.length === 1 ? "" : "s"}`
+        : `Updated an exercise${displayNameEn ? ` "${displayNameEn}"` : ""} in a day`,
+    details: {
+      exercise_id: value(formData, "exercise_id"),
+      display_name: displayNameEn || null,
+      scope,
+      weeks_written: targets.length,
+      weeks_with_this_day: totalDays,
+      section_moved_in: destinationKind ? moved : undefined,
+    },
   });
 
   revalidatePath(`/programs/${programId}`);
+  if (scope === "all_weeks") return describeReach(targets.length, totalDays, "exercise");
 }
 
 // updatePlannedSet is gone too. It wrote all eight set columns from a dialog
 // that rendered four, so correcting a weight nulled the rep range and the rest
-// timer on that set — 12 rows in the live data still carry the damage.
-// savePlannedSets writes the whole row from the whole row.
+// timer on that set — 9 rows in the live data still carry the damage, all of
+// them created 15 or 29 July. savePlannedSets writes the whole row from the
+// whole row.
 
 // Reorders exercises within a single section by re-indexing sort_order 0..N.
 // Mobile default order comes from program_day_exercises.sort_order; users who
