@@ -866,7 +866,7 @@ function missingExerciseNote(written: number, totalDays: number): string[] {
 }
 
 /**
- * Brings one exercise to exactly this list of sets, matched by POSITION.
+ * Brings every listed exercise to exactly this list of sets, matched by POSITION.
  *
  * Position rather than row id, because the ids in a grid submission belong to
  * the one week the operator was looking at and the same write has to land on
@@ -874,88 +874,104 @@ function missingExerciseNote(written: number, totalDays: number): string[] {
  * anchor plus a position-based one for the siblings is exactly how the four
  * original set actions drifted apart, so there is one path here.
  *
- * Row identity is not preserved when the list shrinks — deleting the middle row
- * of four leaves rows 1..3 holding the surviving values. That is harmless:
- * nothing references planned_exercise_sets.id except session_sets.planned_set_id,
- * which is ON DELETE SET NULL provenance next to a full snapshot of the target.
+ * All twelve weeks go in ONE round trip, not one each. Doing a select plus an
+ * update per set per week meant 72 HTTP calls for a 12-week save; running them
+ * concurrently didn't help because this project's connection pool just queued
+ * them, so a save still took 7-8 seconds. Batching to a handful of statements is
+ * what actually moves the number — request count is the cost here, not payload.
+ *
+ * Row identity is not preserved when a list shrinks — deleting the middle row of
+ * four leaves rows 1..3 holding the surviving values. That is harmless: nothing
+ * references planned_exercise_sets.id except session_sets.planned_set_id, which
+ * is ON DELETE SET NULL provenance sitting next to a full target snapshot.
  */
-async function writeSetShape(
+async function writeSetShapes(
   supabase: SupabaseClient,
-  exerciseId: string,
+  exerciseIds: string[],
   values: ReturnType<typeof plannedSetValues>[],
 ): Promise<void> {
+  if (!exerciseIds.length) return;
+
   const { data: existingRows, error: fetchError } = await supabase
     .from("planned_exercise_sets")
-    .select("id, set_number")
-    .eq("program_day_exercise_id", exerciseId)
+    .select("id, set_number, program_day_exercise_id")
+    .in("program_day_exercise_id", exerciseIds)
     .order("set_number");
   if (fetchError) throw new Error(fetchError.message);
 
-  const existing = existingRows ?? [];
-  const reused = existing.slice(0, values.length);
-  const doomed = existing.slice(values.length);
-
-  // Drop the tail first so its set_numbers are free.
-  if (doomed.length) {
-    const { error } = await supabase
-      .from("planned_exercise_sets")
-      .delete()
-      .in(
-        "id",
-        doomed.map((row) => row.id),
-      );
-    if (error) throw new Error(error.message);
+  const byExercise = new Map<string, { id: string; set_number: number }[]>();
+  for (const id of exerciseIds) byExercise.set(id, []);
+  for (const row of existingRows ?? []) {
+    byExercise.get(row.program_day_exercise_id)?.push(row);
   }
 
-  if (reused.length) {
-    // The rows are almost always already numbered 1..N — nothing in the live
-    // data is non-contiguous — so the set_number never has to move and one
-    // batch of value writes is enough. Parking only earns its extra round trip
-    // when a gap means a row really does have to change number.
-    const aligned = reused.every((row, index) => row.set_number === index + 1);
+  const doomed: string[] = [];
+  const parkRows: Record<string, unknown>[] = [];
+  const finalRows: Record<string, unknown>[] = [];
+  const PARK_OFFSET = 1_000_000;
 
+  for (const exerciseId of exerciseIds) {
+    const existing = byExercise.get(exerciseId) ?? [];
+    const reused = existing.slice(0, values.length);
+    doomed.push(...existing.slice(values.length).map((row) => row.id));
+
+    // Rows are almost always already numbered 1..N — nothing in the live data is
+    // non-contiguous — so no number has to move and the park pass is skipped.
+    const aligned = reused.every((row, index) => row.set_number === index + 1);
     if (!aligned) {
-      // UNIQUE (program_day_exercise_id, set_number) turns any mid-update
-      // overlap into a raw 23505, and these run concurrently so their order
-      // isn't guaranteed. Park above the range first — same trick as
-      // reorderDayExercises.
-      const PARK_OFFSET = 1_000_000;
-      const parked = await Promise.all(
-        reused.map((row, index) =>
-          supabase
-            .from("planned_exercise_sets")
-            .update({ set_number: PARK_OFFSET + index })
-            .eq("id", row.id),
-        ),
-      );
-      const parkFail = parked.find((result) => result.error);
-      if (parkFail?.error) throw new Error(parkFail.error.message);
+      reused.forEach((row, index) => {
+        parkRows.push({
+          id: row.id,
+          program_day_exercise_id: exerciseId,
+          set_number: PARK_OFFSET + index,
+        });
+      });
     }
 
-    const written = await Promise.all(
-      reused.map((row, index) =>
-        supabase
-          .from("planned_exercise_sets")
-          .update(aligned ? values[index] : { set_number: index + 1, ...values[index] })
-          .eq("id", row.id),
-      ),
-    );
-    const writeFail = written.find((result) => result.error);
-    if (writeFail?.error) throw new Error(writeFail.error.message);
-  }
+    reused.forEach((row, index) => {
+      finalRows.push({
+        id: row.id,
+        program_day_exercise_id: exerciseId,
+        set_number: index + 1,
+        target_weight_unit: "kg",
+        ...values[index],
+      });
+    });
 
-  const fresh = values.slice(reused.length);
-  if (fresh.length) {
-    const { error } = await supabase.from("planned_exercise_sets").insert(
-      fresh.map((entry, index) => ({
+    // Ids minted here so new rows can ride the same upsert as the updates
+    // instead of costing a separate insert per week.
+    values.slice(reused.length).forEach((entry, index) => {
+      finalRows.push({
+        id: crypto.randomUUID(),
         program_day_exercise_id: exerciseId,
         set_number: reused.length + index + 1,
         target_weight_unit: "kg",
         ...entry,
-      })),
-    );
+      });
+    });
+  }
+
+  // 1. Drop every tail across every week, so their set_numbers are free.
+  if (doomed.length) {
+    const { error } = await supabase
+      .from("planned_exercise_sets")
+      .delete()
+      .in("id", doomed);
     if (error) throw new Error(error.message);
   }
+
+  // 2. Only for exercises whose numbering has a gap. UNIQUE
+  //    (program_day_exercise_id, set_number) would otherwise fire a raw 23505
+  //    mid-statement while one row moves onto a number another still holds.
+  //    Parked numbers sit far above the real range, so they can't collide.
+  if (parkRows.length) {
+    const { error } = await supabase.from("planned_exercise_sets").upsert(parkRows);
+    if (error) throw new Error(error.message);
+  }
+
+  // 3. Everything — updated rows and new rows, all weeks — in one statement.
+  const { error } = await supabase.from("planned_exercise_sets").upsert(finalRows);
+  if (error) throw new Error(error.message);
 }
 
 function plannedSetValues(row: PlannedSetInput) {
@@ -1047,11 +1063,7 @@ export async function savePlannedSets(
     targets = siblings.ids.length ? siblings.ids : [programDayExerciseId];
   }
 
-  // Concurrent, not one week after another. Twelve weeks × three round trips
-  // each, run in sequence, was ~9 seconds of staring at a spinner. Safe to
-  // parallelise because every call touches a single program_day_exercise_id and
-  // the UNIQUE constraint is scoped to that column — two targets can't collide.
-  await Promise.all(targets.map((target) => writeSetShape(supabase, target, values)));
+  await writeSetShapes(supabase, targets, values);
 
   await logAdminAction({
     action: "update",
