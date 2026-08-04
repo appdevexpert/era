@@ -755,29 +755,25 @@ async function readSlotAnchor(
   supabase: SupabaseClient,
   programDayExerciseId: string,
 ): Promise<SlotAnchor & { sectionId: string; programDayId: string }> {
-  const { data: assignment, error: assignmentError } = await supabase
+  // One query, not three chained ones. The section kind and the day's number
+  // come back embedded through their foreign keys, which keeps the propagate
+  // path from spending three round trips before it has written anything.
+  const { data: assignment, error } = await supabase
     .from("program_day_exercises")
-    .select("exercise_id, section_id, program_day_id")
+    .select(
+      "exercise_id, section_id, program_day_id, program_day_sections(section_kind), program_days(program_id, day_number)",
+    )
     .eq("id", programDayExerciseId)
     .maybeSingle();
-  if (assignmentError) throw new Error(assignmentError.message);
+  if (error) throw new Error(error.message);
   if (!assignment) throw new Error("Exercise assignment not found");
 
-  const { data: section, error: sectionError } = await supabase
-    .from("program_day_sections")
-    .select("section_kind")
-    .eq("id", assignment.section_id)
-    .maybeSingle();
-  if (sectionError) throw new Error(sectionError.message);
-  if (!section) throw new Error("Section not found");
-
-  const { data: day, error: dayError } = await supabase
-    .from("program_days")
-    .select("program_id, day_number")
-    .eq("id", assignment.program_day_id)
-    .maybeSingle();
-  if (dayError) throw new Error(dayError.message);
-  if (!day) throw new Error("Program day not found");
+  const section = assignment.program_day_sections as { section_kind?: string } | null;
+  const day = assignment.program_days as
+    | { program_id?: string; day_number?: number }
+    | null;
+  if (!section?.section_kind) throw new Error("Section not found");
+  if (!day?.program_id || day.day_number == null) throw new Error("Program day not found");
 
   return {
     programId: day.program_id,
@@ -911,28 +907,36 @@ async function writeSetShape(
     if (error) throw new Error(error.message);
   }
 
-  // Park before writing final numbers. UNIQUE (program_day_exercise_id,
-  // set_number) turns any mid-update overlap into a raw 23505, and these updates
-  // run concurrently so their order isn't guaranteed. Same trick as
-  // reorderDayExercises.
   if (reused.length) {
-    const PARK_OFFSET = 1_000_000;
-    const parked = await Promise.all(
-      reused.map((row, index) =>
-        supabase
-          .from("planned_exercise_sets")
-          .update({ set_number: PARK_OFFSET + index })
-          .eq("id", row.id),
-      ),
-    );
-    const parkFail = parked.find((result) => result.error);
-    if (parkFail?.error) throw new Error(parkFail.error.message);
+    // The rows are almost always already numbered 1..N — nothing in the live
+    // data is non-contiguous — so the set_number never has to move and one
+    // batch of value writes is enough. Parking only earns its extra round trip
+    // when a gap means a row really does have to change number.
+    const aligned = reused.every((row, index) => row.set_number === index + 1);
+
+    if (!aligned) {
+      // UNIQUE (program_day_exercise_id, set_number) turns any mid-update
+      // overlap into a raw 23505, and these run concurrently so their order
+      // isn't guaranteed. Park above the range first — same trick as
+      // reorderDayExercises.
+      const PARK_OFFSET = 1_000_000;
+      const parked = await Promise.all(
+        reused.map((row, index) =>
+          supabase
+            .from("planned_exercise_sets")
+            .update({ set_number: PARK_OFFSET + index })
+            .eq("id", row.id),
+        ),
+      );
+      const parkFail = parked.find((result) => result.error);
+      if (parkFail?.error) throw new Error(parkFail.error.message);
+    }
 
     const written = await Promise.all(
       reused.map((row, index) =>
         supabase
           .from("planned_exercise_sets")
-          .update({ set_number: index + 1, ...values[index] })
+          .update(aligned ? values[index] : { set_number: index + 1, ...values[index] })
           .eq("id", row.id),
       ),
     );
@@ -1043,9 +1047,11 @@ export async function savePlannedSets(
     targets = siblings.ids.length ? siblings.ids : [programDayExerciseId];
   }
 
-  for (const target of targets) {
-    await writeSetShape(supabase, target, values);
-  }
+  // Concurrent, not one week after another. Twelve weeks × three round trips
+  // each, run in sequence, was ~9 seconds of staring at a spinner. Safe to
+  // parallelise because every call touches a single program_day_exercise_id and
+  // the UNIQUE constraint is scoped to that column — two targets can't collide.
+  await Promise.all(targets.map((target) => writeSetShape(supabase, target, values)));
 
   await logAdminAction({
     action: "update",
@@ -1464,42 +1470,55 @@ export async function updateDayExercise(formData: FormData): Promise<string | vo
   });
 
   let moved = 0;
+
+  // Section moves need each target's own week's section, which used to cost two
+  // extra chained queries per target — 24 round trips across twelve weeks.
+  // Resolved up front in two queries for the whole set instead.
+  const localSectionByTarget = new Map<string, string>();
+  if (destinationKind) {
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from("program_day_exercises")
+      .select("id, program_day_id")
+      .in("id", targets);
+    if (assignmentsError) throw new Error(assignmentsError.message);
+
+    const dayIds = (assignments ?? []).map((row) => row.program_day_id);
+    const { data: localSections, error: localError } = await supabase
+      .from("program_day_sections")
+      .select("id, program_day_id")
+      .in("program_day_id", dayIds)
+      .eq("section_kind", destinationKind);
+    if (localError) throw new Error(localError.message);
+
+    const sectionByDay = new Map(
+      (localSections ?? []).map((row) => [row.program_day_id, row.id]),
+    );
+    for (const row of assignments ?? []) {
+      const local = sectionByDay.get(row.program_day_id);
+      // A week whose day has no section of that kind keeps the exercise where it
+      // is, rather than being left pointing at another week's section.
+      if (local) localSectionByTarget.set(row.id, local);
+    }
+  }
+
+  const rowsByTarget = new Map<string, Record<string, unknown>>();
   for (const target of targets) {
     const row: Record<string, unknown> = { ...shared };
+    const localSectionId = localSectionByTarget.get(target);
 
-    if (destinationKind) {
-      // Find this row's own week's section of the destination kind.
-      const { data: assignment, error: assignmentError } = await supabase
-        .from("program_day_exercises")
-        .select("program_day_id")
-        .eq("id", target)
-        .maybeSingle();
-      if (assignmentError) throw new Error(assignmentError.message);
-
-      const { data: localSection, error: localError } = await supabase
-        .from("program_day_sections")
-        .select("id")
-        .eq("program_day_id", assignment?.program_day_id ?? "")
-        .eq("section_kind", destinationKind)
-        .maybeSingle();
-      if (localError) throw new Error(localError.message);
-
-      // A week whose day has no section of that kind keeps the exercise where
-      // it is rather than being left pointing at another week's section.
-      if (localSection) {
-        row.section_id = localSection.id;
-        // UNIQUE (section_id, sort_order) — append rather than carry the old
-        // position into a section that probably already uses it.
-        row.sort_order = await nextPosition(
-          supabase,
-          "program_day_exercises",
-          "sort_order",
-          "section_id",
-          localSection.id,
-        );
-        moved += 1;
-      }
-    } else if (movingSection) {
+    if (destinationKind && localSectionId) {
+      row.section_id = localSectionId;
+      // UNIQUE (section_id, sort_order) — append rather than carry the old
+      // position into a section that probably already uses it.
+      row.sort_order = await nextPosition(
+        supabase,
+        "program_day_exercises",
+        "sort_order",
+        "section_id",
+        localSectionId,
+      );
+      moved += 1;
+    } else if (!destinationKind && movingSection) {
       row.section_id = sectionId;
       row.sort_order = await nextPosition(
         supabase,
@@ -1509,18 +1528,21 @@ export async function updateDayExercise(formData: FormData): Promise<string | vo
         sectionId as string,
       );
       moved += 1;
-    } else {
+    } else if (!destinationKind) {
       const sortOrder = patchInt(formData, "sort_order");
       if (sortOrder !== undefined && targets.length === 1) row.sort_order = sortOrder;
     }
 
-    if (!Object.keys(row).length) continue;
-    const { error } = await supabase
-      .from("program_day_exercises")
-      .update(row)
-      .eq("id", target);
-    if (error) throw new Error(error.message);
+    if (Object.keys(row).length) rowsByTarget.set(target, row);
   }
+
+  const updates = await Promise.all(
+    [...rowsByTarget].map(([target, row]) =>
+      supabase.from("program_day_exercises").update(row).eq("id", target),
+    ),
+  );
+  const updateFail = updates.find((result) => result.error);
+  if (updateFail?.error) throw new Error(updateFail.error.message);
 
   await logAdminAction({
     action: "update",
