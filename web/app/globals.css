@@ -160,21 +160,34 @@
   html {
     @apply font-sans;
   }
-  button:not(:disabled),
-  [role="button"]:not(:disabled),
-  [role="menuitem"]:not([data-disabled]),
-  [role="option"]:not([data-disabled]),
-  [role="tab"]:not([data-disabled]),
-  [role="checkbox"]:not([data-disabled]),
-  [role="radio"]:not([data-disabled]),
+  /* A sane default for elements the browser leaves on the arrow — `button`'s
+     HTML default is `cursor: default`, not pointer. Links already get pointer
+     natively and are listed only so a component that resets them still behaves.
+     Components own the final say: these carry no `!important`, so any
+     `cursor-*` utility (which lands in a later layer) wins. The previous
+     version forced `!important` here, which meant a component physically could
+     not override its own cursor. */
+  button,
+  [role="button"],
+  [role="menuitem"],
+  [role="option"],
+  [role="tab"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="switch"],
   summary,
   label[for],
   a[href] {
-    cursor: pointer !important;
+    cursor: pointer;
   }
+
+  /* Value-checked. `[data-disabled]` on its own matched the attribute's mere
+     presence, and because `cursor` is inherited that pushed `not-allowed` onto
+     every descendant of any element carrying it — including ones that were
+     perfectly clickable. */
   button:disabled,
-  [data-disabled],
-  [aria-disabled="true"] {
-    cursor: not-allowed !important;
+  [aria-disabled="true"],
+  [data-disabled]:not([data-disabled="false"]) {
+    cursor: not-allowed;
   }
 }
