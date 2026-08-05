@@ -105,9 +105,17 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           warmup / cooldown).
         </>,
         <>
-          Optional: <strong>Default rest seconds</strong> and{" "}
-          <strong>Primary muscles</strong> (comma-separated free text — drives
-          the muscle tags users see).
+          Optional: <strong>Primary muscles</strong> (comma-separated free text
+          — drives the muscle tags users see) and the{" "}
+          <strong>English</strong> / <strong>Norwegian description</strong>,
+          which the app shows as the form detail when a user taps the exercise.
+        </>,
+        <>
+          Under <strong>Demo clips</strong>, upload the{" "}
+          <strong>male</strong> and <strong>female</strong> animation. MP4 only.
+          These play on the workout log screen and in the exercise info sheet.{" "}
+          <strong>Loop the clip continuously</strong> is on by default; turn it
+          off and the app plays it once, then shows a tap-to-play button.
         </>,
         <>
           Leave <strong>Active exercise</strong> ticked so it shows up in the
@@ -120,9 +128,10 @@ const TRANSLATIONS: Record<Lang, Translation> = {
       ],
       tip: (
         <>
-          There is no video URL, thumbnail, or coaching-cue field yet — those
-          were removed. Use the <strong>Inactive</strong> status filter on the
-          Exercises page to find retired exercises. Unchecking{" "}
+          Rest time is not set here — it belongs to the set, inside the program
+          builder, because the same exercise can take a different rest in
+          different programs. Use the <strong>Inactive</strong> status filter on
+          the Exercises page to find retired exercises. Unchecking{" "}
           <strong>Active exercise</strong> hides it from new assignments but
           keeps existing program data intact.
         </>
@@ -259,7 +268,7 @@ const TRANSLATIONS: Record<Lang, Translation> = {
         },
         {
           term: "Set kinds",
-          body: "warmup, working, top_set, backoff, drop_set, amrap, core, cardio. Top set is the planned max for the day; back-off is a lighter follow-up at higher reps.",
+          body: "working, top_set and backoff on strength exercises; core on core exercises; cardio on cardio ones. The Kind list is filtered by the exercise's Modality, so only the valid options ever appear. Top set is the planned max for the day; back-off is a lighter follow-up at higher reps. Warm-up, drop set and AMRAP were dropped from the picker.",
         },
         {
           term: "Soft delete",
@@ -322,9 +331,18 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           kjerne / kondisjon / oppvarming / nedtrapping).
         </>,
         <>
-          Valgfritt: <strong>Standard hvilesekunder</strong> og{" "}
-          <strong>Primære muskler</strong> (kommaseparert fritekst — styrer
-          muskeletikettene brukerne ser).
+          Valgfritt: <strong>Primære muskler</strong> (kommaseparert fritekst —
+          styrer muskeletikettene brukerne ser) og{" "}
+          <strong>Engelsk</strong> / <strong>Norsk beskrivelse</strong>, som
+          appen viser som teknikkforklaring når brukeren trykker på øvelsen.
+        </>,
+        <>
+          Under <strong>Demo clips</strong>, last opp animasjonen for{" "}
+          <strong>mann</strong> og <strong>kvinne</strong>. Kun MP4. Disse
+          spilles på loggeskjermen og i øvelsesinfoen.{" "}
+          <strong>Loop the clip continuously</strong> er på som standard; slår
+          du den av, spiller appen den én gang og viser deretter en
+          trykk-for-å-spille-knapp.
         </>,
         <>
           La <strong>Aktiv øvelse</strong> være huket av så den vises i
@@ -337,8 +355,9 @@ const TRANSLATIONS: Record<Lang, Translation> = {
       ],
       tip: (
         <>
-          Det finnes ingen video-URL, miniatyrbilde eller trenerhint-felt ennå
-          — de er fjernet. Bruk statusfilteret <strong>Inaktiv</strong> på
+          Hviletid settes ikke her — den hører til settet, inne i
+          programbyggeren, fordi samme øvelse kan ha ulik hvile i ulike
+          program. Bruk statusfilteret <strong>Inaktiv</strong> på
           Øvelser-siden for å finne pensjonerte øvelser. Å fjerne haken for{" "}
           <strong>Aktiv øvelse</strong> skjuler den fra nye tildelinger, men
           beholder eksisterende programdata.
@@ -418,14 +437,29 @@ const TRANSLATIONS: Record<Lang, Translation> = {
           en valgfri <strong>Startvekt (kg)</strong>.
         </>,
         <>
-          Per øvelse, planlegg sett. <strong>Masse-sett</strong> fanger antall +
-          type + vekt + reps (eksakt eller min/maks) + varighet + hvile — bra
-          for «4 arbeidssett på 8 reps, 75 kg, 90 s hvile».{" "}
-          <strong>Sett</strong> er en enkel hurtig-rad (type + vekt + reps).
+          Hvert øvelseskort viser settene oppsummert på én linje — klikk på den
+          for å åpne settabellen. Hvert sett er en rad du redigerer direkte:
+          type, kg, reps og hvile. <strong>Reps</strong> tar ett tall eller et
+          intervall, så skriv <strong>10</strong> eller{" "}
+          <strong>10-12</strong>. Bruk <strong>Add set</strong> for å legge til
+          en kopi av forrige rad, og <strong>Copy set 1 to all</strong> for «4
+          like arbeidssett». Ingenting lagres før du trykker{" "}
+          <strong>Save sets</strong>.
         </>,
         <>
-          Gjenta for hver dag i hver uke. Lukk panelet når dagen ser riktig ut
-          — endringer lagres når du sender inn hver dialog.
+          Å tildele, redigere og fjerne en øvelse — og å lagre settene — viser
+          alle en avkrysningsboks:{" "}
+          <strong>Apply to Mon in all 12 weeks</strong>, haket av som standard.
+          La den stå på, og én endring treffer den samme ukedagen i alle uker —
+          du gjentar aldri samme endring tolv ganger. Fjern haken for å endre
+          bare den uken du står i. Bekreftelsen etterpå oppgir det faktiske
+          antallet, så hvis tre uker ikke har den øvelsen, får du vite det i
+          stedet for å anta.
+        </>,
+        <>
+          Lukk panelet når dagen ser riktig ut — settendringer lagres med{" "}
+          <strong>Save sets</strong>, alt annet lagres når du sender inn
+          dialogen.
         </>,
       ],
       tip: (
@@ -463,7 +497,7 @@ const TRANSLATIONS: Record<Lang, Translation> = {
         },
         {
           term: "Sett-typer",
-          body: "oppvarming, arbeid, toppsett, backoff, drop-sett, amrap, kjerne, kondisjon. Toppsett er dagens planlagte maks; backoff er en lettere oppfølging med høyere reps.",
+          body: "working, top_set og backoff på styrkeøvelser; core på kjerneøvelser; cardio på kondisjonsøvelser. Kind-listen filtreres etter øvelsens Modality, så bare de gyldige valgene vises. Toppsett er dagens planlagte maks; backoff er en lettere oppfølging med høyere reps. Oppvarming, drop-sett og AMRAP er fjernet fra velgeren.",
         },
         {
           term: "Myk sletting",
