@@ -147,35 +147,53 @@ export const formatMuscleCategory = (
     .join(" • ");
 };
 
+/**
+ * `exercise_library.primary_muscles` / `program_days.target_muscles` value →
+ * badge icon key. A `Map` rather than an object literal so a stray admin-entered
+ * value like "constructor" can't resolve through `Object.prototype` and leak a
+ * function into the icon list.
+ *
+ * Match is case-SENSITIVE on purpose: it mirrors the if/else ladder this
+ * replaced. `localizeMuscle` lowercases because an unmatched label would leak a
+ * raw DB string into visible text; here an unmatched value just renders no
+ * badge, so widening the match would newly show badges where today shows none.
+ */
+const MUSCLE_ICON_KEYS = new Map<string, MuscleGroup>([
+  // Singular-key badges (new close-up Figma designs).
+  ["triceps", "tricep"],
+  ["biceps", "bicep"],
+  ["forearms", "forearm"],
+  ["traps", "traps"],
+  ["neck", "neck"],
+  ["back", "back"],
+  ["chest", "chest"],
+  ["shoulders", "shoulders"],
+  ["quads", "quads"],
+  ["glutes", "glutes"],
+  ["hamstrings", "hamstring"],
+  ["calves", "calves"],
+  // Legacy generic icons — no per-muscle close-up yet.
+  ["core", "abs"],
+  ["abs", "abs"],
+  ["legs", "leg"],
+]);
+
+const MAX_MUSCLE_ICONS = 4;
+
 export const mapMusclesToIcons = (muscles: string[]): MuscleGroup[] => {
+  const seen = new Set<MuscleGroup>();
   const iconKeys: MuscleGroup[] = [];
 
-  muscles.forEach((muscle) => {
-    let icon: MuscleGroup | null = null;
+  for (const muscle of muscles) {
+    const icon = MUSCLE_ICON_KEYS.get(muscle);
+    if (!icon || seen.has(icon)) continue;
 
-    // Singular-key badges (new close-up Figma designs).
-    if (muscle === "triceps") icon = "tricep";
-    else if (muscle === "biceps") icon = "bicep";
-    else if (muscle === "forearms") icon = "forearm";
-    else if (muscle === "traps") icon = "traps";
-    else if (muscle === "neck") icon = "neck";
-    else if (muscle === "back") icon = "back";
-    else if (muscle === "chest") icon = "chest";
-    else if (muscle === "shoulders") icon = "shoulders";
-    else if (muscle === "quads") icon = "quads";
-    else if (muscle === "glutes") icon = "glutes";
-    else if (muscle === "hamstrings") icon = "hamstring";
-    else if (muscle === "calves") icon = "calves";
-    // Legacy generic icons — no per-muscle close-up yet.
-    else if (muscle === "core" || muscle === "abs") icon = "abs";
-    else if (muscle === "legs") icon = "leg";
+    seen.add(icon);
+    iconKeys.push(icon);
+    if (iconKeys.length === MAX_MUSCLE_ICONS) break;
+  }
 
-    if (icon && !iconKeys.includes(icon)) {
-      iconKeys.push(icon);
-    }
-  });
-
-  return iconKeys.slice(0, 4);
+  return iconKeys;
 };
 
 /**
@@ -531,6 +549,25 @@ function applyExerciseOrder<T extends { id: string; sort_order: number }>(
 }
 
 /**
+ * Buckets planned sets by their parent `program_day_exercise_id`.
+ *
+ * Pushes into a locally-owned accumulator instead of rebuilding it with
+ * `[...current, set]` on every row — that spread made the grouping O(sets²) per
+ * exercise. Insertion order is preserved, which callers depend on:
+ * `mapExerciseList` hands the bucket straight to `formatSetSummary` /
+ * `deriveTargetLabel` (which read `sets[0]`) without sorting first.
+ */
+function groupSetsByExerciseId(
+  sets: PlannedExerciseSetRow[],
+): Record<string, PlannedExerciseSetRow[]> {
+  const byExerciseId: Record<string, PlannedExerciseSetRow[]> = {};
+  for (const set of sets) {
+    (byExerciseId[set.program_day_exercise_id] ??= []).push(set);
+  }
+  return byExerciseId;
+}
+
+/**
  * The info sheet's middle tile: planned reps ("12-18") for a lifting exercise,
  * or the planned duration ("45 SEC") for a timed one. Reads the first set,
  * matching how `formatSetSummary` builds the row's prescription line.
@@ -567,14 +604,7 @@ export function mapExerciseList(
   /** `goals.gender` — decides which demo clip the info sheet resolves to. */
   gender?: string | null,
 ): ExerciseListView {
-  const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
-    (acc, set) => {
-      const current = acc[set.program_day_exercise_id] ?? [];
-      acc[set.program_day_exercise_id] = [...current, set];
-      return acc;
-    },
-    {},
-  );
+  const setsByExerciseId = groupSetsByExerciseId(data.sets);
   const libraryById = new Map(data.libraryExercises.map((exercise) => [exercise.id, exercise]));
   const mainSectionIds = new Set(
     data.sections
@@ -650,15 +680,18 @@ function buildPhases(
   currentWeek: ProgramWeekRow | undefined,
   language: string,
 ): WorkoutPlanPhaseView[] {
-  const uniquePhases = weeks.reduce<string[]>((acc, week) => {
+  // First-appearance order, deduped via a Set — the previous
+  // `acc.includes(label)` + `[...acc, label]` pair made this O(weeks²).
+  const seenPhases = new Set<string>();
+  const uniquePhases: string[] = [];
+  for (const week of weeks) {
     const label = getLocalizedText(week.focus_translations, language, week.focus ?? "");
 
-    if (label && !acc.includes(label)) {
-      return [...acc, label];
+    if (label && !seenPhases.has(label)) {
+      seenPhases.add(label);
+      uniquePhases.push(label);
     }
-
-    return acc;
-  }, []);
+  }
 
   const currentPhaseLabel = currentWeek
     ? getLocalizedText(currentWeek.focus_translations, language, currentWeek.focus ?? "")
@@ -862,14 +895,7 @@ export function mapSessionWorkout(
   // For every other program (Male Beginner, Female Beginner, Female Golden Era)
   // we flatten the planned sets: same weight across all sets, working kind only.
   const usesTopSetBackoff = options.usesTopSetBackoff === true;
-  const setsByExerciseId = data.sets.reduce<Record<string, PlannedExerciseSetRow[]>>(
-    (acc, set) => {
-      const current = acc[set.program_day_exercise_id] ?? [];
-      acc[set.program_day_exercise_id] = [...current, set];
-      return acc;
-    },
-    {},
-  );
+  const setsByExerciseId = groupSetsByExerciseId(data.sets);
   const libraryById = new Map(data.libraryExercises.map((ex) => [ex.id, ex]));
 
   const sortedSections = [...data.sections].sort((a, b) => a.sort_order - b.sort_order);
