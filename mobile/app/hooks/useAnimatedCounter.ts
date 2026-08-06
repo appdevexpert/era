@@ -14,7 +14,7 @@ interface Options {
    * Step the displayed number rounds to. 1 = smooth, 5 / 10 cuts re-render
    * cost when the counter spans hundreds of units (e.g. kcal targets).
    */
-  step?: number;
+  step?: number; 
 }
 
 /**
