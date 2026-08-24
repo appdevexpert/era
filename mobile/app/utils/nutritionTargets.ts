@@ -4,7 +4,7 @@ import type { DailyMacroTargets, MealPhaseKey } from "@/app/types/nutrition";
 // Daily kcal/macro target calculator.
 //   Mifflin-St Jeor BMR
 //     × activity multiplier (mapped from goals.level)
-//     + workout-goal kcal offset (build_muscle / lose_fat / …)
+//     + workout-goal kcal offset (buildMuscle / loseFat / …)
 //     + nutrition-phase kcal offset (hypertrophy / strength / peak)
 //
 // Returns whole grams, never below a 1200 kcal floor.
@@ -33,12 +33,21 @@ const ACTIVITY_MULTIPLIER: Record<string, number> = {
   advanced: 1.75,
 };
 
+// `GoalStep` writes the camelCase option key into `goals.goal`
+// ("buildMuscle"), so these maps must key on camelCase — snake_case keys
+// silently missed and every user fell back to a 0 kcal offset.
 const GOAL_KCAL_OFFSET: Record<string, number> = {
-  build_muscle: 400,
-  lose_fat: -500,
-  get_stronger: 300,
-  general_fitness: 0,
+  buildMuscle: 400,
+  loseFat: -500,
+  getStronger: 300,
+  generalFitness: 0,
 };
+
+/** snake_case → camelCase, so any legacy `lose_fat` row still matches. */
+function normalizeGoal(goal: string | null): string {
+  if (!goal) return "";
+  return goal.replace(/_([a-z])/g, (_match, c: string) => c.toUpperCase());
+}
 
 const DEFAULT_AGE = 25;
 const KG_PER_LB = 0.45359237;
@@ -56,7 +65,7 @@ const WATER_ACTIVITY_BONUS_ML: Record<string, number> = {
   advanced: 700,
 };
 const WATER_GOAL_BONUS_ML: Record<string, number> = {
-  lose_fat: 250,
+  loseFat: 250,
 };
 const WATER_ROUND_TO_ML = 250;
 const WATER_FLOOR_ML = 1500;
@@ -90,8 +99,10 @@ export function calculateDailyTargets(
     5 * age +
     (goals.gender === "female" ? -161 : 5);
 
+  const goalKey = normalizeGoal(goals.goal);
+
   const activity = ACTIVITY_MULTIPLIER[goals.level ?? ""] ?? 1.55;
-  const goalOffset = GOAL_KCAL_OFFSET[goals.goal ?? ""] ?? 0;
+  const goalOffset = GOAL_KCAL_OFFSET[goalKey] ?? 0;
   const phaseOffset = phaseKey ? PHASE_KCAL_OFFSET[phaseKey] : 0;
 
   const kcal = Math.max(
@@ -110,7 +121,7 @@ export function calculateDailyTargets(
   // rounded to a clean 250 ml step.
   const waterBase = weightKg * ML_PER_KG;
   const waterActivity = WATER_ACTIVITY_BONUS_ML[goals.level ?? ""] ?? 0;
-  const waterGoal = WATER_GOAL_BONUS_ML[goals.goal ?? ""] ?? 0;
+  const waterGoal = WATER_GOAL_BONUS_ML[goalKey] ?? 0;
   const water_ml = clamp(
     roundToStep(waterBase + waterActivity + waterGoal, WATER_ROUND_TO_ML),
     WATER_FLOOR_ML,

@@ -8,7 +8,7 @@ import NutritionWeekDays, { type NutritionDayItem } from "./NutritionWeekDays";
 
 interface NutritionWeekHeaderProps {
   title: string;
-  /** Gold uppercase weekday name shown under the phase title (Figma 6671:7147). */
+  /** Gold uppercase label shown under the title (Figma 6671:7147). */
   subtitle?: string;
   currentWeek: number;
   totalWeeks: number;

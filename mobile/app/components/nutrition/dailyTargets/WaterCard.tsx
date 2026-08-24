@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 16,
     overflow: "hidden",
-    minHeight: CARD_MIN_HEIGHT + 15,
+    minHeight: CARD_MIN_HEIGHT,
     justifyContent: "space-between",
   },
   topRow: {

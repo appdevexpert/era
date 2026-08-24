@@ -547,6 +547,14 @@ const nb = {
     carbsLabel: "Karbohydrater",
     fatsLabel: "Fett",
     gramsLeft: "{{value}}g igjen",
+    // Header og hero-tilstander for dagens mål-kort (Figma 7535:4316 /
+    // 7536:4296 / 7535:4634). "over"-tekst vises kun når målet er passert.
+    targetLabel: "Mål",
+    kcalValue: "{{value}} kcal",
+    kcalRemaining: "{{value}} kcal gjenstår",
+    targetReached: "Mål nådd",
+    kcalOverTarget: "{{value}} kcal over målet",
+    gramsOver: "{{value}} g over",
     mealsTitle: "Måltidslogger og forslag",
     logMeal: "Logg måltid",
     suggestedTag: "{{meal}} • Foreslått",
@@ -564,6 +572,9 @@ const nb = {
     phaseHypertrophy: "Hypertrofi",
     phaseStrength: "Styrke",
     phasePeak: "Peak",
+    // Ernæringsheader — gull-etikett over brukerens onboarding-mål.
+    goalLabel: "Ernæringsmål",
+    goalFallback: "Balansert ernæring",
     waterConsumption: "Vanninntak i dag",
     waterValue: "{{value}} ml",
     waterIncrement: "{{value}} ml",

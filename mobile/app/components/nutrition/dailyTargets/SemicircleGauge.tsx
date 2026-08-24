@@ -9,6 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
 import {
+  OVER,
   SEMICIRCLE_GAUGE_SIZE,
   SEMICIRCLE_RENDER_HEIGHT,
   SEMICIRCLE_VIEWBOX_H,
@@ -41,26 +42,33 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 interface SemicircleGaugeProps {
   value: number;
   total: number;
+  /**
+   * Past the target — segments render flat salmon instead of the gold
+   * gradient (Figma 7535:4634). The arc is fully lit in this state, so the
+   * dim track colour never shows.
+   */
+  over?: boolean;
 }
 
 interface SegmentProps {
   d: string;
   index: number;
   ratio: SharedValue<number>;
+  fill: string;
 }
 
 /** Each segment fades from dim → lit as the animated ratio crosses its slice of the arc. */
-const Segment = ({ d, index, ratio }: SegmentProps) => {
+const Segment = ({ d, index, ratio, fill }: SegmentProps) => {
   const start = index / SEGMENT_COUNT;
   const end = (index + 1) / SEGMENT_COUNT;
   const animatedProps = useAnimatedProps(() => ({
     fillOpacity: interpolate(ratio.value, [start, end], [DIM_OPACITY, LIT_OPACITY], "clamp"),
   }));
-  return <AnimatedPath d={d} fill="url(#capsuleLit)" animatedProps={animatedProps} />;
+  return <AnimatedPath d={d} fill={fill} animatedProps={animatedProps} />;
 };
 
 /** Semicircle of 11 capsule segments. Animates smoothly as value/total changes. */
-const SemicircleGauge = ({ value, total }: SemicircleGaugeProps) => {
+const SemicircleGauge = ({ value, total, over }: SemicircleGaugeProps) => {
   const target = total > 0 ? Math.min(value / total, 1) : 0;
   const ratio = useSharedValue(target);
 
@@ -92,7 +100,13 @@ const SemicircleGauge = ({ value, total }: SemicircleGaugeProps) => {
         </SvgLinearGradient>
       </Defs>
       {CAPSULE_PATHS.map((d, i) => (
-        <Segment key={i} d={d} index={i} ratio={ratio} />
+        <Segment
+          key={i}
+          d={d}
+          index={i}
+          ratio={ratio}
+          fill={over ? OVER : "url(#capsuleLit)"}
+        />
       ))}
     </Svg>
   );

@@ -547,6 +547,14 @@ const en = {
     carbsLabel: "Carbs",
     fatsLabel: "Fats",
     gramsLeft: "{{value}}g left",
+    // Daily targets card header + hero states (Figma 7535:4316 / 7536:4296
+    // / 7535:4634). "over" copy only appears once intake passes the target.
+    targetLabel: "Target",
+    kcalValue: "{{value}}kCal",
+    kcalRemaining: "{{value}}kCal remaining",
+    targetReached: "Target reached",
+    kcalOverTarget: "{{value}}kCal over target",
+    gramsOver: "{{value}}g over",
     mealsTitle: "Meals Logs & Suggestions",
     logMeal: "Log Meal",
     suggestedTag: "{{meal}} • Suggested",
@@ -564,6 +572,9 @@ const en = {
     phaseHypertrophy: "Hypertrophy",
     phaseStrength: "Strength",
     phasePeak: "Peak",
+    // Nutrition header — gold label above the user's onboarding goal.
+    goalLabel: "Nutrition Goal",
+    goalFallback: "Balanced Nutrition",
     waterConsumption: "Water consumption today",
     waterValue: "{{value}} ml",
     waterIncrement: "{{value}}ml",

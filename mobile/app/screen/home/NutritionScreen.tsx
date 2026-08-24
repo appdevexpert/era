@@ -22,7 +22,6 @@ import MealsTimelineSkeleton from "@/app/components/skeleton/MealsTimelineSkelet
 import { FONTS } from "@/app/constants/fonts";
 import { MealBreakfast } from "@/assets/icons";
 import {
-  selectActivePhaseKey,
   selectCanGoNextWeek,
   selectCanGoPrevWeek,
   selectDailyTargets,
@@ -87,6 +86,15 @@ const TAG_TO_CATEGORY: Record<MealTag, MealCategoryEnum> = {
   dinner: "dinner",
 };
 
+// Onboarding "What drives you?" option keys (GoalStep). Guards the header
+// title against a stale or unknown `goals.goal` value from the DB.
+const GOAL_OPTION_KEYS: readonly string[] = [
+  "buildMuscle",
+  "loseFat",
+  "getStronger",
+  "generalFitness",
+];
+
 const NutritionScreen = () => {
   const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
@@ -102,7 +110,9 @@ const NutritionScreen = () => {
 
   const status = useSelector(selectNutritionStatus);
   const selectedDate = useSelector(selectSelectedDate);
-  const phaseKey = useSelector(selectActivePhaseKey);
+  const onboardingGoal = useSelector(
+    (state: RootState) => state.onboarding.goalData.goal as string | null,
+  );
   const currentWeek = useSelector(selectSelectedWeekNumber);
   const targets = useSelector(selectDailyTargets);
   const totals = useSelector(selectDailyTotals);
@@ -209,19 +219,15 @@ const NutritionScreen = () => {
 
   // -------- Header data ---------------------------------------------
 
-  const phaseTitle = useMemo(() => {
-    if (phaseKey === "strength") return t("nutrition.phaseStrength");
-    if (phaseKey === "peak") return t("nutrition.phasePeak");
-    return t("nutrition.phaseHypertrophy");
-  }, [phaseKey, t]);
-
-  // Figma node 6671:7147 — gold uppercase weekday under the phase title,
-  // localized via the device weekday name (Thursday / torsdag) and force-
-  // uppercased at render time so the styling stays consistent across locales.
-  const selectedWeekdayName = useMemo(() => {
-    const d = new Date(selectedDate);
-    return d.toLocaleDateString(i18n.language, { weekday: "long" });
-  }, [i18n.language, selectedDate]);
+  // The header echoes the onboarding "What drives you?" answer instead of the
+  // training phase. `goals.goal` stores the camelCase option key written by
+  // GoalStep, so it maps straight onto the onboarding locale strings.
+  const goalTitle = useMemo(() => {
+    if (onboardingGoal && GOAL_OPTION_KEYS.includes(onboardingGoal)) {
+      return t(`onboarding.steps.goal.options.${onboardingGoal}`);
+    }
+    return t("nutrition.goalFallback");
+  }, [onboardingGoal, t]);
 
   // -------- Handlers -------------------------------------------------
 
@@ -389,8 +395,8 @@ const NutritionScreen = () => {
         />
 
         <NutritionWeekHeader
-          title={phaseTitle}
-          subtitle={selectedWeekdayName}
+          title={goalTitle}
+          subtitle={t("nutrition.goalLabel")}
           currentWeek={currentWeek}
           totalWeeks={12}
           days={days}

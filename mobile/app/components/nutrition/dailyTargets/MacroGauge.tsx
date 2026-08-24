@@ -7,14 +7,17 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
 import {
-  GOLD,
   GOLD_DIM,
+  GOLD_RING_BOTTOM,
+  GOLD_RING_TOP,
   MACRO_BRIGHT_STROKE,
   MACRO_DIM_STROKE,
   MACRO_GAUGE_HEIGHT,
   MACRO_GAUGE_VIEWBOX_H,
   MACRO_GAUGE_VIEWBOX_W,
   MACRO_GAUGE_WIDTH,
+  OVER_RING_BOTTOM,
+  OVER_RING_TOP,
 } from "./tokens";
 
 // Exact gauge path from Figma — open rounded rectangle with a gap at the top.
@@ -38,9 +41,11 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 interface MacroGaugeProps {
   value: number;
   total: number;
+  /** Past this macro's target — the ring gradient turns salmon. */
+  over?: boolean;
 }
 
-const MacroGauge = ({ value, total }: MacroGaugeProps) => {
+const MacroGauge = ({ value, total, over }: MacroGaugeProps) => {
   const target = total > 0 ? Math.min(value / total, 1) : 0;
   const filledLength = useSharedValue(target * GAUGE_PERIMETER);
 
@@ -50,6 +55,8 @@ const MacroGauge = ({ value, total }: MacroGaugeProps) => {
       easing: Easing.out(Easing.cubic),
     });
   }, [filledLength, target]);
+
+  const gradientId = over ? "macroOver" : "macroLit";
 
   const animatedProps = useAnimatedProps(() => ({
     // Space-separated string form — react-native-svg parses this on the
@@ -64,9 +71,12 @@ const MacroGauge = ({ value, total }: MacroGaugeProps) => {
       viewBox={`0 0 ${MACRO_GAUGE_VIEWBOX_W} ${MACRO_GAUGE_VIEWBOX_H}`}
     >
       <Defs>
-        <SvgLinearGradient id="macroLit" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#F5D77F" />
-          <Stop offset="1" stopColor={GOLD} />
+        {/* Distinct ids per colour — three gauges render side by side and
+            react-native-svg has leaked duplicate defs ids across <Svg> roots
+            before, which would paint an over-target ring gold. */}
+        <SvgLinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={over ? OVER_RING_TOP : GOLD_RING_TOP} />
+          <Stop offset="1" stopColor={over ? OVER_RING_BOTTOM : GOLD_RING_BOTTOM} />
         </SvgLinearGradient>
       </Defs>
       {/* Background dim track */}
@@ -80,7 +90,7 @@ const MacroGauge = ({ value, total }: MacroGaugeProps) => {
       {/* Animated filled stroke — always mounted so the dasharray can tween from/to 0. */}
       <AnimatedPath
         d={GAUGE_PATH}
-        stroke="url(#macroLit)"
+        stroke={`url(#${gradientId})`}
         strokeWidth={MACRO_BRIGHT_STROKE}
         fill="none"
         strokeLinecap="round"

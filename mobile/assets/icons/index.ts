@@ -68,6 +68,7 @@ export { default as ChartGold } from "./chart-gold.svg";
 export { default as MicLargeIcon } from "./mic-large.svg";
 export { default as SkipNext } from "./skip-next.svg";
 export { default as FireGold } from "./fire-gold.svg";
+export { default as FireOver } from "./fire-over.svg";
 export { default as FireRing } from "./fire-ring.svg";
 export { default as NutrientBeans } from "./nutrient-beans.svg";
 export { default as NutrientWheat } from "./nutrient-wheat.svg";
