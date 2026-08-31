@@ -1,6 +1,8 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import { FONTS } from "@/app/constants/fonts";
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -14,6 +16,7 @@ export interface AdjustmentInfoBottomSheetRef {
 
 const AdjustmentInfoBottomSheet = forwardRef<AdjustmentInfoBottomSheetRef>(
   function AdjustmentInfoBottomSheet(_props, ref) {
+    const insets = useSafeAreaInsets();
     const sheetRef = useRef<BottomSheetModal>(null);
     const [title, setTitle] = useState("");
     const [message, setMessage] = useState("");
@@ -48,7 +51,16 @@ const AdjustmentInfoBottomSheet = forwardRef<AdjustmentInfoBottomSheetRef>(
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >
-        <BottomSheetView style={styles.content}>
+        <SheetBackHandler />
+        <BottomSheetView
+          style={[
+            // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+            // bar, so the last row needs the inset on top of its designed
+            // padding. Math.max keeps the design on devices that report none.
+            styles.content,
+            { paddingBottom: Math.max(60, insets.bottom + 16) },
+          ]}
+        >
           <View style={styles.titleSection}>
             <Text style={styles.title}>{title}</Text>
           </View>

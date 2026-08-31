@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -177,6 +178,11 @@ const PODIUM_STYLE: Record<1 | 2 | 3, PodiumStyle> = {
   },
 };
 
+const PODIUM_AVATAR_SIZE = 80;
+const AWARD_BADGE_SIZE = 36;
+/** How far the badge sits past the avatar's right edge. */
+const AWARD_BADGE_OVERHANG = 8;
+
 const ORDINAL: Record<1 | 2 | 3, string> = { 1: "st", 2: "nd", 3: "rd" };
 
 const PodiumCap = ({ rank }: { rank: 1 | 2 | 3 }) => {
@@ -201,30 +207,37 @@ const PodiumColumn = ({
   return (
     <View style={[styles.podiumCol, { width: s.width }]}>
       <View style={styles.podiumPersonWrap}>
-        <Avatar
-          size={80}
-          border={PODIUM_BORDER[rank]}
-          borderWidth={rank === 1 ? 1.333 : 1}
-          uri={entry?.avatarUrl}
-          name={entry?.displayName ?? fallbackName}
-        />
+        {/* The badge overhangs the avatar, so it lives in a box built to hold
+            it. It used to be absolutely positioned against this whole wrap at
+            right: -8 — outside the parent's bounds, which iOS renders happily
+            and Android clips, and which also drifted with the name's width
+            since the wrap is only as wide as its widest child. */}
+        <View style={styles.avatarWrap}>
+          <Avatar
+            size={PODIUM_AVATAR_SIZE}
+            border={PODIUM_BORDER[rank]}
+            borderWidth={rank === 1 ? 1.333 : 1}
+            uri={entry?.avatarUrl}
+            name={entry?.displayName ?? fallbackName}
+          />
+          <Image
+            source={
+              rank === 1
+                ? TrophyBadgeGold
+                : rank === 2
+                  ? TrophyBadgeSilver
+                  : TrophyBadgeBronze
+            }
+            style={styles.awardBadge}
+            resizeMode="contain"
+          />
+        </View>
         <Text style={styles.podiumName} numberOfLines={1}>
           {entry?.displayName ?? fallbackName}
         </Text>
         <Text style={[styles.podiumPts, { color: PODIUM_PTS_COLOR[rank] }]}>
           {entry?.totalPoints ?? 0} pts
         </Text>
-        <Image
-          source={
-            rank === 1
-              ? TrophyBadgeGold
-              : rank === 2
-                ? TrophyBadgeSilver
-                : TrophyBadgeBronze
-          }
-          style={styles.awardBadge}
-          resizeMode="contain"
-        />
       </View>
 
       {/* 3D top cap — trapezoid with sloped edges depending on position */}
@@ -493,7 +506,12 @@ const LeaderboardScreen = () => {
       <BlurView
         intensity={24}
         tint="dark"
-        style={[styles.header, { paddingTop: insets.top + 8 }]}
+        experimentalBlurMethod="dimezisBlurView"
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 8 },
+          Platform.OS === "android" && { backgroundColor: "rgba(20,20,20,0.92)" },
+        ]}
       >
         <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
           <ProfileBackChevron width={24} height={24} />
@@ -577,14 +595,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  // Overhang room on BOTH sides so the avatar still sits dead-centre in the
+  // column while the badge has somewhere to go.
+  avatarWrap: {
+    width: PODIUM_AVATAR_SIZE + AWARD_BADGE_OVERHANG * 2,
+    // Height stays exactly the avatar's, so nothing below it shifts. The badge
+    // tucks into the avatar's bottom-right corner rather than hanging past it.
+    height: PODIUM_AVATAR_SIZE,
+    alignItems: "center",
+  },
   awardBadge: {
     position: "absolute",
-    right: -8,
-    top: "50%",
-    marginTop: -18,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    right: 0,
+    bottom: 0,
+    width: AWARD_BADGE_SIZE,
+    height: AWARD_BADGE_SIZE,
+    borderRadius: AWARD_BADGE_SIZE / 2,
     overflow: "hidden",
   },
   // Body sits flush against the cap. Laurel + ordinal share the same wrapper

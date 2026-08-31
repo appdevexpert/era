@@ -6,7 +6,9 @@ import { useWorkoutSession } from "@/app/hooks/useWorkoutSession";
 import { useSessionTimer } from "@/app/hooks/useSessionTimer";
 import { useWallClockCountdown } from "@/app/hooks/useWallClockCountdown";
 import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
-import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
+import WorkoutLogHeader, {
+  estimateWorkoutLogHeaderHeight,
+} from "@/app/components/workout/WorkoutLogHeader";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -126,6 +128,11 @@ const ringStyles = StyleSheet.create({
 
 const CardioTimerScreen = () => {
   const insets = useSafeAreaInsets();
+  // Expanded height of the overlay header — seeded with the estimate so the
+  // first frame lands close, then replaced by the real measurement on layout.
+  const [headerHeight, setHeaderHeight] = useState(() =>
+    estimateWorkoutLogHeaderHeight(insets.top, false),
+  );
   const route = useRoute<RouteProp<HomeStackParamList, "CardioTimer">>();
   const navigation = useNavigation();
   const { t } = useTranslation();
@@ -206,29 +213,15 @@ const CardioTimerScreen = () => {
 
   return (
     <View style={styles.root}>
-      <WorkoutLogHeader
-        exerciseName={exerciseName}
-        exerciseCategory={exerciseCategory}
-        exerciseIndex={exerciseIndex}
-        totalExercises={totalExercises}
-        timer={sessionTimerText}
-        activeSet={0}
-        sets={1}
-        canAddSet={false}
-        onAddSet={() => undefined}
-        onBack={() => endWorkoutSheetRef.current?.show()}
-        scrollY={scrollY}
-        topInset={insets.top}
-        showSets={false}
-      />
-
       <Animated.ScrollView
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 100 },
+          // The header is an overlay now, so the list has to reserve its
+          // measured height plus the usual 16px breathing room.
+          { paddingTop: headerHeight + 16, paddingBottom: insets.bottom + 100 },
         ]}
       >
         {/* Stat cards */}
@@ -279,6 +272,23 @@ const CardioTimerScreen = () => {
           </PressableScale>
         </View>
       </Animated.ScrollView>
+
+      <WorkoutLogHeader
+        exerciseName={exerciseName}
+        exerciseCategory={exerciseCategory}
+        exerciseIndex={exerciseIndex}
+        totalExercises={totalExercises}
+        timer={sessionTimerText}
+        activeSet={0}
+        sets={1}
+        canAddSet={false}
+        onAddSet={() => undefined}
+        onBack={() => endWorkoutSheetRef.current?.show()}
+        scrollY={scrollY}
+        topInset={insets.top}
+        showSets={false}
+        onHeightChange={setHeaderHeight}
+      />
 
       {/* Bottom fade */}
       <LinearGradient
@@ -357,7 +367,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 16,
   },
   statsRow: {
     flexDirection: "row",

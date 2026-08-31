@@ -9,7 +9,7 @@ import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { ComponentType, useEffect } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-screens/experimental";
 import Animated, {
@@ -199,13 +199,17 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 29.867,
     overflow: "hidden",
+    // GlassFill has no real frosted-glass on Android (expo-glass-effect is
+    // iOS-only), so every pill gets a solid dark base here. iOS keeps
+    // transparent so the real glass shows through.
+    backgroundColor: Platform.OS === "android" ? "rgba(20,20,20,10)" : "transparent",
   },
   activeSize: {
     flex: 1,
   },
   inactiveSize: {
     width: 56,
-    backgroundColor: "rgba(17, 17, 17, 0.2)",
+    backgroundColor: Platform.OS === "android" ? "rgba(20,20,20,0.9)" : "rgba(17, 17, 17, 0.2)",
   },
   glassFill: {
     ...StyleSheet.absoluteFillObject,

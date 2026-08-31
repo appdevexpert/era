@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef } from "react";
 import {
   Animated,
   ImageBackground,
+  Keyboard,
   StyleSheet,
   Text,
   View,
@@ -154,11 +155,17 @@ const WorkoutCountdownScreen = () => {
   // sheet so the user can decide whether to wrap up or keep going.
   // During the ramp itself (no session yet) we just let the back-press
   // pop the screen — nothing to "end" yet.
+  // First-back-dismisses-keyboard: if the IME is up, drop the keyboard and
+  // stay on the screen. A second back opens the End Workout sheet.
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (allowLeaveRef.current) return;
       if (!hasStarted.current) return;
       e.preventDefault();
+      if (Keyboard.isVisible()) {
+        Keyboard.dismiss();
+        return;
+      }
       endWorkoutSheetRef.current?.show();
     });
     return unsubscribe;

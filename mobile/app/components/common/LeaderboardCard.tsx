@@ -4,8 +4,9 @@ import { LeaderboardChevron } from "@/assets/icons";
 import { LeaderboardTrophy } from "@/assets/images";
 import { LinearGradient } from "expo-linear-gradient";
 import { GlassView } from "expo-glass-effect";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
+import { getGlassFallbackStyle } from "@/app/components/common/GlassFill";
 
 interface LeaderboardCardProps {
   title: string;
@@ -16,11 +17,15 @@ interface LeaderboardCardProps {
 const LeaderboardCard = ({ title, subtitle, onPress }: LeaderboardCardProps) => (
   <PressableScale onPress={onPress} style={styles.card}>
     <View style={styles.bgClip} pointerEvents="none">
-      <GlassView
-        glassEffectStyle="regular"
-        colorScheme="dark"
-        style={StyleSheet.absoluteFill}
-      />
+      {Platform.OS === "ios" ? (
+        <GlassView
+          glassEffectStyle="regular"
+          colorScheme="dark"
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, getGlassFallbackStyle("regular", "dark")]} />
+      )}
       <LinearGradient
         colors={["rgba(201,168,76,0.25)", "rgba(241,203,48,0.25)"]}
         start={{ x: 0.5, y: 0 }}

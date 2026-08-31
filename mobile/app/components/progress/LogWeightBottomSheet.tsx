@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import CalendarMonth from "@/app/components/common/CalendarMonth";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
 import WeightRuler from "@/app/components/workout/WeightRuler";
@@ -25,6 +26,7 @@ import {
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -67,6 +69,7 @@ const LogWeightBottomSheet = forwardRef<
   LogWeightBottomSheetRef,
   LogWeightBottomSheetProps
 >(function LogWeightBottomSheet({ initialKg = 65, onLog }, ref) {
+  const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t, i18n } = useTranslation();
 
@@ -149,6 +152,7 @@ const LogWeightBottomSheet = forwardRef<
       backgroundStyle={styles.sheetBg}
       handleIndicatorStyle={styles.handle}
     >
+      <SheetBackHandler />
       {/* Decorative gold glow blobs — subtle gold tint bleeding from the edges */}
       <View pointerEvents="none" style={styles.glowTopLeft}>
         <LinearGradient
@@ -177,7 +181,15 @@ const LogWeightBottomSheet = forwardRef<
         />
       </View>
 
-      <BottomSheetView style={styles.content}>
+      <BottomSheetView
+        style={[
+          // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+          // bar, so the last row needs the inset on top of its designed
+          // padding. Math.max keeps the design on devices that report none.
+          styles.content,
+          { paddingBottom: Math.max(42, insets.bottom + 16) },
+        ]}
+      >
         <View style={styles.inner}>
           {/* Header — title swaps with the mode; the date row is tappable and
               opens the calendar picker. */}

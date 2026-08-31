@@ -4,13 +4,17 @@ import { FONTS } from "@/app/constants/fonts";
 import { verticalScale } from "@/app/utils/responsive";
 import { ProfileBackChevron } from "@/assets/icons";
 import { useNavigation } from "@react-navigation/native";
+import { useCallback } from "react";
 import {
+  Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type LegalSection = {
@@ -26,6 +30,7 @@ interface LegalDocumentScreenProps {
   intro: string;
   sections: LegalSection[];
   contactLabel: string;
+  /** Support address. Doubles as the mailto: target for the contact card. */
   contactValue: string;
 }
 
@@ -41,6 +46,21 @@ const LegalDocumentScreen = ({
 }: LegalDocumentScreenProps) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { t } = useTranslation();
+
+  const handleContactPress = useCallback(async () => {
+    try {
+      await Linking.openURL(`mailto:${contactValue}`);
+    } catch {
+      // openURL rejects when nothing can handle mailto: — a simulator with no
+      // mail account, or a device where Mail was removed. Show the address
+      // rather than letting the tap look broken.
+      Alert.alert(
+        contactLabel,
+        t("profile.legal.contactUnavailable", { email: contactValue }),
+      );
+    }
+  }, [contactLabel, contactValue, t]);
 
   return (
     <View style={styles.root}>
@@ -78,10 +98,16 @@ const LegalDocumentScreen = ({
           ))}
         </View>
 
-        <View style={styles.contactCard}>
+        {/* Opens the mail composer — the card used to be inert markup. */}
+        <PressableScale
+          onPress={handleContactPress}
+          accessibilityRole="link"
+          accessibilityLabel={`${contactLabel}: ${contactValue}`}
+          style={styles.contactCard}
+        >
           <Text style={styles.contactLabel}>{contactLabel.toUpperCase()}</Text>
           <Text style={styles.contactValue}>{contactValue}</Text>
-        </View>
+        </PressableScale>
       </ScrollView>
 
       <ScreenFades topExtra={80} bottomExtra={60} />

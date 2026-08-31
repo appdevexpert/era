@@ -2,7 +2,9 @@ import EntitlementGate from "@/app/components/common/EntitlementGate";
 import CompleteSetBar from "@/app/components/workout/CompleteSetBar";
 import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import ExerciseCompletedBottomSheet from "@/app/components/workout/ExerciseCompletedBottomSheet";
-import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
+import WorkoutLogHeader, {
+  estimateWorkoutLogHeaderHeight,
+} from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
@@ -13,7 +15,7 @@ import { BottomSheetModal } from "@gorhom/bottom-sheet";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Keyboard, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +34,11 @@ const formatStopwatch = (ms: number) => {
 
 const TimerLogScreen = () => {
   const insets = useSafeAreaInsets();
+  // Expanded height of the overlay header — seeded with the estimate so the
+  // first frame lands close, then replaced by the real measurement on layout.
+  const [headerHeight, setHeaderHeight] = useState(() =>
+    estimateWorkoutLogHeaderHeight(insets.top),
+  );
   const route = useRoute<RouteProp<HomeStackParamList, "TimerLog">>();
   const navigation = useNavigation();
   const { t } = useTranslation();
@@ -56,10 +63,16 @@ const TimerLogScreen = () => {
     void ensureSessionHydrated();
   }, [ensureSessionHydrated]);
 
+  // First-back-dismisses-keyboard: if the IME is up, drop the keyboard and
+  // stay on the screen. A second back opens the End Workout sheet.
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (allowLeaveRef.current) return;
       e.preventDefault();
+      if (Keyboard.isVisible()) {
+        Keyboard.dismiss();
+        return;
+      }
       endWorkoutSheetRef.current?.show();
     });
     return unsubscribe;
@@ -179,28 +192,15 @@ const TimerLogScreen = () => {
 
   return (
     <View style={styles.root}>
-      <WorkoutLogHeader
-        exerciseName={exerciseName}
-        exerciseCategory={exerciseCategory}
-        exerciseIndex={exerciseIndex}
-        totalExercises={totalExercises}
-        timer={sessionTimer}
-        activeSet={activeSet}
-        sets={sets}
-        canAddSet={canAddSet}
-        onAddSet={handleAddSet}
-        onBack={() => endWorkoutSheetRef.current?.show()}
-        scrollY={scrollY}
-        topInset={insets.top}
-      />
-
       <Animated.ScrollView
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 100 },
+          // The header is an overlay now, so the list has to reserve its
+          // measured height plus the usual 16px breathing room.
+          { paddingTop: headerHeight + 16, paddingBottom: insets.bottom + 100 },
         ]}
       >
         {/* Stat cards */}
@@ -251,6 +251,22 @@ const TimerLogScreen = () => {
         </View>
       </Animated.ScrollView>
 
+      <WorkoutLogHeader
+        exerciseName={exerciseName}
+        exerciseCategory={exerciseCategory}
+        exerciseIndex={exerciseIndex}
+        totalExercises={totalExercises}
+        timer={sessionTimer}
+        activeSet={activeSet}
+        sets={sets}
+        canAddSet={canAddSet}
+        onAddSet={handleAddSet}
+        onBack={() => endWorkoutSheetRef.current?.show()}
+        scrollY={scrollY}
+        topInset={insets.top}
+        onHeightChange={setHeaderHeight}
+      />
+
       {/* Bottom fade */}
       <LinearGradient
         pointerEvents="none"
@@ -294,7 +310,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 16,
   },
   statsRow: {
     flexDirection: "row",

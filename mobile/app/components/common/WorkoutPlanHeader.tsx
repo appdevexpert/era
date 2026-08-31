@@ -12,7 +12,7 @@ import {
 } from "@/assets/icons";
 import { BlurView } from "expo-blur";
 import type { FC } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -67,35 +67,11 @@ const WorkoutPlanHeader = ({ navigation, route }: NativeStackHeaderProps) => {
   const muscles = params?.muscles;
   const hasIcons = muscles && muscles.length > 0;
 
-  return (
-    <BlurView intensity={24} tint="dark" style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.content}>
-        {hasIcons ? (
-          <View style={styles.row}>
-            <View style={styles.left}>
-              <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
-                <ArrowBack width={24} height={24} />
-              </PressableScale>
-              <View style={styles.textBlock}>
-                <Text style={styles.subtitle}>{subtitle}</Text>
-                <Text style={styles.title}>{title}</Text>
-              </View>
-            </View>
-            <View style={styles.muscleGrid}>
-              {muscles.map((key) => {
-                const figmaKey = FIGMA_BADGES[key];
-                if (figmaKey) {
-                  return <MuscleHighlightBadge key={key} muscle={figmaKey} />;
-                }
-                const LegacyIcon = LEGACY_ICONS[key];
-                return LegacyIcon ? (
-                  <LegacyCircle key={key} Icon={LegacyIcon} />
-                ) : null;
-              })}
-            </View>
-          </View>
-        ) : (
-          <>
+  const content = (
+    <View style={styles.content}>
+      {hasIcons ? (
+        <View style={styles.row}>
+          <View style={styles.left}>
             <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
               <ArrowBack width={24} height={24} />
             </PressableScale>
@@ -103,9 +79,60 @@ const WorkoutPlanHeader = ({ navigation, route }: NativeStackHeaderProps) => {
               <Text style={styles.subtitle}>{subtitle}</Text>
               <Text style={styles.title}>{title}</Text>
             </View>
-          </>
-        )}
+          </View>
+          <View style={styles.muscleGrid}>
+            {muscles.map((key) => {
+              const figmaKey = FIGMA_BADGES[key];
+              if (figmaKey) {
+                return <MuscleHighlightBadge key={key} muscle={figmaKey} />;
+              }
+              const LegacyIcon = LEGACY_ICONS[key];
+              return LegacyIcon ? (
+                <LegacyCircle key={key} Icon={LegacyIcon} />
+              ) : null;
+            })}
+          </View>
+        </View>
+      ) : (
+        <>
+          <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
+            <ArrowBack width={24} height={24} />
+          </PressableScale>
+          <View style={styles.textBlock}>
+            <Text style={styles.subtitle}>{subtitle}</Text>
+            <Text style={styles.title}>{title}</Text>
+          </View>
+        </>
+      )}
+    </View>
+  );
+
+  // Android's blur (dimezisBlurView) only softens what scrolls behind the
+  // header — the container background never lands on top of it, so titles and
+  // day pills stayed legible through the bar. Use an opaque surface there;
+  // it matches every screen root that mounts this header (#0A0A0A). iOS keeps
+  // the real glass blur.
+  if (Platform.OS === "android") {
+    return (
+      <View
+        style={[
+          styles.container,
+          styles.containerAndroid,
+          { paddingTop: insets.top },
+        ]}
+      >
+        {content}
       </View>
+    );
+  }
+
+  return (
+    <BlurView
+      intensity={24}
+      tint="dark"
+      style={[styles.container, { paddingTop: insets.top }]}
+    >
+      {content}
     </BlurView>
   );
 };
@@ -117,6 +144,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(17,17,17,0.6)",
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral.charcoal,
+  },
+  containerAndroid: {
+    backgroundColor: COLORS.neutral.black2,
   },
   content: {
     paddingHorizontal: 24,

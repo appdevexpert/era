@@ -40,9 +40,27 @@ export type WorkoutBootstrapData = {
   userExerciseOrderByDay: Record<string, string[]>;
 };
 
+/**
+ * Stable, user-facing failure reasons. We store a CODE, never a message: the
+ * raw text used to reach the UI verbatim, so an offline user saw the JS
+ * internals ("TypeError: Network request failed") on the first attempt and a
+ * hardcoded English "Network error" on the retry — two different strings for
+ * one condition, neither translated. Screens localize the code at render time.
+ */
+export type WorkoutErrorCode = "network" | "unknown";
+
+/** Fetch failures surface differently per layer; match them all to "network". */
+const NETWORK_ERROR_PATTERNS =
+  /network request failed|failed to fetch|network error|networkerror|timeout|abort/i;
+
+export const toWorkoutErrorCode = (error: unknown): WorkoutErrorCode => {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return NETWORK_ERROR_PATTERNS.test(message) ? "network" : "unknown";
+};
+
 interface WorkoutState {
   status: LoadingState;
-  error: string | null;
+  error: WorkoutErrorCode | null;
   userId: string | null;
   programId: string | null;
   overview: WorkoutOverviewData | null;
@@ -120,7 +138,7 @@ type LoadWorkoutBootstrapArgs = {
 export const loadWorkoutBootstrap = createAsyncThunk<
   WorkoutBootstrapData,
   LoadWorkoutBootstrapArgs,
-  { rejectValue: string; state: RootState }
+  { rejectValue: WorkoutErrorCode; state: RootState }
 >("workout/loadBootstrap", async (args, { rejectWithValue, getState, dispatch }) => {
   try {
     const userId = getState().auth.user?.id ?? null;
@@ -152,9 +170,7 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       args?.programId ?? (userId ? await resolveUserProgramId() : null);
 
     if (!targetProgramId) {
-      return rejectWithValue(
-        "Network error",
-      );
+      return rejectWithValue("network");
     }
 
     const overview = await getWorkoutOverview(targetProgramId);
@@ -239,9 +255,9 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       userExerciseOrderByDay,
     };
   } catch (error) {
-    return rejectWithValue(
-      error instanceof Error ? error.message : "Unable to load workout.",
-    );
+    // Keep the raw error in the log — the UI only ever sees the code now.
+    console.warn("[workout] loadWorkoutBootstrap failed", error);
+    return rejectWithValue(toWorkoutErrorCode(error));
   }
 });
 
@@ -539,7 +555,7 @@ const workoutSlice = createSlice({
     });
     builder.addCase(loadWorkoutBootstrap.rejected, (state, action) => {
       state.status = "failed";
-      state.error = action.payload ?? "Unable to load workout.";
+      state.error = action.payload ?? "unknown";
     });
     builder.addCase(signOutThunk.fulfilled, () => initialState);
   },

@@ -5,7 +5,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import Svg, { Defs, LinearGradient as SvgGradient, Stop, Text as SvgText } from "react-native-svg";
-import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import GlassFill from "@/app/components/common/GlassFill";
 import { AuthStackParamList } from "@/app/navigation/types";
@@ -21,13 +21,12 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 const BUTTON_HEIGHT = 70;
 const CIRCLE_SIZE = 62;
 const CIRCLE_MARGIN = 4;
-const MAX_SLIDE = 354 - CIRCLE_SIZE - CIRCLE_MARGIN * 2;
-const TRIGGER_THRESHOLD = MAX_SLIDE * 0.5;
+// Horizontal inset of the bottom stack. The slide track is the screen width
+// minus this on both sides, so both must stay in sync.
+const H_PADDING = 20;
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, "GetStarted">;
 
@@ -36,6 +35,12 @@ const GetStarted = () => {
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  // Derive the circle's travel from the real button width instead of a fixed
+  // Figma track, otherwise it overshoots the button on narrow devices and gets
+  // clipped by the button's overflow: "hidden".
+  const maxSlide = width - H_PADDING * 2 - CIRCLE_SIZE - CIRCLE_MARGIN * 2;
 
   const translateX = useSharedValue(0);
   const hasNavigated = useSharedValue(false);
@@ -51,12 +56,12 @@ const GetStarted = () => {
     .activeOffsetX(10)
     .failOffsetY([-20, 20])
     .onUpdate((e) => {
-      translateX.value = Math.min(Math.max(e.translationX, 0), MAX_SLIDE);
+      translateX.value = Math.min(Math.max(e.translationX, 0), maxSlide);
     })
     .onEnd(() => {
-      if (translateX.value > TRIGGER_THRESHOLD && !hasNavigated.value) {
+      if (translateX.value > maxSlide * 0.5 && !hasNavigated.value) {
         hasNavigated.value = true;
-        translateX.value = withSpring(MAX_SLIDE, {
+        translateX.value = withSpring(maxSlide, {
           damping: 20,
           stiffness: 200,
         });
@@ -75,9 +80,9 @@ const GetStarted = () => {
   }));
 
   const textStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateX.value, [0, MAX_SLIDE * 0.6], [1, 0]),
+    opacity: interpolate(translateX.value, [0, maxSlide * 0.6], [1, 0]),
     transform: [
-      { translateX: interpolate(translateX.value, [0, MAX_SLIDE], [0, MAX_SLIDE * 0.3]) },
+      { translateX: interpolate(translateX.value, [0, maxSlide], [0, maxSlide * 0.3]) },
     ],
   }));
 
@@ -88,11 +93,11 @@ const GetStarted = () => {
         source={IntroBackground}
         style={styles.backgroundImage}
         contentFit="cover"
-        contentPosition="bottom"
+        contentPosition={{ right: 0, bottom: 0 }}
       />
 
       {/* ERA Title */}
-      <View style={styles.titleContainer}>
+      <View style={[styles.titleContainer, { top: height * 0.18 }]}>
         <Svg height={110} width={300}>
           <Defs>
             <SvgGradient id="eraGrad" x1="0.5" y1="0" x2="0.5" y2="1">
@@ -153,16 +158,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.neutral.black,
   },
+  // Fills the screen on every device. The art is anchored bottom-right because
+  // the dumbbell sits in the photo's right half — cover crops the empty (near
+  // black) left side, which keeps the subject whole at any aspect ratio.
   backgroundImage: {
-    position: "absolute",
-    top: 0,
-    left: -147,
-    width: 583,
-    height: 874,
+    ...StyleSheet.absoluteFillObject,
   },
   titleContainer: {
     position: "absolute",
-    top: SCREEN_HEIGHT * 0.18,
     alignSelf: "center",
   },
   titleText: {
@@ -176,7 +179,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: 20,
+    paddingHorizontal: H_PADDING,
     gap: 12,
   },
   quoteCard: {

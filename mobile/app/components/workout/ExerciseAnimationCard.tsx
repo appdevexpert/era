@@ -4,7 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { NavigationContext } from "@react-navigation/native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useContext, useEffect, useState } from "react";
-import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { AppState, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -65,6 +65,36 @@ const useIsScreenFocused = (): boolean => {
 };
 
 /**
+ * Whether the app itself is in the foreground.
+ *
+ * expo-video pauses playback natively when the app is backgrounded (the player
+ * is not `staysActiveInBackground`, on purpose — a demo clip has no business
+ * decoding while the user is in another app). Nothing resumes it on return
+ * though: the play/pause effect below only reacts to focus/source changes, and
+ * none of those change across a background round-trip, so the clip stayed
+ * frozen. Feeding app state into that effect makes the return trip replay it.
+ *
+ * Initial value deliberately treats anything that is not "background" as
+ * foreground — `AppState.currentState` can still read "unknown" on the first
+ * render at cold start, and no "change" event follows if the app was already
+ * active, which would leave the clip paused forever.
+ */
+const useIsAppForegrounded = (): boolean => {
+  const [isForegrounded, setIsForegrounded] = useState(
+    () => AppState.currentState !== "background",
+  );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) =>
+      setIsForegrounded(state === "active"),
+    );
+    return () => sub.remove();
+  }, []);
+
+  return isForegrounded;
+};
+
+/**
  * The exercise demo tile that sits under the Workout Log header.
  *
  * Silent and control-free while playing — it reads as an animation, not a video
@@ -77,6 +107,7 @@ const ExerciseAnimationCard = ({
   style,
 }: ExerciseAnimationCardProps) => {
   const isFocused = useIsScreenFocused();
+  const isForegrounded = useIsAppForegrounded();
   const [isReady, setIsReady] = useState(false);
   const [hasEnded, setHasEnded] = useState(false);
   const videoOpacity = useSharedValue(0);
@@ -125,15 +156,16 @@ const ExerciseAnimationCard = ({
 
   // Stop decoding while the user is on the rest timer / another exercise —
   // WorkoutLogScreen stays mounted in the stack, so without this the clip
-  // would keep looping off-screen for the whole session.
+  // would keep looping off-screen for the whole session. `isForegrounded` also
+  // drives the resume after the app comes back from the background.
   useEffect(() => {
     if (!video) return;
-    if (isFocused && !hasEnded) {
+    if (isFocused && isForegrounded && !hasEnded) {
       player.play();
     } else {
       player.pause();
     }
-  }, [isFocused, player, video, hasEnded]);
+  }, [isFocused, isForegrounded, player, video, hasEnded]);
 
   const replay = useCallback(() => {
     setHasEnded(false);

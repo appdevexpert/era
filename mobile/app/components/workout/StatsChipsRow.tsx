@@ -35,7 +35,7 @@ const StatsChipsRow = ({
       <PressableScale style={styles.chip} onPress={onPointsPress}>
         <LinearGradient
           colors={["rgba(201, 168, 76, 0.25)", "rgba(201, 168, 76, 0.25)"]}
-          style={[StyleSheet.absoluteFill, { borderRadius: 90 }]}
+          style={styles.chipGradient}
         />
         <View style={styles.iconWrap}>
           <StatCoin width={24} height={24} />
@@ -44,31 +44,29 @@ const StatsChipsRow = ({
       </PressableScale>
 
       {/* Streak chip */}
-      <PressableScale onPress={onStreakPress}>
+      <PressableScale style={styles.chip} onPress={onStreakPress}>
         <LinearGradient
           colors={["rgba(221, 62, 68, 0.08)", "rgba(247, 224, 111, 0.08)"]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={styles.chip}
-        >
-          <View style={[styles.iconWrap, styles.fireIconBg]}>
-            <StatFire width={32} height={32} />
-          </View>
-          <Text style={styles.chipLabel}>{t("workout.ui.streak", { count: streakDays })}</Text>
-        </LinearGradient>
+          style={styles.chipGradient}
+        />
+        <View style={[styles.iconWrap, styles.fireIconBg]}>
+          <StatFire width={32} height={32} />
+        </View>
+        <Text style={styles.chipLabel}>{t("workout.ui.streak", { count: streakDays })}</Text>
       </PressableScale>
 
       {/* Workout Plan chip */}
-      <PressableScale onPress={onWorkoutPlanPress}>
+      <PressableScale style={styles.chip} onPress={onWorkoutPlanPress}>
         <LinearGradient
           colors={["rgba(4, 95, 16, 0.3)", "rgba(225, 182, 0, 0.3)"]}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
-          style={styles.chip}
-        >
-          <StatWorkoutPlan width={32} height={32} />
-          <Text style={styles.chipLabel}>{t("workout.ui.workoutPlan")}</Text>
-        </LinearGradient>
+          style={styles.chipGradient}
+        />
+        <StatWorkoutPlan width={32} height={32} />
+        <Text style={styles.chipLabel}>{t("workout.ui.workoutPlan")}</Text>
       </PressableScale>
     </ScrollView>
   );
@@ -94,6 +92,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 90,
     overflow: "hidden",
+  },
+  chipGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 90,
   },
   iconWrap: {
     width: 32,

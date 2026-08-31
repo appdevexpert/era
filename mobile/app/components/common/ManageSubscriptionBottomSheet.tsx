@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import GlassFill from "@/app/components/common/GlassFill";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -18,6 +19,7 @@ import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "r
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export interface ManageSubscriptionBottomSheetRef {
   show: () => void;
@@ -60,6 +62,7 @@ const ManageSubscriptionBottomSheet = forwardRef<
   ManageSubscriptionBottomSheetRef,
   ManageSubscriptionBottomSheetProps
 >(function ManageSubscriptionBottomSheet({ onUpgrade }, ref) {
+  const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
   const navigation =
@@ -138,13 +141,20 @@ const ManageSubscriptionBottomSheet = forwardRef<
       backgroundStyle={styles.sheetBg}
       handleIndicatorStyle={styles.handle}
     >
+      <SheetBackHandler />
       <View style={styles.titleSection}>
         <Text style={styles.title}>{t("profile.subscription.title")}</Text>
       </View>
 
       <View style={styles.scrollWrap}>
         <BottomSheetScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+            // bar, so the last row needs the inset on top of its designed
+            // padding. Math.max keeps the design on devices that report none.
+            styles.scrollContent,
+            { paddingBottom: Math.max(80, insets.bottom + 16) },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
           overScrollMode="never"

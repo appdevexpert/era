@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import TintButton from "@/app/components/common/TintButton";
 import { FONTS } from "@/app/constants/fonts";
 import {
@@ -9,6 +10,7 @@ import {
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export interface EndWorkoutBottomSheetRef {
   show: () => void;
@@ -23,6 +25,7 @@ interface EndWorkoutBottomSheetProps {
 const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBottomSheetProps>(
   function EndWorkoutBottomSheet({ onEnd, onKeepGoing }, ref) {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const sheetRef = useRef<BottomSheetModal>(null);
     // While onEnd is running (finishSession → Supabase completeSession +
     // record_workout_completion RPC + PR check), we keep the sheet open and
@@ -81,7 +84,16 @@ const EndWorkoutBottomSheet = forwardRef<EndWorkoutBottomSheetRef, EndWorkoutBot
         handleIndicatorStyle={styles.handle}
         onDismiss={handleDismiss}
       >
-        <BottomSheetView style={styles.content}>
+        <SheetBackHandler enabled={!ending} />
+        <BottomSheetView
+          style={[
+            // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+            // bar, so the last row needs the inset on top of its designed
+            // padding. Math.max keeps the design on devices that report none.
+            styles.content,
+            { paddingBottom: Math.max(42, insets.bottom + 16) },
+          ]}
+        >
           <View style={styles.upper}>
             <View style={styles.titleSection}>
               <Text style={styles.title}>{t("workout.ui.endWorkoutTitle")}</Text>

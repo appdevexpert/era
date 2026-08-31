@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
 import WeightRuler from "@/app/components/workout/WeightRuler";
 import { COLORS } from "@/app/constants/colors";
@@ -21,6 +22,7 @@ import {
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -91,6 +93,7 @@ const LogHeightBottomSheet = forwardRef<
   { initialCm = 180, initialUnit, initialValue, onLog },
   ref,
 ) {
+  const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
   const dateLabel = useMemo(formatToday, []);
@@ -168,6 +171,7 @@ const LogHeightBottomSheet = forwardRef<
       backgroundStyle={styles.sheetBg}
       handleIndicatorStyle={styles.handle}
     >
+      <SheetBackHandler />
       {/* Decorative gold glow blobs */}
       <View pointerEvents="none" style={styles.glowTopLeft}>
         <LinearGradient
@@ -196,7 +200,15 @@ const LogHeightBottomSheet = forwardRef<
         />
       </View>
 
-      <BottomSheetView style={styles.content}>
+      <BottomSheetView
+        style={[
+          // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+          // bar, so the last row needs the inset on top of its designed
+          // padding. Math.max keeps the design on devices that report none.
+          styles.content,
+          { paddingBottom: Math.max(42, insets.bottom + 16) },
+        ]}
+      >
         <View style={styles.inner}>
           <View style={styles.titleSection}>
             <Text style={styles.title}>{t("progress.logHeightSheet.title")}</Text>

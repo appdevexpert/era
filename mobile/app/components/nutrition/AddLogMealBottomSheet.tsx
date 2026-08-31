@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import AddComment from "@/app/components/common/AddComment";
 import GlassFill from "@/app/components/common/GlassFill";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
@@ -530,6 +531,7 @@ const AddLogMealBottomSheet = forwardRef<AddLogMealBottomSheetRef, AddLogMealBot
         handleIndicatorStyle={styles.handle}
         onDismiss={() => ExpoSpeechRecognitionModule.stop()}
       >
+        <SheetBackHandler />
         <BottomSheetScrollView
           ref={scrollRef}
           contentContainerStyle={styles.scrollContent}

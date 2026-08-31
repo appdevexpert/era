@@ -16,8 +16,10 @@ import {
   useRef,
 } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export interface AddPhotoBottomSheetRef {
   show: () => void;
@@ -59,6 +61,7 @@ const AddPhotoBottomSheet = forwardRef<
   AddPhotoBottomSheetRef,
   AddPhotoBottomSheetProps
 >(function AddPhotoBottomSheet({ dateLabel, onPhotoSelected }, ref) {
+  const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
   const { t } = useTranslation();
   const resolvedDate = useMemo(() => dateLabel ?? formatToday(), [dateLabel]);
@@ -139,7 +142,16 @@ const AddPhotoBottomSheet = forwardRef<
       backgroundStyle={styles.sheetBg}
       handleIndicatorStyle={styles.handle}
     >
-      <BottomSheetView style={styles.content}>
+      <SheetBackHandler onBack={() => sheetRef.current?.dismiss()} />
+      <BottomSheetView
+        style={[
+          // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+          // bar, so the last row needs the inset on top of its designed
+          // padding. Math.max keeps the design on devices that report none.
+          styles.content,
+          { paddingBottom: Math.max(60, insets.bottom + 16) },
+        ]}
+      >
         <View style={styles.titleSection}>
           <Text style={styles.title}>{t("progress.addPhoto.title")}</Text>
           <Text style={styles.dateText}>{resolvedDate}</Text>

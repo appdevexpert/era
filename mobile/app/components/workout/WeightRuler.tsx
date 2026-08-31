@@ -173,7 +173,21 @@ const WeightRuler = ({
           }}
         >
           {Array.from({ length: tickCount + 1 }, (_, i) => (
-            <View key={i} style={[styles.tick, getTickStyle(i)]} />
+            <View
+              key={i}
+              style={[
+                styles.tick,
+                getTickStyle(i),
+                // Every tick carries a trailing margin to space out the next
+                // one. On the LAST tick there is no next one, so that margin
+                // becomes scrollable content past the end of the range — a full
+                // TICK_SPACING of it, which is also a snapToInterval point. The
+                // ruler therefore settles with the indicator one tick beyond the
+                // final tick, pointing at empty space (the reported value still
+                // clamps, so the number looks right while the ruler disagrees).
+                i === tickCount && styles.tickLast,
+              ]}
+            />
           ))}
         </Animated.ScrollView>
       </View>
@@ -235,6 +249,9 @@ const styles = StyleSheet.create({
     width: 1.5,
     marginRight: TICK_SPACING - 1.5,
     borderRadius: 0.5,
+  },
+  tickLast: {
+    marginRight: 0,
   },
   tickSmall: {
     height: 10,

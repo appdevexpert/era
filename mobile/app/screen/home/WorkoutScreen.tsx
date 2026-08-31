@@ -41,6 +41,7 @@ import { useSelector } from "react-redux";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCycleCompletionTrigger } from "@/app/hooks/useCycleCompletionTrigger";
+import { workoutErrorMessage } from "@/app/utils/workoutErrors";
 
 const WorkoutScreen = () => {
   const insets = useSafeAreaInsets();
@@ -142,7 +143,7 @@ const WorkoutScreen = () => {
   const displayName = user?.name || user?.email?.split("@")[0] || t("profile.fallbackName");
   const avatarInitial = displayName.charAt(0).toUpperCase();
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
-  const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+  const errorMessage = workoutErrorMessage(t, workoutError);
 
   // Reward state — read from the dedicated slice. Not persisted, so we
   // hydrate it from this screen on cold open (see useEffect below).
@@ -260,7 +261,11 @@ const WorkoutScreen = () => {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 16, paddingBottom: 100 },
+          // Clears the floating tab bar, which measures insets.bottom + 78
+          // (70 container + 8 margin, on top of its SafeAreaView bottom edge).
+          // A flat 100 ignored the inset, so the tail of the list sat behind the
+          // bar on any device with a nav bar. Matches the other three tab screens.
+          { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 120 },
         ]}
         showsVerticalScrollIndicator={false}
       >

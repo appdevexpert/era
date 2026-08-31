@@ -5,7 +5,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import PressableScale from "@/app/components/common/PressableScale";
 import GlassFill from "@/app/components/common/GlassFill";
@@ -28,8 +28,21 @@ const ProChartLockedCard = ({ requiredTier = "pro" }: ProChartLockedCardProps) =
 
   return (
     <View style={styles.overlay}>
-      <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={styles.dim} />
+      <BlurView
+        intensity={24}
+        tint="dark"
+        experimentalBlurMethod="dimezisBlurView"
+        style={StyleSheet.absoluteFill}
+      />
+      {/* Android's experimental blur is Android 12+ only and can be janky.
+          A near-opaque tint on Android guarantees the chart stays hidden on
+          every version. iOS keeps the softer 0.24 dim + real backdrop blur. */}
+      <View
+        style={[
+          styles.dim,
+          Platform.OS === "android" && { backgroundColor: "rgba(10,10,10,0.88)" },
+        ]}
+      />
 
       <View style={styles.copyBlock}>
         <View style={styles.iconBadge}>

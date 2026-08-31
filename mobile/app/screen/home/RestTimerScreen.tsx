@@ -7,7 +7,7 @@ import { useWallClockCountdown } from "@/app/hooks/useWallClockCountdown";
 import EndWorkoutBottomSheet, { type EndWorkoutBottomSheetRef } from "@/app/components/workout/EndWorkoutBottomSheet";
 import IconButton from "@/app/components/common/IconButton";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Keyboard, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -147,10 +147,16 @@ const RestTimerScreen = () => {
   const endWorkoutSheetRef = useRef<EndWorkoutBottomSheetRef>(null);
   const allowLeaveRef = useRef(false);
 
+  // First-back-dismisses-keyboard: if the IME is up, drop the keyboard and
+  // stay on the screen. A second back opens the End Workout sheet.
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (allowLeaveRef.current) return;
       e.preventDefault();
+      if (Keyboard.isVisible()) {
+        Keyboard.dismiss();
+        return;
+      }
       endWorkoutSheetRef.current?.show();
     });
     return unsubscribe;

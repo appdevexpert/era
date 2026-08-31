@@ -1,13 +1,15 @@
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { FireRing } from "@/assets/icons";
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import WeekDaySelector, { type DayItem } from "@/app/components/workout/WeekDaySelector";
 import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
-import { forwardRef, useCallback } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
@@ -29,6 +31,11 @@ const RING_SIZE = 140;
 const StreakBottomSheet = forwardRef<BottomSheetModal, StreakBottomSheetProps>(
   function StreakBottomSheet({ streak, days, exercises, minutes, points, onViewPoints }, ref) {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+    const sheetRef = useRef<BottomSheetModal>(null);
+    // Forward the internal ref through so parents keep calling
+    // `streakRef.current?.present()`/`dismiss()` unchanged.
+    useImperativeHandle(ref, () => sheetRef.current as BottomSheetModal, []);
 
     const renderBackdrop = useCallback(
       (props: BottomSheetBackdropProps) => (
@@ -45,14 +52,23 @@ const StreakBottomSheet = forwardRef<BottomSheetModal, StreakBottomSheetProps>(
 
     return (
       <BottomSheetModal
-        ref={ref}
-        snapPoints={["78%"]}
+        ref={sheetRef}
+        // Dynamic sizing lets the sheet grow to fit content instead of a
+        // fixed 78% — on Android phones with a tall system nav bar the old
+        // snap-point clipped the CTA off-screen.
+        enableDynamicSizing
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >
-        <BottomSheetView style={styles.content}>
+        <SheetBackHandler onBack={() => sheetRef.current?.dismiss()} />
+        <BottomSheetView
+          style={[
+            styles.content,
+            { paddingBottom: Math.max(32, insets.bottom + 16) },
+          ]}
+        >
           {/* Fire icon with ring */}
           <FireRing width={RING_SIZE} height={RING_SIZE} />
 

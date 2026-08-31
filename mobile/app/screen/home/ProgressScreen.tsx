@@ -433,11 +433,20 @@ const ProgressScreen = () => {
         ref={addPhotoSheetRef}
         onPhotoSelected={async (photo) => {
           if (uploadStatus === "uploading") return;
+
+          // Show the preview immediately with the local file URI so there's
+          // no dead gap between the picker closing and the preview opening.
+          // The upload runs in the background — the preview stays mounted.
+          photoPreviewSheetRef.current?.show({
+            source: { uri: photo.uri },
+            dateLabel: formatPhotoDate(new Date().toISOString()),
+          });
+
           const action = await dispatch(
             uploadProgressPhotoThunk({ localUri: photo.uri }),
           );
           if (uploadProgressPhotoThunk.fulfilled.match(action)) {
-            const { pointsAwarded, row } = action.payload;
+            const { pointsAwarded } = action.payload;
             Toast.show({
               type: "success",
               text2:
@@ -445,12 +454,6 @@ const ProgressScreen = () => {
                   ? t("progress.addPhoto.uploadedWithPoints", { points: pointsAwarded })
                   : t("progress.addPhoto.uploadedNoPoints"),
               visibilityTime: 2500,
-            });
-            photoPreviewSheetRef.current?.show({
-              source: row.signedUrl
-                ? { uri: row.signedUrl }
-                : { uri: photo.uri },
-              dateLabel: formatPhotoDate(row.createdAt),
             });
           } else {
             Toast.show({

@@ -1,8 +1,9 @@
 import { type FC, useEffect, useState } from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { Platform, StyleSheet, Text, View } from 'react-native'
 import PressableScale from '@/app/components/common/PressableScale'
 import { useTranslation } from 'react-i18next'
 import { GlassView } from 'expo-glass-effect'
+import { getGlassFallbackStyle } from '@/app/components/common/GlassFill'
 import { LinearGradient } from 'expo-linear-gradient'
 import type { SvgProps } from 'react-native-svg'
 import Animated, {
@@ -221,12 +222,19 @@ const MuscleChip = ({ focus, selected, onPress }: MuscleChipProps) => {
   return (
     <PressableScale onPress={onPress} style={styles.chipPressable}>
       <View style={styles.chipSurface}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="regular"
-          colorScheme="dark"
-          style={styles.glassFill}
-        />
+        {Platform.OS === "ios" ? (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            colorScheme="dark"
+            style={styles.glassFill}
+          />
+        ) : (
+          <View
+            pointerEvents="none"
+            style={[styles.glassFill, getGlassFallbackStyle("regular", "dark")]}
+          />
+        )}
 
         <Animated.View pointerEvents="none" style={[styles.selectedChipLayer, selectedLayerStyle]}>
           <LinearGradient
@@ -235,12 +243,19 @@ const MuscleChip = ({ focus, selected, onPress }: MuscleChipProps) => {
             end={{ x: 0.5, y: 1 }}
             style={styles.selectedChipGradient}
           >
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={styles.glassFill}
-            />
+            {Platform.OS === "ios" ? (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme="dark"
+                style={styles.glassFill}
+              />
+            ) : (
+              <View
+                pointerEvents="none"
+                style={[styles.glassFill, getGlassFallbackStyle("regular", "dark")]}
+              />
+            )}
           </LinearGradient>
         </Animated.View>
 
@@ -286,12 +301,19 @@ const BodySegment = ({ side, activeSide, onPress }: BodySegmentProps) => {
   return (
     <PressableScale onPress={onPress} style={styles.segment}>
       <View style={styles.segmentSurface}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle="regular"
-          colorScheme="dark"
-          style={styles.glassFill}
-        />
+        {Platform.OS === "ios" ? (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle="regular"
+            colorScheme="dark"
+            style={styles.glassFill}
+          />
+        ) : (
+          <View
+            pointerEvents="none"
+            style={[styles.glassFill, getGlassFallbackStyle("regular", "dark")]}
+          />
+        )}
         <Animated.View pointerEvents="none" style={[styles.selectedChipLayer, selectedLayerStyle]}>
           <LinearGradient
             colors={SEGMENT_SELECTED_COLORS}
@@ -299,12 +321,19 @@ const BodySegment = ({ side, activeSide, onPress }: BodySegmentProps) => {
             end={{ x: 0.5, y: 1 }}
             style={styles.segmentGradient}
           >
-            <GlassView
-              pointerEvents="none"
-              glassEffectStyle="regular"
-              colorScheme="dark"
-              style={styles.glassFill}
-            />
+            {Platform.OS === "ios" ? (
+              <GlassView
+                pointerEvents="none"
+                glassEffectStyle="regular"
+                colorScheme="dark"
+                style={styles.glassFill}
+              />
+            ) : (
+              <View
+                pointerEvents="none"
+                style={[styles.glassFill, getGlassFallbackStyle("regular", "dark")]}
+              />
+            )}
           </LinearGradient>
         </Animated.View>
 

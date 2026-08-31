@@ -2,8 +2,9 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import type { CompletedExerciseView, CompletedSetView } from "@/app/types/workout";
-import { horizontalScale, verticalScale } from "@/app/utils/responsive";
+import { horizontalScale } from "@/app/utils/responsive";
 import { FeedbackLight, FeedbackCorrect, FeedbackHeavy } from "@/assets/icons";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import type { FC } from "react";
 import { useMemo } from "react";
@@ -136,6 +137,7 @@ const SetCard = ({ set, language }: { set: CompletedSetView; language: string })
 
 const ExerciseDetailScreen = () => {
   const insets = useSafeAreaInsets();
+  const headerHeight = useHeaderHeight();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseDetail">>();
   const { t, i18n } = useTranslation();
 
@@ -158,7 +160,7 @@ const ExerciseDetailScreen = () => {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + verticalScale(130),
+            paddingTop: headerHeight + 16,
             paddingBottom: insets.bottom + 40,
           },
         ]}

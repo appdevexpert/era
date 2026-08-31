@@ -49,35 +49,41 @@ const PhotoStrip = ({ photos, onAddPhoto, onPhotoPress }: PhotoStripProps) => {
     );
   }
 
+  // The add card sits OUTSIDE the scroller so it stays put while the photos
+  // scroll past it — it used to be the strip's first item and slid away as soon
+  // as there were enough photos to scroll.
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.scroll}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <View style={styles.row}>
       <PressableScale style={styles.addCard} onPress={onAddPhoto}>
         <View style={styles.addIcon}>
           <CameraIcon width={24} height={24} />
         </View>
         <Text style={styles.addText}>{t("progress.addNewPhoto")}</Text>
       </PressableScale>
-      {photos.map((p) => (
-        <PressableScale
-          key={p.id}
-          style={styles.col}
-          onPress={() => onPhotoPress?.(p)}
-          disabled={!onPhotoPress}
-        >
-          {p.imageUri ? (
-            <Image source={{ uri: p.imageUri }} style={styles.thumb} resizeMode="cover" />
-          ) : (
-            <View style={styles.thumb} />
-          )}
-          <Text style={styles.date}>{p.date}</Text>
-        </PressableScale>
-      ))}
-    </ScrollView>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {photos.map((p) => (
+          <PressableScale
+            key={p.id}
+            style={styles.col}
+            onPress={() => onPhotoPress?.(p)}
+            disabled={!onPhotoPress}
+          >
+            {p.imageUri ? (
+              <Image source={{ uri: p.imageUri }} style={styles.thumb} resizeMode="cover" />
+            ) : (
+              <View style={styles.thumb} />
+            )}
+            <Text style={styles.date}>{p.date}</Text>
+          </PressableScale>
+        ))}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -116,10 +122,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // Edge-to-edge: negative margin cancels the screen's 16px horizontal padding;
-  // contentContainer puts it back so the first card aligns with the section header.
-  scroll: { marginHorizontal: -16 },
-  scrollContent: { flexDirection: "row", gap: 16, paddingHorizontal: 16 },
+  // The add card keeps the screen's 16px gutter on the left; the scroller runs
+  // past the right edge (negative margin cancels the screen padding) so photos
+  // slide off-screen rather than stopping short of it. `flex-start` keeps both
+  // columns top-aligned regardless of the add card's taller minHeight.
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 16,
+    marginRight: -16,
+  },
+  scroll: { flex: 1 },
+  // Trailing padding restores the gutter at the end of the scroll.
+  scrollContent: { flexDirection: "row", gap: 16, paddingRight: 16 },
   addCard: {
     width: 100,
     borderRadius: 16,

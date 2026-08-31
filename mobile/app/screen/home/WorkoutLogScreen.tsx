@@ -7,7 +7,9 @@ import RepsPicker from "@/app/components/workout/RepsPicker";
 import SetFeedback from "@/app/components/workout/SetFeedback";
 import SetStatCards from "@/app/components/workout/SetStatCards";
 import WeightRuler from "@/app/components/workout/WeightRuler";
-import WorkoutLogHeader from "@/app/components/workout/WorkoutLogHeader";
+import WorkoutLogHeader, {
+  estimateWorkoutLogHeaderHeight,
+} from "@/app/components/workout/WorkoutLogHeader";
 import { COLORS } from "@/app/constants/colors";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import { horizontalScale } from "@/app/utils/responsive";
@@ -29,8 +31,6 @@ import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
 import type { RootState } from "@/app/stores/store";
 import Animated, {
-  Extrapolation,
-  interpolate,
   runOnJS,
   useAnimatedRef,
   useAnimatedScrollHandler,
@@ -41,6 +41,11 @@ import Animated, {
 
 const WorkoutLogScreen = () => {
   const insets = useSafeAreaInsets();
+  // Expanded height of the overlay header — seeded with the estimate so the
+  // first frame lands close, then replaced by the real measurement on layout.
+  const [headerHeight, setHeaderHeight] = useState(() =>
+    estimateWorkoutLogHeaderHeight(insets.top),
+  );
   const route = useRoute<RouteProp<HomeStackParamList, "WorkoutLog">>();
   const navigation =
     useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
@@ -260,14 +265,24 @@ const WorkoutLogScreen = () => {
   // leave the workout (not via Complete Set / Next / End-Workout flow), we
   // surface the End Workout sheet instead of letting the screen pop. The
   // sheet's End / Keep Going buttons resolve the intent.
+  //
+  // First-back-dismisses-keyboard: if the comment input is focused or the
+  // IME is up, drop the keyboard and stay on the screen — the sheet would
+  // otherwise land behind an open keyboard on Android edge-to-edge builds.
+  // A second back with no keyboard opens the sheet as designed.
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (allowLeaveRef.current) return;
       e.preventDefault();
+      if (commentFocused.current || Keyboard.isVisible()) {
+        Keyboard.dismiss();
+        return;
+      }
       endWorkoutSheetRef.current?.show();
     });
     return unsubscribe;
   }, [navigation]);
+
 
   const handleEndWorkout = useCallback(async () => {
     allowLeaveRef.current = true;
@@ -290,8 +305,6 @@ const WorkoutLogScreen = () => {
         runOnJS(showEndWorkoutSheet)();
       }
     });
-
-  const COLLAPSE_DISTANCE = 60;
 
   const scrollY = useSharedValue(0);
   // keyboardOffset (animated) glides the bar/fade up with the keyboard.
@@ -341,18 +354,6 @@ const WorkoutLogScreen = () => {
     };
   }, [keyboardOffset, keyboardSpacer, scrollRef]);
 
-  const contentHoldStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: interpolate(
-          scrollY.value,
-          [0, COLLAPSE_DISTANCE],
-          [0, COLLAPSE_DISTANCE],
-          Extrapolation.CLAMP,
-        ),
-      },
-    ],
-  }));
   const keyboardSpacerStyle = useAnimatedStyle(
     () => ({ height: keyboardSpacer.value + barHeight }),
     [barHeight],
@@ -366,30 +367,20 @@ const WorkoutLogScreen = () => {
 
   return (
     <View style={styles.root}>
-      <WorkoutLogHeader
-        exerciseName={exerciseName}
-        exerciseCategory={exerciseCategory}
-        exerciseIndex={exerciseIndex}
-        totalExercises={totalExercises}
-        timer={timer}
-        activeSet={activeSet}
-        sets={sets}
-        canAddSet={canAddSet}
-        onAddSet={handleAddSet}
-        onBack={() => endWorkoutSheetRef.current?.show()}
-        scrollY={scrollY}
-        topInset={insets.top}
-      />
-
       <Animated.ScrollView
         ref={scrollRef}
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          // The header is an overlay now, so the list has to reserve its
+          // measured height plus the usual 10px breathing room.
+          { paddingTop: headerHeight + 10 },
+        ]}
       >
-        <Animated.View style={contentHoldStyle}>
+        <View>
           {/* Exercise demo animation — Figma "Exercise animation placement".
               Sits directly under the header, above the set stat cards. Renders
               nothing until a clip is uploaded for this exercise in the admin
@@ -476,8 +467,24 @@ const WorkoutLogScreen = () => {
           {/* Grows with the keyboard (+ bar height) so scrollToEnd lifts the
               comment to sit just above the floating Complete Set bar. */}
           <Animated.View style={keyboardSpacerStyle} />
-        </Animated.View>
+        </View>
       </Animated.ScrollView>
+
+      <WorkoutLogHeader
+        exerciseName={exerciseName}
+        exerciseCategory={exerciseCategory}
+        exerciseIndex={exerciseIndex}
+        totalExercises={totalExercises}
+        timer={timer}
+        activeSet={activeSet}
+        sets={sets}
+        canAddSet={canAddSet}
+        onAddSet={handleAddSet}
+        onBack={() => endWorkoutSheetRef.current?.show()}
+        scrollY={scrollY}
+        topInset={insets.top}
+        onHeightChange={setHeaderHeight}
+      />
 
       <Animated.View
         pointerEvents="none"
@@ -582,7 +589,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 10,
   },
   edgeSwipeArea: {
     position: "absolute",

@@ -3,7 +3,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { MuscleGroup } from "@/app/navigation/types";
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, Platform} from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 
 export interface DayItem {
@@ -160,6 +160,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    // Explicit width + minimum column gap so Android can't collapse the row
+    // to content width (which happens under an `alignItems: "center"` parent
+    // like the StreakBottomSheet). Without a min gap `space-between` has
+    // nothing to distribute and pills touch.
+    width: "100%",
+    columnGap: Platform.OS === "ios" ? 0 : 6,
   },
   glassFill: {
     ...StyleSheet.absoluteFillObject,
@@ -168,7 +174,7 @@ const styles = StyleSheet.create({
   pillBase: {
     alignItems: "center",
     gap: 4.6,
-    paddingHorizontal: 8,
+    paddingHorizontal: Platform.OS === "ios" ? 6 : 5,
     paddingVertical: 12,
     borderRadius: 76.899,
     overflow: "hidden",
@@ -181,7 +187,7 @@ const styles = StyleSheet.create({
   pillInactive: {
     alignItems: "center",
     gap: 4.6,
-    paddingHorizontal: 8,
+    paddingHorizontal: Platform.OS === "ios" ? 6 : 5,
     paddingVertical: 12,
     borderRadius: 76.899,
     borderWidth: 1.5,

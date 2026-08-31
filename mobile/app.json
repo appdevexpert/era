@@ -6,7 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon-era.png",
     "scheme": "erafit",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0A",
+    "androidNavigationBar": {
+      "barStyle": "light-content",
+      "enforceContrast": false
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -16,6 +21,10 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow ERA to use speech recognition to convert your voice into text.",
+        "NSMicrophoneUsageDescription": "Allow ERA to use the microphone to dictate workout notes."
       }
     },
     "android": {
@@ -27,7 +36,10 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.erafit",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "single",
@@ -91,6 +103,11 @@
     ],
     "experiments": {
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b5bb16f1-2c6c-45a7-93ee-48008b2beb50"
+      }
     }
   }
 }

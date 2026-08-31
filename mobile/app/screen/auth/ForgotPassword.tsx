@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -103,6 +104,10 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
 
   // --- Email request handler ---
   const handleSendEmail = () => {
+    // Drop the keyboard as soon as Continue is pressed so the "check your
+    // email" panel and the Back to Login action are visible without the user
+    // having to dismiss it themselves.
+    Keyboard.dismiss()
     dispatch(clearError())
     setValidationError(null)
     setEmailSent(false)
@@ -276,10 +281,30 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
           {validationError && (
             <Text style={styles.errorText}>{validationError}</Text>
           )}
+
+          {emailSent && !validationError && (
+            <View style={styles.sentPanel}>
+              <Text style={styles.sentTitle}>{t('auth.checkYourEmail')}</Text>
+              <Text style={styles.sentBody}>
+                {t('auth.resetLinkSent', { email: email.trim() })}
+              </Text>
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.buttonContainer}>
-          <PrimaryButton label={t('common.continue')} onPress={handleSendEmail} loading={isRequestLoading} />
+          <PrimaryButton
+            label={emailSent ? t('auth.resendLink') : t('common.continue')}
+            onPress={handleSendEmail}
+            loading={isRequestLoading}
+          />
+          <PressableScale
+            hitSlop={12}
+            onPress={() => navigation.navigate('Login')}
+            style={styles.backToLoginButton}
+          >
+            <Text style={styles.backToLoginText}>{t('auth.backToLogin')}</Text>
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     </GradientBackground>
@@ -347,6 +372,36 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     marginRight: horizontalScale(-2),
+  },
+  sentPanel: {
+    marginTop: verticalScale(24),
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    gap: 6,
+  },
+  sentTitle: {
+    fontFamily: FONTS.semiBold,
+    fontWeight: '600',
+    fontSize: 15,
+    color: COLORS.neutral.white,
+  },
+  sentBody: {
+    fontFamily: FONTS.regular,
+    fontWeight: '400',
+    fontSize: 14,
+    lineHeight: 19.6,
+    color: COLORS.alpha.white50,
+  },
+  backToLoginButton: {
+    marginTop: verticalScale(16),
+    alignSelf: 'center',
+  },
+  backToLoginText: {
+    fontFamily: FONTS.semiBold,
+    fontWeight: '600',
+    fontSize: 14,
+    color: COLORS.primary.dark,
   },
   errorText: {
     marginTop: verticalScale(16),

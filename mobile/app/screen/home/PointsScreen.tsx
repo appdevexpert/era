@@ -163,7 +163,12 @@ const PointsScreen = () => {
       <BlurView
         intensity={24}
         tint="dark"
-        style={[styles.header, { paddingTop: insets.top }]}
+        experimentalBlurMethod="dimezisBlurView"
+        style={[
+          styles.header,
+          { paddingTop: insets.top },
+          Platform.OS === "android" && { backgroundColor: "rgba(20,20,20,0.92)" },
+        ]}
       >
         <View style={styles.headerContent}>
           <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>

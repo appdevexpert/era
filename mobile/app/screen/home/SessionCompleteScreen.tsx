@@ -28,10 +28,27 @@ const TROPHY_SIZE = Math.round(SCREEN_WIDTH * 1.075);
 const TROPHY_TOP_OFFSET = -90;
 const TOP_GRADIENT_HEIGHT = 237;
 
+// Tallest a card needs to be: 12+12 padding + a two-line label (14.4 x 2) +
+// 6 gap + one line of value (43.2). Fixed so a card whose label wraps
+// ("Session Duration", "Nye rekorder") is the same size as one whose doesn't.
+const STAT_CARD_MIN_HEIGHT = 102;
+
 const StatCard = ({ label, value }: { label: string; value: string }) => (
   <View style={styles.statCard}>
-    <Text style={styles.statLabel}>{label}</Text>
-    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel} numberOfLines={2}>
+      {label}
+    </Text>
+    {/* A long duration like "156:42" overflowed the card and wrapped mid-value
+        ("156:4" / "2"), which also made this card taller than its neighbour and
+        left that one's number sitting at the top. Shrink to fit instead. */}
+    <Text
+      style={styles.statValue}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.6}
+    >
+      {value}
+    </Text>
   </View>
 );
 
@@ -273,13 +290,19 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
+    minHeight: STAT_CARD_MIN_HEIGHT,
     backgroundColor: COLORS.neutral.black3,
     borderWidth: 1,
     borderColor: COLORS.neutral.charcoal,
     borderRadius: 12,
-    paddingHorizontal: 24,
+    // 24 left barely 106pt for the value on a 360pt-wide screen — narrower than
+    // "156:42" renders at 36pt.
+    paddingHorizontal: 12,
     paddingVertical: 12,
     alignItems: "center",
+    // Cards in a row stretch to the tallest; centring keeps each one's content
+    // in the middle instead of pinned to the top of the stretched box.
+    justifyContent: "center",
     gap: 6,
   },
   statLabel: {

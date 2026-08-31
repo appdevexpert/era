@@ -32,6 +32,7 @@ import Svg, { Line } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { InfoCircleGold, MedalBadge } from "@/assets/icons";
 import ScreenFades from "@/app/components/common/ScreenFades";
+import { workoutErrorMessage } from "@/app/utils/workoutErrors";
 
 type DayPill = WorkoutPlanWeekView["days"][number];
 
@@ -186,18 +187,26 @@ const WeekSection = ({ week, isLast, onDayPress }: { week: WorkoutPlanWeekView; 
         <View style={[styles.daysCard, isLast && styles.daysCardNoTimeline]}>
           {rows.map((row, rowIndex) => {
             const isLastRow = rowIndex === rows.length - 1;
-            const fullRow = row.length === PILLS_PER_ROW && !isLastRow;
+            const filled = row.length + (isLastRow ? 1 : 0);
 
             return (
-              <View key={rowIndex} style={fullRow ? styles.daysRow : styles.daysRow2}>
+              <View key={rowIndex} style={styles.daysRow}>
                 {row.map((pill) => (
-                  <DayPillItem
+                  <View
                     key={`${week.weekNumber}-${pill.date}-${pill.dayLabel}`}
-                    pill={pill}
-                    onPress={() => onDayPress(pill)}
-                  />
+                    style={styles.dayCell}
+                  >
+                    <DayPillItem pill={pill} onPress={() => onDayPress(pill)} />
+                  </View>
                 ))}
-                {isLastRow && <WeekBadge weekNumber={week.weekNumber} />}
+                {isLastRow ? (
+                  <View style={styles.dayCell}>
+                    <WeekBadge weekNumber={week.weekNumber} />
+                  </View>
+                ) : null}
+                {Array.from({ length: PILLS_PER_ROW - filled }, (_, index) => (
+                  <View key={`spacer-${index}`} style={styles.dayCell} />
+                ))}
               </View>
             );
           })}
@@ -209,6 +218,11 @@ const WeekSection = ({ week, isLast, onDayPress }: { week: WorkoutPlanWeekView; 
 
 const RolledOverSection = ({ section, isLast, onDayPress, onInfoPress }: { section: WorkoutPlanRolledOverView; isLast: boolean; onDayPress: (pill: DayPill) => void; onInfoPress: () => void }) => {
   const { t } = useTranslation();
+
+  const rows: DayPill[][] = [];
+  for (let i = 0; i < section.days.length; i += PILLS_PER_ROW) {
+    rows.push(section.days.slice(i, i + PILLS_PER_ROW));
+  }
 
   return (
     <View style={[styles.weekSection, !section.isCurrent && styles.weekDimmed]}>
@@ -223,15 +237,18 @@ const RolledOverSection = ({ section, isLast, onDayPress, onInfoPress }: { secti
         {!isLast && <DashedTimeline isCurrentWeek={section.isCurrent} />}
 
         <View style={[styles.daysCard, isLast && styles.daysCardNoTimeline]}>
-          <View style={styles.daysRow2}>
-            {section.days.map((pill) => (
-              <DayPillItem
-                key={`rolled-${pill.programDayId}`}
-                pill={pill}
-                onPress={() => onDayPress(pill)}
-              />
-            ))}
-          </View>
+          {rows.map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.daysRow}>
+              {row.map((pill) => (
+                <View key={`rolled-${pill.programDayId}`} style={styles.dayCell}>
+                  <DayPillItem pill={pill} onPress={() => onDayPress(pill)} />
+                </View>
+              ))}
+              {Array.from({ length: PILLS_PER_ROW - row.length }, (_, index) => (
+                <View key={`spacer-${index}`} style={styles.dayCell} />
+              ))}
+            </View>
+          ))}
         </View>
       </View>
 
@@ -265,7 +282,7 @@ const WorkoutPlanScreen = () => {
   const workoutError = useSelector(selectWorkoutError);
   const hasWorkoutBootstrap = useSelector(selectHasWorkoutBootstrap);
   const isLoading = workoutStatus === "idle" || workoutStatus === "loading";
-  const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+  const errorMessage = workoutErrorMessage(t, workoutError);
 
   const adjustmentSheetRef = useRef<AdjustmentInfoBottomSheetRef>(null);
 
@@ -450,14 +467,18 @@ const styles = StyleSheet.create({
   daysCardNoTimeline: {
     marginLeft: 22,
   },
+  // Every row is PILLS_PER_ROW equal-width cells — partial rows are padded with
+  // empty cells — so pills sit in the same columns on every row and the week
+  // badge can never push the row past the card width (it did on Android, where
+  // 3 pills + badge + 32px gaps overflowed and squashed the pills).
   daysRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  daysRow2: {
-    flexDirection: "row",
-    gap: 32,
     alignItems: "center",
+  },
+  dayCell: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dayPillShadow: {
     shadowColor: "#000",
@@ -480,6 +501,7 @@ const styles = StyleSheet.create({
     borderRadius: 77,
   },
   dayDate: {
+    includeFontPadding: false,
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
@@ -497,6 +519,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dayText: {
+    includeFontPadding: false,
     fontFamily: FONTS.medium,
     fontSize: 12,
     fontWeight: "500",
@@ -524,6 +547,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   weekBadgeText: {
+    includeFontPadding: false,
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",

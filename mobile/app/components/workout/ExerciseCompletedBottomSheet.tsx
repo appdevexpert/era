@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import AddComment from "@/app/components/common/AddComment";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -50,6 +51,10 @@ type ExerciseCompletedBottomSheetProps = {
 const REVEAL_MARGIN = 8;
 const CONTINUE_BUTTON_HEIGHT = 53;
 const FOOTER_TOP_PADDING = 10;
+/** Breathing room under Continue: above the nav bar at rest, above the keys when typing. */
+const CONTINUE_BOTTOM_GAP = 12;
+/** Designed padding under the scroll content, before any safe-area inset. */
+const CONTENT_BOTTOM_PADDING = 20;
 
 const formatDuration = (seconds: number) => {
   const m = Math.floor(seconds / 60);
@@ -111,6 +116,18 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
     const footerStyle = useAnimatedStyle(() => ({
       transform: [{ translateY: -kbTranslate.value }],
     }));
+    // Continue sits directly on the sheet's bottom edge, and under edge-to-edge
+    // that edge is BEHIND the system nav bar — hence the inset. The footer only
+    // ever renders while the keyboard is up, so its gap is measured from the
+    // keys instead. Both are derived here because `restSnap` below has to add
+    // up to the same numbers the styles lay out.
+    const contentBottomPadding = Math.max(
+      CONTENT_BOTTOM_PADDING,
+      insets.bottom + CONTINUE_BOTTOM_GAP + 4,
+    );
+    const footerBottomPadding =
+      Math.max(CONTENT_BOTTOM_PADDING, insets.bottom) + CONTINUE_BOTTOM_GAP;
+
     const [comment, setComment] = useState(initialComment);
 
     const { format: formatWeight } = useWeightUnit();
@@ -154,7 +171,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
         node.measureInWindow((_x, y, _w, height) => {
           if (!height) return;
           const fallbackFooterHeight =
-            CONTINUE_BUTTON_HEIGHT + FOOTER_TOP_PADDING + (insets.bottom || 20);
+            CONTINUE_BUTTON_HEIGHT + FOOTER_TOP_PADDING + footerBottomPadding;
           const footerHeightForReveal = footerHeightRef.current || fallbackFooterHeight;
           const visibleBottom =
             windowHeight - keyboardHeight - footerHeightForReveal - REVEAL_MARGIN;
@@ -164,7 +181,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
           }
         });
       },
-      [insets.bottom, windowHeight],
+      [footerBottomPadding, windowHeight],
     );
 
     const handleFooterLayout = useCallback((e: LayoutChangeEvent) => {
@@ -249,7 +266,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
         return (
           <BottomSheetFooter {...props}>
             <Animated.View
-              style={[styles.footer, footerStyle, { paddingBottom: insets.bottom || 20 }]}
+              style={[styles.footer, footerStyle, { paddingBottom: footerBottomPadding }]}
               onLayout={handleFooterLayout}
             >
               <PressableScale style={styles.continueBtn} onPress={handleContinue}>
@@ -270,7 +287,7 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
           </BottomSheetFooter>
         );
       },
-      [footerStyle, handleContinue, handleFooterLayout, insets.bottom, keyboardVisible, t],
+      [footerBottomPadding, footerStyle, handleContinue, handleFooterLayout, keyboardVisible, t],
     );
 
     // Rest snap point derived synchronously from set count so the sheet opens at the correct
@@ -287,13 +304,12 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
         20 + // gap
         180 + // AddComment (label 19 + gap 8 + inputCard 144 + spacing)
         20 + // gap
-        53 + // Continue button
-        20 + // content paddingBottom
-        (insets.bottom || 20); // safe-area bottom
+        CONTINUE_BUTTON_HEIGHT + // Continue button
+        contentBottomPadding; // content padding, safe-area inset included
       return Math.round(
         Math.min(Math.max(contentHeight, 400), windowHeight * 0.85),
       );
-    }, [sets.length, insets.bottom, windowHeight]);
+    }, [sets.length, contentBottomPadding, windowHeight]);
 
     const snapPoints = useMemo<(string | number)[]>(() => [restSnap, "90%"], [restSnap]);
 
@@ -315,9 +331,13 @@ const ExerciseCompletedBottomSheet = forwardRef<BottomSheetModal, ExerciseComple
         handleIndicatorStyle={styles.handle}
         onDismiss={handleDismiss}
       >
+        <SheetBackHandler />
         <BottomSheetScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: contentBottomPadding },
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           onScroll={handleScroll}

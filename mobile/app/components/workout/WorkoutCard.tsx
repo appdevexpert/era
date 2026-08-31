@@ -2,11 +2,11 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import { StatStopwatch, StatStretching } from "@/assets/icons";
 import { WorkoutCard as WorkoutCardBg } from "@/assets/images";
-import GlassFill from "@/app/components/common/GlassFill";
+import GlassFill, { getGlassFallbackStyle } from "@/app/components/common/GlassFill";
 import StrengthProgressRing from "@/app/components/workout/StrengthProgressRing";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useTranslation } from "react-i18next";
 
@@ -114,16 +114,23 @@ const WorkoutCard = ({
 
       {/* Start / View button */}
       <PressableScale onPress={onStartPress} style={styles.startButton}>
-        <GlassView
-          pointerEvents="none"
-          glassEffectStyle={{
-            style: "clear",
-            animate: true,
-            animationDuration: 0.5,
-          }}
-          colorScheme="light"
-          style={styles.startGradient}
-        />
+        {Platform.OS === "ios" ? (
+          <GlassView
+            pointerEvents="none"
+            glassEffectStyle={{
+              style: "clear",
+              animate: true,
+              animationDuration: 0.5,
+            }}
+            colorScheme="light"
+            style={styles.startGradient}
+          />
+        ) : (
+          <View
+            pointerEvents="none"
+            style={[styles.startGradient, getGlassFallbackStyle("clear", "light")]}
+          />
+        )}
         <LinearGradient
           pointerEvents="none"
           colors={
@@ -203,7 +210,9 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: "500",
     color: COLORS.neutral.white,
-    lineHeight: 40,
+    // lineHeight must exceed fontSize (typically 1.2x) or Android clips
+    // descenders like the "g" in "Legs". Matches WorkoutScreen.title.
+    lineHeight: 48,
   },
   tagRow: {
     flexDirection: "row",
@@ -267,7 +276,7 @@ const styles = StyleSheet.create({
   startButton: {
     position: "absolute",
     right: 0,
-    top: "66%",
+    top: Platform.OS === "ios" ? "65%" : "62%",
     width: 100,
     height: 100,
     borderRadius: 139,

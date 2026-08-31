@@ -40,6 +40,7 @@ import { useAppDispatch } from "@/app/stores/store";
 import { EVENTS, logEvent } from "@/app/services/analyticsService";
 import { horizontalScale, responsiveFontSize, verticalScale } from "@/app/utils/responsive";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { workoutErrorMessage } from "@/app/utils/workoutErrors";
 
 type PlanGenerationProps = NativeStackScreenProps<
   PlanGenerationStackParamList,
@@ -442,7 +443,7 @@ const PlanGeneration = (_props: PlanGenerationProps) => {
           {isFailed ? (
             <View style={styles.errorContainer}>
               {workoutError ? (
-                <Text style={styles.errorText}>{workoutError}</Text>
+                <Text style={styles.errorText}>{workoutErrorMessage(t, workoutError)}</Text>
               ) : null}
               <PressableScale onPress={handleRetry} style={styles.retryButton}>
                 <Text style={styles.retryText}>

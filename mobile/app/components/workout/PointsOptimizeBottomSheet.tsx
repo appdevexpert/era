@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import { FONTS } from "@/app/constants/fonts";
 import {
   PtsCamera,
@@ -19,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { ComponentType, forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type SvgProps } from "react-native-svg";
 import PointsRewardCard from "./PointsRewardCard";
 
@@ -51,6 +53,7 @@ const ROWS: PointsRow[] = [
 const PointsOptimizeBottomSheet = forwardRef<PointsOptimizeBottomSheetRef, object>(
   function PointsOptimizeBottomSheet(_props, ref) {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const sheetRef = useRef<BottomSheetModal>(null);
 
     useImperativeHandle(ref, () => ({
@@ -83,13 +86,20 @@ const PointsOptimizeBottomSheet = forwardRef<PointsOptimizeBottomSheetRef, objec
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >
+        <SheetBackHandler />
         <View style={styles.titleSection}>
           <Text style={styles.title}>{t("workout.ui.howToOptimiseSheet.title")}</Text>
         </View>
         <View style={styles.scrollWrap}>
           <BottomSheetScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+              // bar, so the last row needs the inset on top of its designed
+              // padding. Math.max keeps the design on devices that report none.
+              styles.scrollContent,
+              { paddingBottom: Math.max(60, insets.bottom + 16) },
+            ]}
             showsVerticalScrollIndicator={false}
             bounces={false}
             overScrollMode="never"

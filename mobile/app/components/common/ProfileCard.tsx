@@ -3,8 +3,9 @@ import { FONTS } from "@/app/constants/fonts";
 import { AltArrowLeft, FluentPremium, ProfileUserCircle } from "@/assets/icons";
 import { GlassView } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
+import { getGlassFallbackStyle } from "@/app/components/common/GlassFill";
 
 export interface ProfileCardProps {
   name: string;
@@ -36,12 +37,16 @@ ProfileCard = ({
   showSubscription = true,
 }: ProfileCardProps) => (
   <View style={styles.card}>
-    <GlassView
-      pointerEvents="none"
-      glassEffectStyle="regular"
-      colorScheme="dark"
-      style={styles.glass}
-    />
+    {Platform.OS === "ios" ? (
+      <GlassView
+        pointerEvents="none"
+        glassEffectStyle="regular"
+        colorScheme="dark"
+        style={styles.glass}
+      />
+    ) : (
+      <View pointerEvents="none" style={[styles.glass, getGlassFallbackStyle("regular", "dark")]} />
+    )}
     <LinearGradient
       pointerEvents="none"
       colors={[

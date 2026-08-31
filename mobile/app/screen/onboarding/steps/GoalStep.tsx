@@ -70,7 +70,11 @@ const styles = StyleSheet.create({
     marginHorizontal: -8,
   },
   cardWrapper: {
-    width: '48.5%',
+    // Two cards plus the 10dp gap must fit one row, so the width has to leave
+    // more than the gap's share free. '48.5%' left only 3% for a fixed 10dp gap,
+    // which overflowed at 360dp-wide screens (314dp grid) and made flexWrap drop
+    // every card onto its own line, collapsing the 2x2 grid into one column.
+    width: '48%',
     height: verticalScale(162),
   },
   cardFrame: {

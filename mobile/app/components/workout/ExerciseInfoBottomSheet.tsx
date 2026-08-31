@@ -1,3 +1,4 @@
+import SheetBackHandler from "@/app/components/common/SheetBackHandler";
 import ExerciseAnimationCard from "@/app/components/workout/ExerciseAnimationCard";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -9,6 +10,7 @@ import {
 } from "@gorhom/bottom-sheet";
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
 /**
@@ -57,6 +59,7 @@ const StatTile = ({ value, label }: { value: string; label: string }) => (
  */
 const ExerciseInfoBottomSheet = forwardRef<ExerciseInfoBottomSheetRef>(
   function ExerciseInfoBottomSheet(_props, ref) {
+    const insets = useSafeAreaInsets();
     const sheetRef = useRef<BottomSheetModal>(null);
     const { t } = useTranslation();
     const [data, setData] = useState<ExerciseInfoPayload | null>(null);
@@ -90,9 +93,16 @@ const ExerciseInfoBottomSheet = forwardRef<ExerciseInfoBottomSheetRef>(
         backgroundStyle={styles.sheetBg}
         handleIndicatorStyle={styles.handle}
       >
+        <SheetBackHandler />
         {/* Scrollable because long form cues can outgrow the sheet's max height. */}
         <BottomSheetScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            // Edge-to-edge puts the sheet's bottom edge BEHIND the system nav
+            // bar, so the last row needs the inset on top of its designed
+            // padding. Math.max keeps the design on devices that report none.
+            styles.content,
+            { paddingBottom: Math.max(42, insets.bottom + 16) },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {data ? (

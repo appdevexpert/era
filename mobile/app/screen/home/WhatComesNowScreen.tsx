@@ -18,7 +18,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -108,7 +108,12 @@ const WhatComesNowScreen = () => {
       <BlurView
         intensity={30}
         tint="dark"
-        style={[styles.header, { paddingTop: insets.top + 4 }]}
+        experimentalBlurMethod="dimezisBlurView"
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 4 },
+          Platform.OS === "android" && { backgroundColor: "rgba(20,20,20,0.92)" },
+        ]}
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
       >
         <PressableScale onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>

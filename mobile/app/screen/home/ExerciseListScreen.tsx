@@ -39,6 +39,7 @@ import { useEntitlement } from "@/app/hooks/useEntitlement";
 import { getSuggestedExerciseWeight } from "@/app/utils/exerciseSuggestedWeight";
 import { formatWeightFromKg } from "@/app/utils/workoutFormatters";
 import type { SetFeedbackValue } from "@/app/utils/setSuggestion";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { RouteProp, useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
@@ -62,6 +63,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight } from "@/assets/icons";
 import { useSyncQueue } from "@/app/hooks/useSyncQueue";
 import { upsertExerciseOrder } from "@/app/services/workoutService";
+import { workoutErrorMessage } from "@/app/utils/workoutErrors";
 
 const ReorderIcon = () => (
   <View style={styles.reorderIcon}>
@@ -378,6 +380,11 @@ const ReorderableExerciseSection = ({
 
 const ExerciseListScreen = () => {
   const insets = useSafeAreaInsets();
+  // WorkoutPlanHeader is transparent and its height varies (1- vs 2-line title,
+  // 1 vs 2 rows of muscle badges), so the top padding has to be measured, not
+  // guessed — a hardcoded offset pushed the stats row under the header on
+  // two-line titles like "Shoulders / Neck".
+  const headerHeight = useHeaderHeight();
   const route = useRoute<RouteProp<HomeStackParamList, "ExerciseList">>();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const dispatch = useAppDispatch();
@@ -591,7 +598,7 @@ const ExerciseListScreen = () => {
     workoutStatus === "idle" ||
     workoutStatus === "loading" ||
     (shouldLoadRequestedDay && workoutStatus !== "failed");
-  const errorMessage = workoutError ?? t("workout.ui.unableToLoadWorkout");
+  const errorMessage = workoutErrorMessage(t, workoutError);
 
   useEffect(() => {
     // Cold start: no bootstrap at all → run the heavy bootstrap once.
@@ -778,7 +785,7 @@ const ExerciseListScreen = () => {
           contentContainerStyle={[
             styles.scrollContent,
             {
-              paddingTop: insets.top + verticalScale(130),
+              paddingTop: headerHeight + 16,
               paddingBottom: insets.bottom + verticalScale(132),
             },
           ]}
@@ -819,7 +826,7 @@ const ExerciseListScreen = () => {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + verticalScale(130),
+            paddingTop: headerHeight + 16,
             paddingBottom: insets.bottom + verticalScale(showStartButton ? 132 : 40),
           },
         ]}
