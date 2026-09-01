@@ -1,5 +1,6 @@
 import { useNavigation } from '@react-navigation/native'
 import IconButton from '@/app/components/common/IconButton'
+import { COLORS } from '@/app/constants/colors'
 import { ChevronBack } from '@/assets/icons'
 
 interface BackButtonProps {
@@ -27,7 +28,7 @@ const BackButton = ({ onPress, disabled }: BackButtonProps) => {
       scheme="light"
       tint="regular"
     >
-      <ChevronBack width={20} height={20} />
+      <ChevronBack width={20} height={20} color={COLORS.neutral.white} />
     </IconButton>
   )
 }

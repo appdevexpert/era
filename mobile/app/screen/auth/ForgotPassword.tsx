@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import {
   Keyboard,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -123,6 +122,9 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
 
   // --- New password handler ---
   const handleResetPassword = async () => {
+    // Release the focused field so the result — or a validation error — is
+    // visible without the user dismissing the keyboard themselves.
+    Keyboard.dismiss()
     setValidationError(null)
     setResetError(null)
 
@@ -157,13 +159,18 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
     return (
       <GradientBackground>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          // "padding" on both platforms: RN measures its own frame against the
+          // keyboard, so it adds nothing when the window already resized and
+          // pads by the real overlap when it did not (edge-to-edge on Android
+          // 15 no longer honours adjustResize).
+          behavior="padding"
           keyboardVerticalOffset={insets.top}
           style={styles.flex}
         >
           <ScrollView
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.navHeader}>
@@ -246,13 +253,18 @@ const ForgotPassword = ({ navigation }: ForgotPasswordProps) => {
   return (
     <GradientBackground>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        // "padding" on both platforms: RN measures its own frame against the
+        // keyboard, so it adds nothing when the window already resized and
+        // pads by the real overlap when it did not (edge-to-edge on Android
+        // 15 no longer honours adjustResize).
+        behavior="padding"
         keyboardVerticalOffset={insets.top}
         style={styles.flex}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.navHeader}>

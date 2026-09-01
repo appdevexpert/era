@@ -172,12 +172,14 @@ const styles = StyleSheet.create({
   },
   heroValue: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 32,
     fontWeight: "600",
     color: "#FBEFAF",
   },
   heroSubtitle: {
     fontFamily: FONTS.medium,
+    includeFontPadding: false,
     fontSize: 12,
     color: "#F0F0F0",
   },
@@ -188,6 +190,7 @@ const styles = StyleSheet.create({
   },
   incSymbol: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 16,
     fontWeight: "600",
     color: GOLD,
@@ -195,17 +198,26 @@ const styles = StyleSheet.create({
   },
   incText: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 12,
     fontWeight: "600",
     color: GOLD,
   },
   dropsGrid: {
     gap: 30,
-    alignItems: "center",
+    // Stretch, so each row gets the card's full content width to distribute
+    // across rather than collapsing to its own content width.
+    alignSelf: "stretch",
   },
+  // Distributed, NOT a fixed 30px gap. Five 36px drops with 30px gaps need
+  // 300px, but the card's content box is `windowWidth - 85`: 308 on a 393pt
+  // iPhone (fits, just) and 275 on a 360dp Android (25px short). The row
+  // overflowed and ate the card's 16px padding, which is why Android looked
+  // tighter — the padding value was identical all along, the row was too wide
+  // for the screen. space-between makes the gap fall out of the width instead.
   dropRow: {
     flexDirection: "row",
-    gap: 30,
+    justifyContent: "space-between",
   },
   footerRow: {
     flexDirection: "row",
@@ -214,6 +226,7 @@ const styles = StyleSheet.create({
   },
   glassesText: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 14,
     fontWeight: "600",
     color: GOLD,
@@ -231,6 +244,7 @@ const styles = StyleSheet.create({
   },
   goalText: {
     fontFamily: FONTS.medium,
+    includeFontPadding: false,
     fontSize: 14,
     fontWeight: "500",
     color: "rgba(240, 240, 240, 0.5)",

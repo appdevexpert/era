@@ -58,6 +58,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 24,
     fontWeight: "700",
     color: GOLD,
@@ -68,6 +69,7 @@ const styles = StyleSheet.create({
   },
   caption: {
     fontFamily: FONTS.medium,
+    includeFontPadding: false,
     fontSize: 14,
     fontWeight: "500",
     color: "rgba(240, 240, 240, 0.75)",

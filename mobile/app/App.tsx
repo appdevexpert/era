@@ -24,7 +24,6 @@ configureRevenueCat();
 
 const App = () => {
   const [fontsLoaded] = useFonts({
-    "Italiana-Regular": require("../assets/fonts/Italiana-Regular.ttf"),
     "PlayfairDisplay": require("../assets/fonts/PlayfairDisplay.ttf"),
   });
   const [introDone, setIntroDone] = useState(false);

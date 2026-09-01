@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react'
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,6 +13,7 @@ import PressableScale from '@/app/components/common/PressableScale'
 import { Feather } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useTranslation } from 'react-i18next'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message'
 import {
   EmailAddressIcon,
@@ -66,6 +68,7 @@ const AuthInput = ({
 
 const CreateAccount = ({ navigation }: CreateAccountProps) => {
   const { t } = useTranslation()
+  const insets = useSafeAreaInsets()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -78,6 +81,10 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
   const clearValidation = () => setValidationError(null)
 
   const handleCreateAccount = async () => {
+    // Same as ForgotPassword: drop the keyboard the moment the CTA is
+    // pressed, so the focused field is released and any validation error
+    // or result is visible without the user dismissing it themselves.
+    Keyboard.dismiss()
     setValidationError(null)
 
     if (!name.trim()) {
@@ -110,13 +117,24 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
   return (
     <GradientBackground>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        // "padding" on BOTH platforms. RN measures its own frame against the
+        // keyboard's screenY, so it self-corrects: if the window resized it
+        // computes ~0 and adds nothing, and if it did not (edge-to-edge on
+        // Android 15 no longer honours adjustResize) it pads by the real
+        // overlap. Leaving Android undefined assumed a resize that never came.
+        behavior="padding"
+        // GradientBackground wraps this in a SafeAreaView, so the view starts
+        // insets.top down the screen while keyboardY is a screen coordinate —
+        // without this the computed padding is short by the status bar and the
+        // CTA stays tucked under the keys.
+        keyboardVerticalOffset={insets.top}
         style={styles.screen}
       >
         <ScrollView
+          style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+         // keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
@@ -184,21 +202,26 @@ const CreateAccount = ({ navigation }: CreateAccountProps) => {
           {validationError && (
             <Text style={styles.errorText}>{validationError}</Text>
           )}
-
-          <View style={styles.actions}>
-            <PrimaryButton label={t('auth.createAccount')} onPress={handleCreateAccount} loading={isLoading} />
-
-            <Text style={styles.loginText}>
-              {t('auth.alreadyHaveAccountPrefix')}{' '}
-              <Text
-                style={styles.loginLink}
-                onPress={() => navigation.navigate('Login')}
-              >
-                {t('auth.login')}
-              </Text>
-            </Text>
-          </View>
         </ScrollView>
+
+        {/* Pinned, NOT inside the scroller. Shrinking the scroll viewport (all
+            KeyboardAvoidingView does) only makes the form scrollable — the CTA
+            was the last item in it, so it stayed below the fold and never rose
+            above the keyboard. As a sibling it sits at the bottom of the
+            avoiding view, which is exactly the edge that gets lifted. */}
+        <View style={styles.actions}>
+          <PrimaryButton label={t('auth.createAccount')} onPress={handleCreateAccount} loading={isLoading} />
+
+          <Text style={styles.loginText}>
+            {t('auth.alreadyHaveAccountPrefix')}{' '}
+            <Text
+              style={styles.loginLink}
+              onPress={() => navigation.navigate('Login')}
+            >
+              {t('auth.login')}
+            </Text>
+          </Text>
+        </View>
       </KeyboardAvoidingView>
     </GradientBackground>
   )
@@ -208,6 +231,9 @@ export default CreateAccount
 
 const styles = StyleSheet.create({
   screen: {
+    flex: 1,
+  },
+  scroll: {
     flex: 1,
   },
   scrollContent: {
@@ -271,9 +297,12 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.danger,
     textAlign: 'center',
   },
+  // Footer, so it carries the gutters the scroll content used to give it.
   actions: {
-    gap: verticalScale(24),
-    marginTop: verticalScale(43),
+    gap: Platform.OS === 'ios' ? verticalScale(14) : verticalScale(8),
+    paddingHorizontal: horizontalScale(24),
+    paddingTop: verticalScale(10),
+    paddingBottom: verticalScale(14),
   },
   loginText: {
     fontFamily: FONTS.regular,

@@ -3,7 +3,7 @@ import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { MuscleGroup } from "@/app/navigation/types";
 import { LinearGradient } from "expo-linear-gradient";
-import { StyleSheet, Text, View, Platform} from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 
 export interface DayItem {
@@ -155,26 +155,35 @@ const WeekDaySelector = ({ days, onDayPress, enableInactivePress }: WeekDaySelec
 
 export default WeekDaySelector;
 
+/** Minimum space between pills; `space-between` distributes anything left. */
+const PILL_GAP = 6;
+/** Keeps the pills from ballooning into ovals on a tablet-width container. */
+const PILL_MAX_WIDTH = 56;
+
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    // Explicit width + minimum column gap so Android can't collapse the row
-    // to content width (which happens under an `alignItems: "center"` parent
-    // like the StreakBottomSheet). Without a min gap `space-between` has
-    // nothing to distribute and pills touch.
+    // Explicit width so Android can't collapse the row to content width (which
+    // happens under an `alignItems: "center"` parent like StreakBottomSheet).
     width: "100%",
-    columnGap: Platform.OS === "ios" ? 0 : 6,
+    columnGap: PILL_GAP,
   },
   glassFill: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 77,
   },
   pillBase: {
+    // Seven equal columns rather than seven content-sized pills. Content
+    // sizing made the width depend on how the platform's font measures a
+    // 3-letter label, which is what the per-platform paddingHorizontal was
+    // compensating for; it also let the row overflow on a narrow screen.
+    flex: 1,
+    maxWidth: PILL_MAX_WIDTH,
     alignItems: "center",
     gap: 4.6,
-    paddingHorizontal: Platform.OS === "ios" ? 6 : 5,
+    paddingHorizontal: 6,
     paddingVertical: 12,
     borderRadius: 76.899,
     overflow: "hidden",
@@ -185,9 +194,15 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   pillInactive: {
+    // Seven equal columns rather than seven content-sized pills. Content
+    // sizing made the width depend on how the platform's font measures a
+    // 3-letter label, which is what the per-platform paddingHorizontal was
+    // compensating for; it also let the row overflow on a narrow screen.
+    flex: 1,
+    maxWidth: PILL_MAX_WIDTH,
     alignItems: "center",
     gap: 4.6,
-    paddingHorizontal: Platform.OS === "ios" ? 6 : 5,
+    paddingHorizontal: 6,
     paddingVertical: 12,
     borderRadius: 76.899,
     borderWidth: 1.5,
@@ -197,6 +212,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 10,
+    includeFontPadding: false,
     fontFamily: FONTS.medium,
     fontWeight: "500",
     textAlign: "center",
@@ -204,6 +220,7 @@ const styles = StyleSheet.create({
   },
   labelInactive: {
     fontSize: 10,
+    includeFontPadding: false,
     fontFamily: FONTS.medium,
     fontWeight: "500",
     textAlign: "center",
@@ -220,6 +237,7 @@ const styles = StyleSheet.create({
   },
   checkMark: {
     fontSize: 14,
+    includeFontPadding: false,
     fontWeight: "600",
     color: COLORS.semantic.success,
     textAlign: "center",
@@ -236,6 +254,7 @@ const styles = StyleSheet.create({
   },
   missMark: {
     fontSize: 14,
+    includeFontPadding: false,
     fontWeight: "600",
     color: "#E67777",
     textAlign: "center",
@@ -261,6 +280,7 @@ const styles = StyleSheet.create({
   },
   dateTextActive: {
     fontSize: 12,
+    includeFontPadding: false,
     fontFamily: FONTS.semiBold,
     fontWeight: "600",
     color: COLORS.neutral.white,
@@ -269,6 +289,7 @@ const styles = StyleSheet.create({
   },
   dateTextInactive: {
     fontSize: 12,
+    includeFontPadding: false,
     fontFamily: FONTS.semiBold,
     fontWeight: "600",
     color: COLORS.neutral.white,

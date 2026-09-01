@@ -98,12 +98,14 @@ const styles = StyleSheet.create({
   },
   targetLabel: {
     fontFamily: FONTS.medium,
+    includeFontPadding: false,
     fontSize: 13,
     fontWeight: "500",
     color: "rgba(240, 240, 240, 0.5)",
   },
   targetValue: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 13,
     fontWeight: "600",
     color: GOLD,

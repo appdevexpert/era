@@ -1,3 +1,4 @@
+import HeaderSurface from "@/app/components/common/HeaderSurface";
 import ChoiceCard from "@/app/components/common/ChoiceCard";
 import GoldGradientText from "@/app/components/common/GoldGradientText";
 import PrimaryButton from "@/app/components/common/PrimaryButton";
@@ -15,10 +16,9 @@ import { useAppDispatch } from "@/app/stores/store";
 import { AltArrowLeft } from "@/assets/icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useMemo, useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
@@ -105,15 +105,9 @@ const WhatComesNowScreen = () => {
         ))}
       </ScrollView>
 
-      <BlurView
+      <HeaderSurface
         intensity={30}
-        tint="dark"
-        experimentalBlurMethod="dimezisBlurView"
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 4 },
-          Platform.OS === "android" && { backgroundColor: "rgba(20,20,20,0.92)" },
-        ]}
+        style={[styles.header, { paddingTop: insets.top + 4 }]}
         onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
       >
         <PressableScale onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
@@ -123,7 +117,7 @@ const WhatComesNowScreen = () => {
           <GoldGradientText text={t("whatComesNow.title")} fontSize={26} align="left" viewBoxWidth={340} />
           <Text style={styles.subtitle}>{t("whatComesNow.subtitle")}</Text>
         </View>
-      </BlurView>
+      </HeaderSurface>
 
       <LinearGradient
         colors={["rgba(10,10,10,0)", "rgba(10,10,10,0.85)", COLORS.neutral.black2]}

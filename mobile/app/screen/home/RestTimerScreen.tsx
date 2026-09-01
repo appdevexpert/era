@@ -251,6 +251,7 @@ const RestTimerScreen = () => {
           <ChevronBack
             width={20}
             height={20}
+            color={COLORS.neutral.white}
             style={{ transform: [{ rotate: "180deg" }] }}
           />
         </IconButton>

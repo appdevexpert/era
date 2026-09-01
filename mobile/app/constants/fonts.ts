@@ -13,8 +13,5 @@ export const FONTS = {
   semiBold: systemFont,
   bold: systemFont,
   extraBold: systemFont,
-  display: Platform.select({
-    ios: "PlayfairDisplay",
-    default: "Italiana-Regular",
-  }),
+  display: "PlayfairDisplay",
 };

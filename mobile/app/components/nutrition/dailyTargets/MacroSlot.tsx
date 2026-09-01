@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: FONTS.regular,
+    includeFontPadding: false,
     fontSize: 12,
     color: GOLD,
     letterSpacing: 0.48,
@@ -91,6 +92,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontFamily: FONTS.semiBold,
+    includeFontPadding: false,
     fontSize: 14,
     fontWeight: "700",
     color: GOLD,
@@ -100,6 +102,7 @@ const styles = StyleSheet.create({
   },
   deltaText: {
     fontFamily: FONTS.medium,
+    includeFontPadding: false,
     fontSize: 12,
     fontWeight: "500",
     color: "rgba(240, 240, 240, 0.5)",

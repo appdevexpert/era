@@ -23,6 +23,14 @@ type AddCommentProps = {
   onBlur?: () => void;
 };
 
+const INPUT_LINE_HEIGHT = 20;
+const MIC_SIZE = 40;
+/** Fixed — the field scrolls rather than growing, so the card never resizes
+ *  under the sheet's snap points. It reclaims the row the mic used to occupy
+ *  (old text 60 + gap 12 + mic 40), so the card footprint is unchanged. */
+const INPUT_MAX_LINES = 5;
+const INPUT_HEIGHT = INPUT_LINE_HEIGHT * INPUT_MAX_LINES + 12;
+
 const localeFor = (lang: string) => (lang?.toLowerCase().startsWith("nb") ? "nb-NO" : "en-US");
 
 /**
@@ -45,6 +53,40 @@ const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) =
   const { t, i18n } = useTranslation();
   const [recognizing, setRecognizing] = useState(false);
   const baseTextRef = useRef("");
+
+  // The field owns its own text rather than rendering the parent's `value`
+  // directly.
+  //
+  // The parent re-renders on plenty of things that have nothing to do with
+  // typing — keyboard show/hide, the sheet swapping its footer in, a
+  // content-size reveal scroll. Each of those re-applied `value` to the native
+  // input, and re-applying text resets the caret to the end. That is the
+  // "cursor jumps back" when you tap into the middle of a line: the tap raises
+  // the keyboard, the parent re-renders, the text is pushed down again and the
+  // selection is gone.
+  //
+  // `text` is written by the user's own keystrokes, so the native input and
+  // React agree and nothing is re-applied. The prop is only accepted when it
+  // differs from what we last emitted — i.e. it changed from OUTSIDE (exercise
+  // switch, mic transcript), never as an echo of the user's own typing.
+  const [text, setText] = useState(value);
+  const lastEmitted = useRef(value);
+
+  useEffect(() => {
+    if (value !== lastEmitted.current) {
+      lastEmitted.current = value;
+      setText(value);
+    }
+  }, [value]);
+
+  const handleChangeText = useCallback(
+    (next: string) => {
+      lastEmitted.current = next;
+      setText(next);
+      onChangeText(next);
+    },
+    [onChangeText],
+  );
 
   useSpeechRecognitionEvent("start", () => setRecognizing(true));
   useSpeechRecognitionEvent("end", () => setRecognizing(false));
@@ -96,14 +138,14 @@ const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) =
       await new Promise((resolve) => setTimeout(resolve, 400));
     }
 
-    baseTextRef.current = value;
+    baseTextRef.current = text;
     ExpoSpeechRecognitionModule.start({
       lang: localeFor(i18n.language),
       interimResults: true,
       continuous: true,
       addsPunctuation: true,
     });
-  }, [recognizing, value, i18n.language, t]);
+  }, [recognizing, text, i18n.language, t]);
 
   return (
     <View style={styles.container}>
@@ -113,8 +155,8 @@ const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) =
         {recognizing ? (
           <View style={styles.recordingArea}>
             <WaveAudio isRecording={recognizing} />
-            <Text style={styles.transcript} numberOfLines={3}>
-              {value || t("workout.ui.listening")}
+            <Text style={styles.transcript} numberOfLines={INPUT_MAX_LINES}>
+              {text || t("workout.ui.listening")}
             </Text>
           </View>
         ) : (
@@ -123,8 +165,8 @@ const AddComment = ({ value, onChangeText, onFocus, onBlur }: AddCommentProps) =
               style={styles.input}
               placeholder={t("workout.ui.commentPlaceholder")}
               placeholderTextColor={COLORS.alpha.white50}
-              value={value}
-              onChangeText={onChangeText}
+              value={text}
+              onChangeText={handleChangeText}
               onFocus={onFocus}
               onBlur={onBlur}
               multiline
@@ -168,23 +210,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.neutral.charcoal,
     padding: 16,
-    gap: 12,
   },
   inputWrapper: {
-    height: 60,
     overflow: "hidden",
   },
   input: {
-    flex: 1,
+    // Explicit height, not flex: a multiline TextInput needs a definite height
+    // of its own to scroll its overflow instead of just clipping it.
+    height: INPUT_HEIGHT,
+    // No right inset — the mic reserved the whole right column, top to bottom,
+    // for a button that only sits in the bottom corner. Text runs full width
+    // and simply scrolls past the mic, which masks what is under it.
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
-    lineHeight: 20,
+    lineHeight: INPUT_LINE_HEIGHT,
+    // Android adds font padding to the first and last line of a TextInput and
+    // recomputes it as lines are added or removed, which shows up as the text
+    // nudging up and down while you type in a multiline field with an explicit
+    // lineHeight. Off = stable metrics.
+    includeFontPadding: false,
     color: COLORS.neutral.white,
     padding: 0,
   },
   recordingArea: {
-    height: 60,
+    height: INPUT_HEIGHT,
     gap: 8,
     justifyContent: "center",
   },
@@ -192,14 +242,22 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 14,
     fontWeight: "400",
+    // Same metrics as the typed field, so the text does not reflow when the
+    // mic is switched on or off.
+    lineHeight: INPUT_LINE_HEIGHT,
+    includeFontPadding: false,
     color: COLORS.neutral.white,
   },
+  // Overlaid in the corner: it costs the text neither a row nor a column.
+  // Opaque so text scrolling underneath is hidden rather than bleeding through.
   micButton: {
-    alignSelf: "flex-end",
-    width: 40,
-    height: 40,
+    position: "absolute",
+    right: 16,
+    bottom: 16,
+    width: MIC_SIZE,
+    height: MIC_SIZE,
     borderRadius: 999,
-    backgroundColor: COLORS.alpha.surface08,
+    backgroundColor: COLORS.neutral.charcoal,
     alignItems: "center",
     justifyContent: "center",
   },

@@ -28,15 +28,13 @@ const ProChartLockedCard = ({ requiredTier = "pro" }: ProChartLockedCardProps) =
 
   return (
     <View style={styles.overlay}>
-      <BlurView
-        intensity={24}
-        tint="dark"
-        experimentalBlurMethod="dimezisBlurView"
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Android's experimental blur is Android 12+ only and can be janky.
-          A near-opaque tint on Android guarantees the chart stays hidden on
-          every version. iOS keeps the softer 0.24 dim + real backdrop blur. */}
+      {/* iOS only. On Android the 0.88 tint below already hides the chart on
+          every version — the experimental blur added nothing but its own
+          artifacts (a halo over bright content, and a re-snapshot of the
+          backdrop every frame). */}
+      {Platform.OS === "ios" ? (
+        <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
+      ) : null}
       <View
         style={[
           styles.dim,

@@ -108,7 +108,7 @@ const GetStarted = () => {
           <SvgText
             fill="url(#eraGrad)"
             fontSize={101.451}
-            fontFamily="Italiana-Regular"
+            fontFamily="PlayfairDisplay"
             x="50%"
             y={95}
             textAnchor="middle"
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   titleText: {
-    fontFamily: "Italiana-Regular",
+    fontFamily: "PlayfairDisplay",
     fontSize: 101.451,
     textAlign: "center",
     color: COLORS.neutral.black,

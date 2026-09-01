@@ -9,6 +9,7 @@ import GlassFill from "@/app/components/common/GlassFill";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { ComponentType, useEffect } from "react";
+import { FONTS } from "@/app/constants/fonts";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { SafeAreaView } from "react-native-screens/experimental";
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
     // GlassFill has no real frosted-glass on Android (expo-glass-effect is
     // iOS-only), so every pill gets a solid dark base here. iOS keeps
     // transparent so the real glass shows through.
-    backgroundColor: Platform.OS === "android" ? "rgba(20,20,20,10)" : "transparent",
+    backgroundColor: Platform.OS === "android" ? "rgba(20,20,20,1)" : "transparent",
   },
   activeSize: {
     flex: 1,
@@ -227,10 +228,17 @@ const styles = StyleSheet.create({
   },
   activeLabel: {
     color: "#FFFFFF",
+    fontFamily: FONTS.medium,
     fontSize: 16,
     lineHeight: 19,
     fontWeight: "500",
     textAlign: "center",
+    // Roboto reserves ascender/descender padding inside the text box on
+    // Android. `tabContent` centres the BOX, so that padding pushed the glyphs
+    // off-centre against the icon — the label sat high next to it while iOS,
+    // which has no such padding, looked right.
+    includeFontPadding: false,
+    textAlignVertical: "center",
   },
 });
 

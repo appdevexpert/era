@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,6 +13,7 @@ import PressableScale from '@/app/components/common/PressableScale'
 import { Feather, FontAwesome } from '@expo/vector-icons'
 import { NativeStackScreenProps } from '@react-navigation/native-stack'
 import { useTranslation } from 'react-i18next'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSelector } from 'react-redux'
 import Toast from 'react-native-toast-message'
 import { EmailAddressIcon, GoogleLogo, PasswordLockIcon } from '@/assets/icons'
@@ -33,6 +35,7 @@ type LoginProps = NativeStackScreenProps<AuthStackParamList, 'Login'>
 const Login = ({ navigation }: LoginProps) => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+  const insets = useSafeAreaInsets()
   const { loginWithGoogle } = useGoogleAuth()
   const { loginWithApple } = useAppleAuth()
   const [email, setEmail] = useState('')
@@ -66,6 +69,10 @@ const Login = ({ navigation }: LoginProps) => {
   }
 
   const handleLogin = () => {
+    // Same as ForgotPassword: drop the keyboard the moment the CTA is
+    // pressed, so the focused field is released and any validation error
+    // or result is visible without the user dismissing it themselves.
+    Keyboard.dismiss()
     dispatch(clearError())
     setValidationError(null)
 
@@ -98,13 +105,23 @@ const Login = ({ navigation }: LoginProps) => {
   return (
     <GradientBackground>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        // "padding" on BOTH platforms. RN measures its own frame against the
+        // keyboard's screenY, so it self-corrects: if the window resized it
+        // computes ~0 and adds nothing, and if it did not (edge-to-edge on
+        // Android 15 no longer honours adjustResize) it pads by the real
+        // overlap. Leaving Android undefined assumed a resize that never came.
+        behavior="padding"
+        // GradientBackground wraps this in a SafeAreaView, so the view starts
+        // insets.top down the screen while keyboardY is a screen coordinate —
+        // without this the computed padding is short by the status bar and the
+        // CTA stays tucked under the keys.
+        keyboardVerticalOffset={insets.top}
         style={styles.flex}
       >
         <ScrollView
           contentContainerStyle={styles.screen}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           bounces={false}
         >

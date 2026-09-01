@@ -1,17 +1,15 @@
 import { useEffect, useId } from "react";
+import { StyleSheet, View } from "react-native";
 import Animated, {
   Easing,
-  useAnimatedProps,
+  useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
 import Svg, {
-  ClipPath,
   Defs,
-  G,
   LinearGradient as SvgLinearGradient,
   Path,
-  Rect,
   Stop,
 } from "react-native-svg";
 
@@ -26,9 +24,6 @@ const DARK = "#312D20";
 const GRADIENT_TOP = "#C9A84C";
 const GRADIENT_BOTTOM = "#FBEFAF";
 
-// Reanimated wrapper — hoisted so the wrapper isn't re-created per render.
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
-
 interface WaterDropProps {
   /** Target fill: 0 = empty, 1 = full. Anything in between animates to it. */
   filled: number;
@@ -36,20 +31,40 @@ interface WaterDropProps {
   size?: number;
 }
 
+/**
+ * The fill is revealed by a clipping window that SLIDES, using two transforms
+ * that cancel each other out — no animated SVG `<ClipPath>`, and no animated
+ * height.
+ *
+ * Two earlier approaches failed, each on Android only:
+ *
+ * 1. An animated `<Rect>` inside `<ClipPath>`. `GroupView` caches the resolved
+ *    clip in `mCachedClipPath`, and a Reanimated write straight to the rect's
+ *    `y` on the UI thread never runs the React commit that clears that cache —
+ *    so the clip was computed once at mount and the drop never moved again.
+ *
+ * 2. Animating the window's `height`. That updates, but `height` is a layout
+ *    prop: every frame runs a Yoga pass, ten drops at once, which is why it
+ *    stepped rather than glided.
+ *
+ * The window is instead translated DOWN by the unfilled fraction, and the gold
+ * drop inside is translated UP by the same amount. The drop therefore paints in
+ * exactly the same place as the dark base, and only the part that falls inside
+ * the shifted window survives the clip — the bottom `progress` of the drop.
+ * Both writes are transforms, so this runs entirely on the UI thread and is as
+ * smooth on Android as it is on iOS.
+ */
 const WaterDrop = ({ filled, size = 38 }: WaterDropProps) => {
-  // SVG-internal ids must be unique per instance, otherwise multiple drops
-  // share the same clip path and animate together (React Native SVG resolves
-  // url(#id) globally inside an Svg, but ids should still be unique per def).
-  const rawId = useId().replace(/:/g, "");
-  const clipId = `drop-clip-${rawId}`;
-  const gradId = `drop-grad-${rawId}`;
+  // Gradient ids must be unique per instance, otherwise every drop resolves
+  // url(#id) to the same def.
+  const gradId = `drop-grad-${useId().replace(/:/g, "")}`;
 
+  const height = size * (VIEW_BOX_HEIGHT / VIEW_BOX_WIDTH);
   const clamped = Math.max(0, Math.min(1, filled));
   const progress = useSharedValue(clamped);
 
-  // Each prop change runs withTiming from the current SharedValue to the new
-  // target. On first mount the value is already correct, so withTiming is a
-  // no-op. Subsequent +/− taps animate.
+  // On first mount the value is already correct, so this is a no-op.
+  // Subsequent +/− taps animate.
   useEffect(() => {
     progress.value = withTiming(clamped, {
       duration: 900,
@@ -57,17 +72,21 @@ const WaterDrop = ({ filled, size = 38 }: WaterDropProps) => {
     });
   }, [clamped, progress]);
 
-  // Animated clip rect — y moves from VIEW_BOX_HEIGHT (no gold visible) up
-  // to 0 (fully covered). Everything ABOVE the rect is clipped, so as y
-  // shrinks the gold layer is revealed from the bottom up.
-  const animatedClipProps = useAnimatedProps(() => ({
-    y: (1 - progress.value) * VIEW_BOX_HEIGHT,
+  // Window slides down by the unfilled fraction, so its top edge is the
+  // waterline.
+  const windowStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: (1 - progress.value) * height }],
+  }));
+  // ...and the drop slides back up by the same amount, so it stays registered
+  // with the dark base underneath.
+  const dropStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -(1 - progress.value) * height }],
   }));
 
-  return (
+  const dropSvg = (fill: string) => (
     <Svg
       width={size}
-      height={size * (VIEW_BOX_HEIGHT / VIEW_BOX_WIDTH)}
+      height={height}
       viewBox={`0 0 ${VIEW_BOX_WIDTH} ${VIEW_BOX_HEIGHT}`}
     >
       <Defs>
@@ -82,23 +101,40 @@ const WaterDrop = ({ filled, size = 38 }: WaterDropProps) => {
           <Stop offset="0" stopColor={GRADIENT_TOP} />
           <Stop offset="1" stopColor={GRADIENT_BOTTOM} />
         </SvgLinearGradient>
-        <ClipPath id={clipId}>
-          <AnimatedRect
-            x={0}
-            width={VIEW_BOX_WIDTH}
-            height={VIEW_BOX_HEIGHT}
-            animatedProps={animatedClipProps}
-          />
-        </ClipPath>
       </Defs>
-      {/* Dark base — always visible. */}
-      <Path d={DROP_PATH} fill={DARK} />
-      {/* Gold gradient on top, revealed from the bottom up via the clip rect. */}
-      <G clipPath={`url(#${clipId})`}>
-        <Path d={DROP_PATH} fill={`url(#${gradId})`} />
-      </G>
+      <Path d={DROP_PATH} fill={fill} />
     </Svg>
+  );
+
+  return (
+    <View style={{ width: size, height }}>
+      {/* Dark base — always visible. */}
+      {dropSvg(DARK)}
+
+      {/* Gold copy, revealed bottom-up by the sliding window. */}
+      <Animated.View
+        style={[styles.fillWindow, { width: size, height }, windowStyle]}
+      >
+        <Animated.View style={[styles.fillDrop, { width: size, height }, dropStyle]}>
+          {dropSvg(`url(#${gradId})`)}
+        </Animated.View>
+      </Animated.View>
+    </View>
   );
 };
 
 export default WaterDrop;
+
+const styles = StyleSheet.create({
+  fillWindow: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    overflow: "hidden",
+  },
+  fillDrop: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+  },
+});

@@ -1,3 +1,4 @@
+import HeaderSurface from "@/app/components/common/HeaderSurface";
 import ScreenFades from "@/app/components/common/ScreenFades";
 import LeaderboardScreenSkeleton, {
   LeaderboardRowSkeleton,
@@ -19,13 +20,11 @@ import {
 import Svg, { Path } from "react-native-svg";
 import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Image,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -503,15 +502,9 @@ const LeaderboardScreen = () => {
       </BottomSheet>
 
       {/* Pinned header — same blur pattern as WorkoutPlanHeader */}
-      <BlurView
+      <HeaderSurface
         intensity={24}
-        tint="dark"
-        experimentalBlurMethod="dimezisBlurView"
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 8 },
-          Platform.OS === "android" && { backgroundColor: "rgba(20,20,20,0.92)" },
-        ]}
+        style={[styles.header, { paddingTop: insets.top + 8 }]}
       >
         <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
           <ProfileBackChevron width={24} height={24} />
@@ -522,7 +515,7 @@ const LeaderboardScreen = () => {
           </Text>
           <Text style={styles.title}>{t("progress.leaderboard")}</Text>
         </View>
-      </BlurView>
+      </HeaderSurface>
 
       <ScreenFades />
     </View>

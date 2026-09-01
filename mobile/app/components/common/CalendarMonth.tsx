@@ -95,7 +95,7 @@ const CalendarMonth = ({
           hitSlop={10}
           style={[styles.navBtn, !canPrev && styles.navDisabled]}
         >
-          <ChevronBack width={20} height={20} />
+          <ChevronBack width={20} height={20} color={COLORS.neutral.white} />
         </PressableScale>
 
         <Text style={styles.monthLabel}>

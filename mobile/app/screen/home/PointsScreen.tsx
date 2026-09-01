@@ -1,3 +1,4 @@
+import HeaderSurface from "@/app/components/common/HeaderSurface";
 import { ArrowBack, FireGold, IconDumbbell, CameraIcon, ChartGold, ChevronBack } from "@/assets/icons";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
@@ -12,7 +13,6 @@ import { selectUser } from "@/app/stores/selectors/authSelectors";
 import { loadRewardBootstrap } from "@/app/stores/slice/rewardSlice";
 import { useAppDispatch } from "@/app/stores/store";
 import type { PointEventRow, PointEventType } from "@/app/services/sessionService";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -144,6 +144,7 @@ const PointsScreen = () => {
           <ChevronBack
             width={16}
             height={16}
+            color={COLORS.neutral.white}
             style={{ transform: [{ rotate: "180deg" }] }}
           />
         </PressableScale>
@@ -160,16 +161,7 @@ const PointsScreen = () => {
       </ScrollView>
 
       {/* Header overlay */}
-      <BlurView
-        intensity={24}
-        tint="dark"
-        experimentalBlurMethod="dimezisBlurView"
-        style={[
-          styles.header,
-          { paddingTop: insets.top },
-          Platform.OS === "android" && { backgroundColor: "rgba(20,20,20,0.92)" },
-        ]}
-      >
+      <HeaderSurface style={[styles.header, { paddingTop: insets.top }]}>
         <View style={styles.headerContent}>
           <PressableScale onPress={() => navigation.goBack()} hitSlop={12}>
             <ArrowBack width={24} height={24} />
@@ -197,7 +189,7 @@ const PointsScreen = () => {
             </Svg>
           </View>
         </View>
-      </BlurView>
+      </HeaderSurface>
 
       {/* Bottom fade */}
       <LinearGradient
@@ -234,6 +226,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.neutral.charcoal,
     zIndex: 10,
+  },
+  headerAndroid: {
+    backgroundColor: COLORS.neutral.black2,
   },
   headerContent: {
     paddingHorizontal: 24,
