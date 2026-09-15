@@ -166,6 +166,7 @@ const ExerciseRow = ({
       name: exercise.name,
       muscleCategory: exercise.muscleCategory,
       video: exercise.demoVideoUrl,
+      poster: exercise.demoVideoPosterUrl,
       videoLoop: exercise.demoVideoLoop,
       setCount: exercise.setCount,
       targetLabel: exercise.targetLabel,

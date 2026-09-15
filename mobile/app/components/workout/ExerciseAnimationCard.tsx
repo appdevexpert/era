@@ -2,6 +2,7 @@ import { COLORS } from "@/app/constants/colors";
 import PressableScale from "@/app/components/common/PressableScale";
 import { Feather } from "@expo/vector-icons";
 import { NavigationContext } from "@react-navigation/native";
+import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { AppState, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
@@ -17,6 +18,15 @@ export type ExerciseMediaSource = string | number;
 type ExerciseAnimationCardProps = {
   /** Demo clip. Omit to render nothing. */
   video?: ExerciseMediaSource | null;
+  /**
+   * Poster frame URL, shown while the clip is still buffering. Null is fine:
+   * the card falls back to its empty surface.
+   *
+   * Purely a loading placeholder — it never gates playback. Whether the clip
+   * autoplays is `loop`'s business alone (see below), which is the admin's
+   * call per exercise.
+   */
+  poster?: string | null;
   /**
    * Admin-controlled per exercise. True = loops forever. False = plays once,
    * then shows a tap-to-play button so the user can replay it deliberately.
@@ -99,10 +109,16 @@ const useIsAppForegrounded = (): boolean => {
  *
  * Silent and control-free while playing — it reads as an animation, not a video
  * player. The video fades in once the first frame is decodable, so buffering
- * shows the empty card surface rather than a black rectangle snapping in.
+ * shows the poster (or the empty card surface) rather than a black rectangle
+ * snapping in.
+ *
+ * The only control it ever shows is the replay button a non-looping clip gets
+ * once it ends. Playback is never gated behind a tap: `demo_video_loop` is the
+ * admin's switch for that, and a looping clip shows no control at all.
  */
 const ExerciseAnimationCard = ({
   video,
+  poster,
   loop = true,
   style,
 }: ExerciseAnimationCardProps) => {
@@ -180,6 +196,20 @@ const ExerciseAnimationCard = ({
 
   return (
     <View style={[styles.card, style]}>
+      {/* Sits under the video and stays there, purely as the buffering state —
+          the clip fades in on top once it is decodable, instead of a black
+          rectangle snapping in. It is never a gate: playback is governed by
+          `loop` alone, which the admin sets per exercise. */}
+      {poster ? (
+        <Image
+          source={{ uri: poster }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={FADE_IN_MS}
+          cachePolicy="memory-disk"
+        />
+      ) : null}
+
       <Animated.View style={[StyleSheet.absoluteFill, videoStyle]}>
         <VideoView
           style={StyleSheet.absoluteFill}

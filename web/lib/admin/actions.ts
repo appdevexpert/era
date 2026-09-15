@@ -7,6 +7,7 @@ import {
   allowedSetKindsForModality,
   isMainProgramId,
   EXERCISE_MEDIA_BUCKET,
+  EXERCISE_THUMBS_BUCKET,
   MAX_SETS_PER_EXERCISE,
   scopeFromForm,
   ALL_WEEKS_FIELD,
@@ -168,10 +169,15 @@ async function assertKindMatchesExerciseModality(
  * CDN-cached. Re-uploading over a stable path like `bench-press/male.mp4` would
  * keep serving the *old* clip to every client that already cached that URL.
  */
-export async function createExerciseVideoUploadUrl(
+export async function createExerciseMediaUploadUrls(
   rawSlug: string,
   gender: ExerciseMediaGender,
-): Promise<{ path: string; token: string }> {
+): Promise<{
+  path: string;
+  token: string;
+  posterPath: string;
+  posterToken: string;
+}> {
   const actor = await getCurrentAdminUser();
   if (!actor) {
     throw new Error("Not authorised to upload exercise media.");
@@ -181,18 +187,31 @@ export async function createExerciseVideoUploadUrl(
   }
 
   const folder = slugify(rawSlug) || "unsorted";
-  const path = `${folder}/${gender}-${Date.now()}.mp4`;
+  // One stem for both objects, so a clip and its poster are always obviously a
+  // pair in the buckets — and match what
+  // `scripts/recompress-exercise-media.mjs` produces for the back-catalogue.
+  const stem = `${folder}/${gender}-${Date.now()}`;
 
   const supabase = requireAdminClient();
-  const { data, error } = await supabase.storage
-    .from(EXERCISE_MEDIA_BUCKET)
-    .createSignedUploadUrl(path);
 
-  if (error || !data) {
-    throw new Error(error?.message ?? "Could not create the upload URL.");
+  const [video, poster] = await Promise.all([
+    supabase.storage.from(EXERCISE_MEDIA_BUCKET).createSignedUploadUrl(`${stem}.mp4`),
+    supabase.storage.from(EXERCISE_THUMBS_BUCKET).createSignedUploadUrl(`${stem}.jpg`),
+  ]);
+
+  if (video.error || !video.data) {
+    throw new Error(video.error?.message ?? "Could not create the upload URL.");
+  }
+  if (poster.error || !poster.data) {
+    throw new Error(poster.error?.message ?? "Could not create the poster upload URL.");
   }
 
-  return { path: data.path, token: data.token };
+  return {
+    path: video.data.path,
+    token: video.data.token,
+    posterPath: poster.data.path,
+    posterToken: poster.data.token,
+  };
 }
 
 /**
@@ -200,7 +219,7 @@ export async function createExerciseVideoUploadUrl(
  * they uploaded but hasn't saved yet — without this, the abandoned upload would
  * sit in the bucket forever with nothing referencing it.
  */
-export async function removeExerciseVideoObject(path: string) {
+export async function removeExerciseVideoObject(path: string, posterPath?: string | null) {
   const actor = await getCurrentAdminUser();
   if (!actor) {
     throw new Error("Not authorised to remove exercise media.");
@@ -211,6 +230,12 @@ export async function removeExerciseVideoObject(path: string) {
   const { error } = await supabase.storage
     .from(EXERCISE_MEDIA_BUCKET)
     .remove([path]);
+
+  // Best effort: a stranded poster is ~15 KB and invisible to users, so it must
+  // never be the thing that fails an admin's upload flow.
+  if (posterPath) {
+    await supabase.storage.from(EXERCISE_THUMBS_BUCKET).remove([posterPath]);
+  }
 
   if (error) {
     throw new Error(error.message);
@@ -230,6 +255,8 @@ export async function saveExercise(formData: FormData) {
 
   const maleVideoPath = optionalValue(formData, "demo_video_male_path");
   const femaleVideoPath = optionalValue(formData, "demo_video_female_path");
+  const malePosterPath = optionalValue(formData, "demo_video_male_poster_path");
+  const femalePosterPath = optionalValue(formData, "demo_video_female_poster_path");
 
   // Needed to spot clips that this save is replacing, so their files can be
   // deleted once the row update lands.
@@ -237,7 +264,9 @@ export async function saveExercise(formData: FormData) {
     ? (
         await supabase
           .from("exercise_library")
-          .select("demo_video_male_path,demo_video_female_path")
+          .select(
+            "demo_video_male_path,demo_video_female_path,demo_video_male_poster_path,demo_video_female_poster_path",
+          )
           .eq("id", id)
           .maybeSingle()
       ).data
@@ -262,6 +291,8 @@ export async function saveExercise(formData: FormData) {
     is_active: formData.get("is_active") === "on",
     demo_video_male_path: maleVideoPath,
     demo_video_female_path: femaleVideoPath,
+    demo_video_male_poster_path: malePosterPath,
+    demo_video_female_poster_path: femalePosterPath,
     demo_video_loop: formData.get("demo_video_loop") === "on",
     updated_by: actor?.full_name ?? actor?.id ?? null,
     updated_at: new Date().toISOString(),
@@ -298,6 +329,22 @@ export async function saveExercise(formData: FormData) {
 
   if (replaced.length > 0) {
     await supabase.storage.from(EXERCISE_MEDIA_BUCKET).remove(replaced);
+  }
+
+  // Posters are keyed off their own column rather than derived from the clip
+  // path: the back-catalogue script and the upload widget both pair them by
+  // stem, but a row edited before that migration can have a clip and no poster.
+  const replacedPosters = [
+    previous?.demo_video_male_poster_path !== malePosterPath
+      ? previous?.demo_video_male_poster_path
+      : null,
+    previous?.demo_video_female_poster_path !== femalePosterPath
+      ? previous?.demo_video_female_poster_path
+      : null,
+  ].filter((path): path is string => Boolean(path));
+
+  if (replacedPosters.length > 0) {
+    await supabase.storage.from(EXERCISE_THUMBS_BUCKET).remove(replacedPosters);
   }
 
   await logAdminAction({
@@ -1232,7 +1279,9 @@ export async function deleteExercise(formData: FormData) {
   // those files is gone and they sit in the bucket forever.
   const { data: media } = await supabase
     .from("exercise_library")
-    .select("demo_video_male_path,demo_video_female_path")
+    .select(
+      "demo_video_male_path,demo_video_female_path,demo_video_male_poster_path,demo_video_female_poster_path",
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -1244,6 +1293,14 @@ export async function deleteExercise(formData: FormData) {
   );
   if (paths.length > 0) {
     await supabase.storage.from(EXERCISE_MEDIA_BUCKET).remove(paths);
+  }
+
+  const posterPaths = [
+    media?.demo_video_male_poster_path,
+    media?.demo_video_female_poster_path,
+  ].filter((path): path is string => Boolean(path));
+  if (posterPaths.length > 0) {
+    await supabase.storage.from(EXERCISE_THUMBS_BUCKET).remove(posterPaths);
   }
 
   await logAdminAction({

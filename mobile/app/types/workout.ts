@@ -66,6 +66,12 @@ export interface ExerciseLibraryRow {
    */
   demo_video_male_path: string | null;
   demo_video_female_path: string | null;
+  /**
+   * Poster frame for each clip, inside the public `exercise-thumbs` bucket —
+   * again a path, not a URL. Null for clips uploaded before posters existed.
+   */
+  demo_video_male_poster_path: string | null;
+  demo_video_female_poster_path: string | null;
   /** One flag per exercise. False = play once, then offer tap-to-play. */
   demo_video_loop: boolean;
   /**
@@ -222,6 +228,8 @@ export interface ExerciseListExerciseView {
   formDetail: string;
   /** Demo clip already resolved for this user's gender, or null when none. */
   demoVideoUrl: string | null;
+  /** Poster for that same clip. Null = the card shows its empty surface. */
+  demoVideoPosterUrl: string | null;
   demoVideoLoop: boolean;
 }
 
@@ -273,6 +281,8 @@ export interface SessionExercise {
    * null when neither gender has one uploaded. See `resolveExerciseDemoVideo`.
    */
   demoVideoUrl: string | null;
+  /** Poster for that same clip. Null = the card shows its empty surface. */
+  demoVideoPosterUrl: string | null;
   /** False = the tile plays the clip once and then offers tap-to-play. */
   demoVideoLoop: boolean;
   mode: ExerciseMode;

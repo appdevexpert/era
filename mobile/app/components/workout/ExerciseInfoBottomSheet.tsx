@@ -24,6 +24,8 @@ export interface ExerciseInfoPayload {
   /** Localized "Back • Compound". */
   muscleCategory: string;
   video: string | null;
+  /** Poster frame for the clip. Null = the card shows its empty surface. */
+  poster: string | null;
   videoLoop: boolean;
   setCount: number;
   /** "12-18" for reps, "45 SEC" for timed work. */
@@ -120,7 +122,11 @@ const ExerciseInfoBottomSheet = forwardRef<ExerciseInfoBottomSheetRef>(
                   doesn't leave an empty 24pt gap where the tile would be. */}
               {data.video ? (
                 <View style={styles.mediaWrap}>
-                  <ExerciseAnimationCard video={data.video} loop={data.videoLoop} />
+                  <ExerciseAnimationCard
+                    video={data.video}
+                    poster={data.poster}
+                    loop={data.videoLoop}
+                  />
                 </View>
               ) : null}
 

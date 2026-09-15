@@ -5,12 +5,14 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
-  createExerciseVideoUploadUrl,
+  createExerciseMediaUploadUrls,
   removeExerciseVideoObject,
 } from "@/lib/admin/actions";
 import {
   EXERCISE_MEDIA_BUCKET,
+  EXERCISE_THUMBS_BUCKET,
   EXERCISE_VIDEO_MAX_BYTES,
+  MEDIA_CACHE_CONTROL,
   type ExerciseMediaGender,
 } from "@/lib/admin/constants";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +33,83 @@ function isMp4(file: File) {
   return file.type === "video/mp4" || (!file.type && /\.mp4$/i.test(file.name));
 }
 
+/** Rejects rather than hanging forever on a file the browser can't decode. */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("timed out")), ms),
+    ),
+  ]);
+}
+
+/**
+ * Grabs a single frame to use as the clip's poster.
+ *
+ * Mobile shows this instead of streaming the clip when the exercise info sheet
+ * opens — ~15 KB rather than ~600 KB, and the video is only fetched if the user
+ * actually taps play. Without a poster the card falls back to its empty
+ * surface, which works but tells the user nothing about the movement.
+ *
+ * Deliberately returns null instead of throwing: a missing poster is a cosmetic
+ * downgrade, and it must never be the reason an admin's upload fails.
+ */
+async function capturePoster(file: File): Promise<Blob | null> {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const video = document.createElement("video");
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.src = objectUrl;
+
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onloadeddata = () => resolve();
+        video.onerror = () => reject(new Error("could not decode"));
+      }),
+      10_000,
+    );
+
+    // Frame zero is often a black lead-in, so seek a little way in — but never
+    // past the end of a 3-second loop.
+    const seekTo =
+      Number.isFinite(video.duration) && video.duration > 0
+        ? Math.min(1, video.duration / 3)
+        : 0;
+
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onseeked = () => resolve();
+        video.onerror = () => reject(new Error("could not seek"));
+        video.currentTime = seekTo;
+      }),
+      10_000,
+    );
+
+    if (!video.videoWidth || !video.videoHeight) return null;
+
+    // 740px matches the card's rendered width on a 3x phone. Never upscale.
+    const scale = Math.min(1, 740 / video.videoWidth);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    return await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.72),
+    );
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 /**
  * Upload control for one gender's demo clip.
  *
@@ -47,6 +126,7 @@ export function ExerciseVideoField({
   label,
   slug,
   savedPath,
+  savedPosterPath,
 }: {
   gender: ExerciseMediaGender;
   label: string;
@@ -54,9 +134,12 @@ export function ExerciseVideoField({
   slug: string;
   /** Path already stored on the row, or null when nothing is uploaded. */
   savedPath: string | null;
+  /** Poster path already stored on the row. Null for clips predating posters. */
+  savedPosterPath: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [path, setPath] = useState<string | null>(savedPath);
+  const [posterPath, setPosterPath] = useState<string | null>(savedPosterPath);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -82,25 +165,55 @@ export function ExerciseVideoField({
 
     setBusy(true);
     try {
-      const { path: uploadPath, token } = await createExerciseVideoUploadUrl(
-        slug,
-        gender,
-      );
+      const {
+        path: uploadPath,
+        token,
+        posterPath: posterUploadPath,
+        posterToken,
+      } = await createExerciseMediaUploadUrls(slug, gender);
 
-      const { error: uploadError } = await createClient()
+      const client = createClient();
+
+      const { error: uploadError } = await client
         .storage.from(EXERCISE_MEDIA_BUCKET)
-        .uploadToSignedUrl(uploadPath, token, file, { contentType: "video/mp4" });
+        .uploadToSignedUrl(uploadPath, token, file, {
+          contentType: "video/mp4",
+          // These objects are immutable — the filename carries a timestamp and
+          // a replacement always writes a new path — so cache them for a year
+          // rather than letting Storage's 3600 default re-download every clip
+          // hourly for every user.
+          cacheControl: MEDIA_CACHE_CONTROL,
+        });
 
       if (uploadError) throw new Error(uploadError.message);
+
+      // After the clip is safely up: a failed poster leaves the clip usable,
+      // but a clip that failed while we were busy making a thumbnail would not.
+      const poster = await capturePoster(file);
+      let uploadedPosterPath: string | null = null;
+
+      if (poster) {
+        const { error: posterError } = await client
+          .storage.from(EXERCISE_THUMBS_BUCKET)
+          .uploadToSignedUrl(posterUploadPath, posterToken, poster, {
+            contentType: "image/jpeg",
+            cacheControl: MEDIA_CACHE_CONTROL,
+          });
+        if (!posterError) uploadedPosterPath = posterUploadPath;
+      }
 
       // Replacing an upload that was never saved: nothing will ever reference
       // the previous file, so drop it now rather than orphaning it. The saved
       // path is left alone — saveExercise deletes that one after it commits.
       if (path && path !== savedPath) {
-        await removeExerciseVideoObject(path).catch(() => {});
+        await removeExerciseVideoObject(
+          path,
+          posterPath !== savedPosterPath ? posterPath : null,
+        ).catch(() => {});
       }
 
       setPath(uploadPath);
+      setPosterPath(uploadedPosterPath);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -111,9 +224,13 @@ export function ExerciseVideoField({
 
   const clear = async () => {
     if (path && path !== savedPath) {
-      await removeExerciseVideoObject(path).catch(() => {});
+      await removeExerciseVideoObject(
+        path,
+        posterPath !== savedPosterPath ? posterPath : null,
+      ).catch(() => {});
     }
     setPath(null);
+    setPosterPath(null);
     setError(null);
   };
 
@@ -161,8 +278,13 @@ export function ExerciseVideoField({
     <div className="grid gap-2">
       <Label>{label}</Label>
 
-      {/* The value the form actually submits. Empty string = clip removed. */}
+      {/* The values the form actually submits. Empty string = clip removed. */}
       <input type="hidden" name={`demo_video_${gender}_path`} value={path ?? ""} />
+      <input
+        type="hidden"
+        name={`demo_video_${gender}_poster_path`}
+        value={posterPath ?? ""}
+      />
 
       <div className="relative" {...dropHandlers}>
         {path ? (

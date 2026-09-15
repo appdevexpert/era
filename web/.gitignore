@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# exercise media re-encode progress (resumable run state, machine-local)
+scripts/.recompress-state.json

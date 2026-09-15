@@ -205,6 +205,13 @@ create table if not exists public.exercise_library (
   -- because the demo shows body mechanics. See 2026_07_29_exercise_demo_videos.sql.
   demo_video_male_path text,
   demo_video_female_path text,
+  -- Poster frame for each clip, in the public `exercise-thumbs` bucket. Lets the
+  -- exercise info sheet show a ~15 KB JPEG instead of streaming the whole clip
+  -- on open. Per gender for the same reason the clips are. Null = no poster, and
+  -- the mobile card falls back to its empty surface.
+  -- See 2026_09_15_exercise_media_egress.sql.
+  demo_video_male_poster_path text,
+  demo_video_female_poster_path text,
   -- ONE flag per exercise, not per gender. False = the mobile tile plays the
   -- clip once and then shows a tap-to-play button instead of looping.
   demo_video_loop boolean not null default true,

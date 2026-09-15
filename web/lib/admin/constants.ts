@@ -240,8 +240,33 @@ export function isMainProgramId(id: string | null | undefined): boolean {
  */
 export const EXERCISE_MEDIA_BUCKET = "exercise-media";
 
+/**
+ * Public bucket holding one poster frame per demo clip.
+ *
+ * Separate from EXERCISE_MEDIA_BUCKET rather than relaxing that bucket's mime
+ * allowlist, so a JPEG can never land where a clip belongs. See
+ * `supabase/2026_09_15_exercise_media_egress.sql`.
+ */
+export const EXERCISE_THUMBS_BUCKET = "exercise-thumbs";
+
 /** Matches the bucket's `file_size_limit` — keep the two in sync. */
 export const EXERCISE_VIDEO_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * `cache-control: max-age=` for everything we put in the media buckets, in
+ * seconds. One year.
+ *
+ * Storage defaults to 3600, which meant every clip was re-fetched hourly by
+ * every user and burned through the Free plan's 5 GB cached-egress allowance.
+ * These objects are immutable in practice — the filename carries a timestamp
+ * and a replacement always writes a NEW path — so there is nothing for a short
+ * TTL to buy.
+ *
+ * The corollary: never overwrite a path that has been served with this header.
+ * Clients will not re-check it for a year and Supabase purging its own edge
+ * does nothing about the copy in a device's cache. Always write a new path.
+ */
+export const MEDIA_CACHE_CONTROL = "31536000";
 
 export const EXERCISE_MEDIA_GENDERS = ["male", "female"] as const;
 export type ExerciseMediaGender = (typeof EXERCISE_MEDIA_GENDERS)[number];

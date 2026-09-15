@@ -151,12 +151,14 @@ export function ExerciseFormDialog({
                   label="Male demo"
                   slug={exercise.slug}
                   savedPath={exercise.demo_video_male_path}
+                  savedPosterPath={exercise.demo_video_male_poster_path}
                 />
                 <ExerciseVideoField
                   gender="female"
                   label="Female demo"
                   slug={exercise.slug}
                   savedPath={exercise.demo_video_female_path}
+                  savedPosterPath={exercise.demo_video_female_poster_path}
                 />
               </div>
             ) : (

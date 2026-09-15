@@ -19,7 +19,7 @@ import type {
   WorkoutOverviewData,
 } from "@/app/types/workout";
 import { DELOAD_MAX_SETS, DELOAD_WEIGHT_MULTIPLIER } from "@/app/utils/deloadTransform";
-import { resolveExerciseDemoVideo } from "@/app/utils/exerciseMedia";
+import { resolveExerciseDemoMedia } from "@/app/utils/exerciseMedia";
 import { getLocalizedText, normalizeLanguage, type AppLanguage } from "@/app/utils/localization";
 import {
   formatDayLabel,
@@ -618,6 +618,7 @@ export function mapExerciseList(
             exercise.display_name ??
               getLocalizedText(libraryExercise?.name_translations ?? null, language, libraryExercise?.name ?? ""),
           );
+          const demoMedia = resolveExerciseDemoMedia(libraryExercise, gender);
 
           return {
             id: exercise.id,
@@ -636,7 +637,8 @@ export function mapExerciseList(
               language,
               "",
             ),
-            demoVideoUrl: resolveExerciseDemoVideo(libraryExercise, gender),
+            demoVideoUrl: demoMedia.videoUrl,
+            demoVideoPosterUrl: demoMedia.posterUrl,
             demoVideoLoop: libraryExercise?.demo_video_loop ?? true,
           };
         }),
@@ -975,6 +977,8 @@ export function mapSessionWorkout(
 
       globalOrder += 1;
 
+      const demoMedia = resolveExerciseDemoMedia(lib, options.gender);
+
       return {
         id: exercise.id,
         exerciseLibraryId: exercise.exercise_id,
@@ -984,7 +988,8 @@ export function mapSessionWorkout(
         category,
         modality: lib?.modality ?? "strength",
         exerciseCategory: lib?.category ?? "compound",
-        demoVideoUrl: resolveExerciseDemoVideo(lib, options.gender),
+        demoVideoUrl: demoMedia.videoUrl,
+        demoVideoPosterUrl: demoMedia.posterUrl,
         demoVideoLoop: lib?.demo_video_loop ?? true,
         mode,
         setCount: rawSets.length,

@@ -35,6 +35,9 @@ export type ExerciseRow = {
   /** Path inside the public `exercise-media` bucket, not a URL. */
   demo_video_male_path: string | null;
   demo_video_female_path: string | null;
+  /** Poster frame for each clip, in the public `exercise-thumbs` bucket. */
+  demo_video_male_poster_path: string | null;
+  demo_video_female_poster_path: string | null;
   /** One flag per exercise: false = mobile plays once + shows tap-to-play. */
   demo_video_loop: boolean;
   updated_at: string;
