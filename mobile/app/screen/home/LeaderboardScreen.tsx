@@ -16,7 +16,7 @@ import {
   TrophyBadgeGold,
   TrophyBadgeSilver,
 } from "@/assets/images";
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -288,13 +288,19 @@ const PodiumColumn = ({
 const RankRow = ({
   entry,
   isTop,
+  isMe = false,
+  youLabel,
 }: {
   entry: LeaderboardEntry;
   isTop: boolean;
+  /** Caller's own row inside the top 10 — gold border + "YOU" ribbon. */
+  isMe?: boolean;
+  youLabel?: string;
 }) => {
+  const meRibbon = isMe && youLabel ? <YouRibbon label={youLabel} /> : null;
   if (isTop) {
     return (
-      <View style={styles.rowTop}>
+      <View style={[styles.rowTop, isMe && styles.rowMe]}>
         <LinearGradient
           pointerEvents="none"
           colors={["rgba(201, 168, 76, 0.3)", "rgba(17, 17, 17, 0)"]}
@@ -302,6 +308,7 @@ const RankRow = ({
           end={{ x: 1, y: 0.5 }}
           style={StyleSheet.absoluteFill}
         />
+        {meRibbon}
         <View style={styles.rankWrap}>
           <Text style={styles.rankText}>#{entry.rank}</Text>
         </View>
@@ -325,7 +332,8 @@ const RankRow = ({
     );
   }
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isMe && styles.rowMe]}>
+      {meRibbon}
       <View style={styles.rankWrap}>
         <Text style={styles.rankText}>#{entry.rank}</Text>
       </View>
@@ -344,65 +352,88 @@ const RankRow = ({
   );
 };
 
-/** Size of the gold "YOU" corner ribbon on the own-rank card. */
-const YOU_RIBBON_SIZE = 44;
+/** Gold "YOU" band folded across the top-left corner of the caller's own
+ *  row. Parent must clip (overflow: hidden) and leave left padding so the
+ *  rank clears it. */
+const YouRibbon = ({ label }: { label: string }) => (
+  <View style={styles.youRibbon} pointerEvents="none">
+    <LinearGradient
+      colors={[COLORS.primary.dark, COLORS.primary.base, COLORS.primary.dark]}
+      start={{ x: 0, y: 0.5 }}
+      end={{ x: 1, y: 0.5 }}
+      style={styles.youRibbonBand}
+    >
+      <Text style={styles.youRibbonText}>{label}</Text>
+    </LinearGradient>
+  </View>
+);
 
-/* Own-rank card shown under the top 10 when the caller isn't in it:
- * "YOUR RANK" divider, then a gold-bordered row with a "YOU" corner ribbon. */
+/* The caller's own standing, pinned to the bottom of the screen when they're
+ * outside the top 10 (Duolingo / Strava pattern): it never scrolls away, and
+ * the line under the name says how far they are from the list — the reason a
+ * rank of #41 is worth looking at. */
 const MyRankCard = ({
-  entry,
-  sectionLabel,
+  rank,
+  displayName,
+  avatarUrl,
+  totalPoints,
+  subtitle,
+  progress,
   youLabel,
 }: {
-  entry: LeaderboardEntry;
-  sectionLabel: string;
+  rank: number;
+  displayName: string | null;
+  avatarUrl: string | null;
+  totalPoints: number;
+  subtitle: string;
+  /** 0–1 share of the current #10's points; null hides the bar. */
+  progress: number | null;
   youLabel: string;
 }) => (
-  <View style={styles.myRankWrap}>
-    <View style={styles.myRankDivider}>
-      <View style={styles.myRankDividerLine} />
-      <Text style={styles.myRankLabel}>{sectionLabel}</Text>
-      <View style={styles.myRankDividerLine} />
-    </View>
-
-    <View style={styles.myRankCard}>
-      <View style={styles.youRibbon} pointerEvents="none">
-        <Svg
-          width={YOU_RIBBON_SIZE}
-          height={YOU_RIBBON_SIZE}
-          viewBox={`0 0 ${YOU_RIBBON_SIZE} ${YOU_RIBBON_SIZE}`}
-        >
-          <Defs>
-            <SvgLinearGradient id="youRibbon" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor={COLORS.primary.base} />
-              <Stop offset="1" stopColor={COLORS.primary.dark} />
-            </SvgLinearGradient>
-          </Defs>
-          <Path
-            d={`M0 0H${YOU_RIBBON_SIZE}L0 ${YOU_RIBBON_SIZE}Z`}
-            fill="url(#youRibbon)"
-          />
-        </Svg>
-        <Text style={styles.youRibbonText}>{youLabel}</Text>
-      </View>
-
-      <View style={styles.rankWrap}>
-        <Text style={[styles.rankText, { color: COLORS.primary.base }]}>
-          #{entry.rank}
-        </Text>
-      </View>
-      <Avatar
-        size={52}
-        border="transparent"
-        borderWidth={0}
-        uri={entry.avatarUrl}
-        name={entry.displayName}
-      />
-      <Text style={styles.rowName} numberOfLines={1}>
-        {entry.displayName ?? "—"}
+  <View style={styles.myRankCard}>
+    {/* Same left-to-right gold wash as the #1 row, softer. */}
+    <LinearGradient
+      pointerEvents="none"
+      colors={["rgba(201, 168, 76, 0.16)", "rgba(17, 17, 17, 0)"]}
+      start={{ x: 0, y: 0.5 }}
+      end={{ x: 1, y: 0.5 }}
+      style={StyleSheet.absoluteFill}
+    />
+    <YouRibbon label={youLabel} />
+    <View style={styles.rankWrap}>
+      <Text style={[styles.rankText, { color: COLORS.primary.base }]}>
+        {rank > 0 ? `#${rank}` : "—"}
       </Text>
-      <Text style={styles.rowPts}>{entry.totalPoints} pts</Text>
     </View>
+    <Avatar
+      size={44}
+      border="transparent"
+      borderWidth={0}
+      uri={avatarUrl}
+      name={displayName}
+    />
+    <View style={styles.myRankText}>
+      <Text style={[styles.rowName, styles.myRankName]} numberOfLines={1}>
+        {displayName ?? "—"}
+      </Text>
+      <Text style={styles.myRankSubtitle} numberOfLines={1}>
+        {subtitle}
+      </Text>
+      {progress !== null ? (
+        <View style={styles.myRankTrack}>
+          <LinearGradient
+            colors={[COLORS.primary.dark, COLORS.primary.base]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={[
+              styles.myRankFill,
+              { width: `${Math.round(Math.min(Math.max(progress, 0), 1) * 100)}%` },
+            ]}
+          />
+        </View>
+      ) : null}
+    </View>
+    <Text style={styles.rowPts}>{totalPoints} pts</Text>
   </View>
 );
 
@@ -440,29 +471,45 @@ const LeaderboardScreen = () => {
   const listEntries = entries;
 
   // Ties share a rank, so "in the list" is checked by id, not by rank <= 10.
-  const myEntry: LeaderboardEntry | null =
-    me && myRank > 0 && status === "success" && userId
-      ? entries.some((e) => e.userId === userId)
-        ? null
-        : {
-            rank: myRank,
-            userId,
-            displayName: me.displayName,
-            avatarUrl: me.avatarUrl,
-            totalPoints: me.totalPoints,
-            currentStreak: 0,
-          }
+  const isMeInTop = !!userId && entries.some((e) => e.userId === userId);
+  const showMyDock = status === "success" && !!me && !isMeInTop;
+
+  // Points needed to pass the current #10. With fewer than 10 ranked users
+  // everyone with points is already in the list, so this only matters once
+  // the list is full.
+  const tenth = entries.length >= 10 ? entries[entries.length - 1] : null;
+  const myDockSubtitle =
+    myRank === 0
+      ? t("progress.leaderboardGetRanked")
+      : tenth
+        ? t("progress.leaderboardToTop10", {
+            count: Math.max(tenth.totalPoints - (me?.totalPoints ?? 0) + 1, 1),
+          })
+        : t("progress.leaderboardGetRanked");
+
+  const myDockProgress =
+    myRank > 0 && tenth && tenth.totalPoints > 0
+      ? (me?.totalPoints ?? 0) / tenth.totalPoints
       : null;
+
+  // The dock overlays the bottom of the sheet; pad the list by its measured
+  // height so #10 can still scroll clear of it.
+  const [dockHeight, setDockHeight] = useState(0);
 
   // Each row sits inside the dark sheet — we wrap it with the sheet bg so the
   // 20px horizontal gutter on either side of the row stays #121212.
   const renderItem: ListRenderItem<LeaderboardEntry> = useCallback(
     ({ item }) => (
       <View style={styles.sheetRowWrap}>
-        <RankRow entry={item} isTop={item.rank === 1} />
+        <RankRow
+          entry={item}
+          isTop={item.rank === 1}
+          isMe={item.userId === userId}
+          youLabel={t("progress.leaderboardYou")}
+        />
       </View>
     ),
-    [],
+    [t, userId],
   );
 
   // Empty / error states live inside the dark sheet so the chrome doesn't
@@ -483,17 +530,9 @@ const LeaderboardScreen = () => {
     <View
       style={[
         styles.sheetFooter,
-        { paddingBottom: insets.bottom + 40 },
+        { paddingBottom: (showMyDock ? dockHeight : insets.bottom) + 40 },
       ]}
-    >
-      {myEntry ? (
-        <MyRankCard
-          entry={myEntry}
-          sectionLabel={t("progress.leaderboardYourRank")}
-          youLabel={t("progress.leaderboardYou")}
-        />
-      ) : null}
-    </View>
+    />
   );
 
   // BottomSheet snap points — first snap shows the podium + a peek of the
@@ -569,6 +608,28 @@ const LeaderboardScreen = () => {
       </HeaderSurface>
 
       <ScreenFades />
+
+      {showMyDock && me ? (
+        <View
+          style={[styles.myRankDock, { paddingBottom: insets.bottom + 12 }]}
+          onLayout={(e) => setDockHeight(e.nativeEvent.layout.height)}
+        >
+          <LinearGradient
+            pointerEvents="none"
+            colors={["rgba(18,18,18,0)", "#121212"]}
+            style={styles.myRankDockFade}
+          />
+          <MyRankCard
+            rank={myRank}
+            displayName={me.displayName}
+            avatarUrl={me.avatarUrl}
+            totalPoints={me.totalPoints}
+            subtitle={myDockSubtitle}
+            progress={myDockProgress}
+            youLabel={t("progress.leaderboardYou")}
+          />
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -745,27 +806,29 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     minHeight: 40,
   },
-  myRankWrap: {
+  // Caller's own row inside the top 10.
+  rowMe: {
+    paddingLeft: 30,
+    overflow: "hidden",
+  },
+  // Pinned own-rank dock — sits over the sheet's bottom edge, same #121212.
+  myRankDock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#121212",
     paddingHorizontal: 20,
     paddingTop: 12,
-    gap: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.alpha.white12,
   },
-  myRankDivider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  myRankDividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: COLORS.alpha.white12,
-  },
-  myRankLabel: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.alpha.white50,
-    letterSpacing: 2,
-    textTransform: "uppercase",
+  myRankDockFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: -24,
+    height: 24,
   },
   myRankCard: {
     flexDirection: "row",
@@ -773,35 +836,64 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: COLORS.neutral.black3,
     borderWidth: 1,
-    borderColor: COLORS.primary.dark,
+    borderColor: COLORS.neutral.charcoal,
     borderRadius: 16,
     // Extra left room so the rank clears the ribbon's diagonal.
     paddingLeft: 30,
     paddingRight: 12,
-    paddingVertical: 14,
+    paddingVertical: 12,
     overflow: "hidden",
   },
+  myRankText: {
+    flex: 1,
+    gap: 4,
+  },
+  // Progress toward the current #10's points.
+  myRankTrack: {
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: COLORS.alpha.white08,
+    overflow: "hidden",
+    marginTop: 2,
+  },
+  myRankFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+  // rowName's flex: 1 would collapse inside this column.
+  myRankName: {
+    flex: 0,
+  },
+  myRankSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.primary.dark,
+    letterSpacing: 0.24,
+  },
+  // Band runs 45° across the corner: centred on the line x + y = 40, so it
+  // enters the card at (0, 40) and leaves at (40, 0). The card clips the ends.
   youRibbon: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    width: YOU_RIBBON_SIZE,
-    height: YOU_RIBBON_SIZE,
-  },
-  // Centred on the triangle's diagonal, rotated to run along it.
-  youRibbonText: {
-    position: "absolute",
-    top: 7,
-    left: -3,
-    width: 32,
-    textAlign: "center",
+    top: 12,
+    left: -26,
+    width: 90,
+    height: 18,
     transform: [{ rotate: "-45deg" }],
+  },
+  youRibbonBand: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  youRibbonText: {
     fontFamily: FONTS.semiBold,
     fontWeight: "700",
     fontSize: 9,
-    letterSpacing: 0.6,
+    lineHeight: 11,
+    letterSpacing: 1.2,
     color: COLORS.neutral.black3,
     textTransform: "uppercase",
+    includeFontPadding: false,
   },
 
   // List rows (sit inside sheetRowWrap)
