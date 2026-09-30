@@ -633,6 +633,7 @@ const nb = {
     leaderboardEmpty: "Ingen har tjent poeng enda – bli den første.",
     leaderboardError: "Kunne ikke laste topplisten. Dra ned for å oppdatere.",
     leaderboardPtsLabel: "{{count}} p",
+    leaderboardYourRank: "Din plassering",
     leaderboardUnranked: "Ikke rangert",
     historyTitle: "Historikk",
     phaseHypertrophy: "Hypertrofi",

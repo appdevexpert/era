@@ -16,7 +16,7 @@ import {
   TrophyBadgeGold,
   TrophyBadgeSilver,
 } from "@/assets/images";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Path, Stop } from "react-native-svg";
 import BottomSheet, { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { NavigationProp, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -344,6 +344,68 @@ const RankRow = ({
   );
 };
 
+/** Size of the gold "YOU" corner ribbon on the own-rank card. */
+const YOU_RIBBON_SIZE = 44;
+
+/* Own-rank card shown under the top 10 when the caller isn't in it:
+ * "YOUR RANK" divider, then a gold-bordered row with a "YOU" corner ribbon. */
+const MyRankCard = ({
+  entry,
+  sectionLabel,
+  youLabel,
+}: {
+  entry: LeaderboardEntry;
+  sectionLabel: string;
+  youLabel: string;
+}) => (
+  <View style={styles.myRankWrap}>
+    <View style={styles.myRankDivider}>
+      <View style={styles.myRankDividerLine} />
+      <Text style={styles.myRankLabel}>{sectionLabel}</Text>
+      <View style={styles.myRankDividerLine} />
+    </View>
+
+    <View style={styles.myRankCard}>
+      <View style={styles.youRibbon} pointerEvents="none">
+        <Svg
+          width={YOU_RIBBON_SIZE}
+          height={YOU_RIBBON_SIZE}
+          viewBox={`0 0 ${YOU_RIBBON_SIZE} ${YOU_RIBBON_SIZE}`}
+        >
+          <Defs>
+            <SvgLinearGradient id="youRibbon" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor={COLORS.primary.base} />
+              <Stop offset="1" stopColor={COLORS.primary.dark} />
+            </SvgLinearGradient>
+          </Defs>
+          <Path
+            d={`M0 0H${YOU_RIBBON_SIZE}L0 ${YOU_RIBBON_SIZE}Z`}
+            fill="url(#youRibbon)"
+          />
+        </Svg>
+        <Text style={styles.youRibbonText}>{youLabel}</Text>
+      </View>
+
+      <View style={styles.rankWrap}>
+        <Text style={[styles.rankText, { color: COLORS.primary.base }]}>
+          #{entry.rank}
+        </Text>
+      </View>
+      <Avatar
+        size={52}
+        border="transparent"
+        borderWidth={0}
+        uri={entry.avatarUrl}
+        name={entry.displayName}
+      />
+      <Text style={styles.rowName} numberOfLines={1}>
+        {entry.displayName ?? "—"}
+      </Text>
+      <Text style={styles.rowPts}>{entry.totalPoints} pts</Text>
+    </View>
+  </View>
+);
+
 const LeaderboardScreen = () => {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
@@ -425,10 +487,11 @@ const LeaderboardScreen = () => {
       ]}
     >
       {myEntry ? (
-        <View style={styles.myRankWrap}>
-          <Text style={styles.myRankLabel}>{t("progress.leaderboardYou")}</Text>
-          <RankRow entry={myEntry} isTop={false} />
-        </View>
+        <MyRankCard
+          entry={myEntry}
+          sectionLabel={t("progress.leaderboardYourRank")}
+          youLabel={t("progress.leaderboardYou")}
+        />
       ) : null}
     </View>
   );
@@ -684,13 +747,60 @@ const styles = StyleSheet.create({
   },
   myRankWrap: {
     paddingHorizontal: 20,
-    gap: 12,
+    paddingTop: 12,
+    gap: 20,
+  },
+  myRankDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  myRankDividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.alpha.white12,
   },
   myRankLabel: {
     fontFamily: FONTS.regular,
-    fontSize: 12,
-    color: COLORS.primary.dark,
-    letterSpacing: 0.48,
+    fontSize: 13,
+    color: COLORS.alpha.white50,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+  },
+  myRankCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: COLORS.neutral.black3,
+    borderWidth: 1,
+    borderColor: COLORS.primary.dark,
+    borderRadius: 16,
+    // Extra left room so the rank clears the ribbon's diagonal.
+    paddingLeft: 30,
+    paddingRight: 12,
+    paddingVertical: 14,
+    overflow: "hidden",
+  },
+  youRibbon: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: YOU_RIBBON_SIZE,
+    height: YOU_RIBBON_SIZE,
+  },
+  // Centred on the triangle's diagonal, rotated to run along it.
+  youRibbonText: {
+    position: "absolute",
+    top: 7,
+    left: -3,
+    width: 32,
+    textAlign: "center",
+    transform: [{ rotate: "-45deg" }],
+    fontFamily: FONTS.semiBold,
+    fontWeight: "700",
+    fontSize: 9,
+    letterSpacing: 0.6,
+    color: COLORS.neutral.black3,
     textTransform: "uppercase",
   },
 

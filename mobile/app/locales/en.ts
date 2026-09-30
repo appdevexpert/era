@@ -633,6 +633,7 @@ const en = {
     leaderboardEmpty: "No one's earned points yet — be the first.",
     leaderboardError: "Couldn't load leaderboard. Pull to refresh.",
     leaderboardPtsLabel: "{{count}} pts",
+    leaderboardYourRank: "Your rank",
     leaderboardUnranked: "Unranked",
     historyTitle: "History",
     phaseHypertrophy: "Hypertrophy",
