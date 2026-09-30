@@ -15,9 +15,11 @@ export interface LeaderboardEntry {
 }
 
 export interface MyLeaderboardRank {
+  /** 0 when the caller has no reward row yet. */
   rank: number;
   totalPoints: number;
-  totalUsers: number;
+  displayName: string | null;
+  avatarUrl: string | null;
 }
 
 interface LeaderboardRowRaw {
@@ -32,16 +34,17 @@ interface LeaderboardRowRaw {
 interface MyRankRowRaw {
   rank: number;
   total_points: number;
-  total_users: number;
+  display_name: string | null;
+  avatar_url: string | null;
 }
 
-export async function fetchLeaderboardPage(
-  limit: number,
-  offset: number,
-): Promise<LeaderboardEntry[]> {
+/** The RPC never returns more than this many rows. */
+export const LEADERBOARD_SIZE = 10;
+
+export async function fetchLeaderboardTop(): Promise<LeaderboardEntry[]> {
   const { data, error } = await supabase.rpc("get_leaderboard_page", {
-    p_limit: limit,
-    p_offset: offset,
+    p_limit: LEADERBOARD_SIZE,
+    p_offset: 0,
   });
   if (error) throw new Error(error.message);
   return ((data ?? []) as LeaderboardRowRaw[]).map((row) => ({
@@ -61,6 +64,7 @@ export async function fetchMyLeaderboardRank(): Promise<MyLeaderboardRank> {
   return {
     rank: row?.rank ?? 0,
     totalPoints: row?.total_points ?? 0,
-    totalUsers: row?.total_users ?? 0,
+    displayName: row?.display_name ?? null,
+    avatarUrl: row?.avatar_url ?? null,
   };
 }

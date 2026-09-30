@@ -1,15 +1,14 @@
 import HeaderSurface from "@/app/components/common/HeaderSurface";
 import ScreenFades from "@/app/components/common/ScreenFades";
-import LeaderboardScreenSkeleton, {
-  LeaderboardRowSkeleton,
-} from "@/app/components/skeleton/LeaderboardScreenSkeleton";
+import LeaderboardScreenSkeleton from "@/app/components/skeleton/LeaderboardScreenSkeleton";
 import { COLORS } from "@/app/constants/colors";
 import { FONTS } from "@/app/constants/fonts";
 import type { HomeStackParamList } from "@/app/navigation/types";
 import {
-  fetchLeaderboardPage,
+  fetchLeaderboardTop,
   fetchMyLeaderboardRank,
   type LeaderboardEntry,
+  type MyLeaderboardRank,
 } from "@/app/services/leaderboardService";
 import { LaurelWreath, ProfileBackChevron } from "@/assets/icons";
 import {
@@ -33,8 +32,8 @@ import {
 } from "react-native";
 import PressableScale from "@/app/components/common/PressableScale";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-const PAGE_SIZE = 10;
+import { useSelector } from "react-redux";
+import { selectUser } from "@/app/stores/selectors/authSelectors";
 
 type Status = "idle" | "loading" | "success" | "error";
 
@@ -352,54 +351,46 @@ const LeaderboardScreen = () => {
 
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [status, setStatus] = useState<Status>("idle");
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [myRank, setMyRank] = useState<number>(0);
-
-  // Guard against RN's habit of double-firing onEndReached on the same offset.
-  const isFetchingRef = useRef(false);
-
-  const loadPage = useCallback(
-    async (offset: number, mode: "initial" | "more") => {
-      if (isFetchingRef.current) return;
-      isFetchingRef.current = true;
-      try {
-        if (mode === "more") setLoadingMore(true);
-        else setStatus("loading");
-
-        const page = await fetchLeaderboardPage(PAGE_SIZE, offset);
-
-        setEntries((prev) => (mode === "more" ? [...prev, ...page] : page));
-        setHasMore(page.length === PAGE_SIZE);
-        setStatus("success");
-      } catch (e) {
-        console.warn("[leaderboard] page fetch failed", e);
-        if (mode === "initial") setStatus("error");
-      } finally {
-        setLoadingMore(false);
-        isFetchingRef.current = false;
-      }
-    },
-    [],
-  );
+  const userId = useSelector(selectUser)?.id;
+  const [me, setMe] = useState<MyLeaderboardRank | null>(null);
+  const myRank = me?.rank ?? 0;
 
   useEffect(() => {
-    loadPage(0, "initial");
+    setStatus("loading");
+    fetchLeaderboardTop()
+      .then((top) => {
+        setEntries(top);
+        setStatus("success");
+      })
+      .catch((e) => {
+        console.warn("[leaderboard] top fetch failed", e);
+        setStatus("error");
+      });
     fetchMyLeaderboardRank()
-      .then((r) => setMyRank(r.rank))
+      .then(setMe)
       .catch(() => {});
-  }, [loadPage]);
+  }, []);
 
-  const onEndReached = useCallback(() => {
-    if (!hasMore || isFetchingRef.current || status !== "success") return;
-    loadPage(entries.length, "more");
-  }, [entries.length, hasMore, loadPage, status]);
-
-  // Podium highlights the top 3 (Figma 4769:71418). Sheet shows the full
-  // ranked list — including the top 3 — so the entire leaderboard is
-  // scrollable inside the sheet.
+  // Podium highlights the top 3 (Figma 4769:71418). Sheet shows the top 10
+  // — including the top 3. Only the top 10 are ever public; everyone else
+  // just sees their own rank under the list.
   const podiumEntries = entries.slice(0, 3);
   const listEntries = entries;
+
+  // Ties share a rank, so "in the list" is checked by id, not by rank <= 10.
+  const myEntry: LeaderboardEntry | null =
+    me && myRank > 0 && status === "success" && userId
+      ? entries.some((e) => e.userId === userId)
+        ? null
+        : {
+            rank: myRank,
+            userId,
+            displayName: me.displayName,
+            avatarUrl: me.avatarUrl,
+            totalPoints: me.totalPoints,
+            currentStreak: 0,
+          }
+      : null;
 
   // Each row sits inside the dark sheet — we wrap it with the sheet bg so the
   // 20px horizontal gutter on either side of the row stays #121212.
@@ -433,12 +424,11 @@ const LeaderboardScreen = () => {
         { paddingBottom: insets.bottom + 40 },
       ]}
     >
-      {loadingMore ? (
-        <>
-          <LeaderboardRowSkeleton />
-          <View style={{ height: 16 }} />
-          <LeaderboardRowSkeleton />
-        </>
+      {myEntry ? (
+        <View style={styles.myRankWrap}>
+          <Text style={styles.myRankLabel}>{t("progress.leaderboardYou")}</Text>
+          <RankRow entry={myEntry} isTop={false} />
+        </View>
       ) : null}
     </View>
   );
@@ -491,8 +481,6 @@ const LeaderboardScreen = () => {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={entries.length === 0 ? ListEmpty : null}
             ListFooterComponent={ListFooter}
-            onEndReached={onEndReached}
-            onEndReachedThreshold={0.5}
             ItemSeparatorComponent={() => (
               <View style={styles.sheetSeparator} />
             )}
@@ -693,8 +681,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#121212",
     paddingVertical: 20,
     minHeight: 40,
-    alignItems: "center",
-    justifyContent: "center",
+  },
+  myRankWrap: {
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  myRankLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.primary.dark,
+    letterSpacing: 0.48,
+    textTransform: "uppercase",
   },
 
   // List rows (sit inside sheetRowWrap)

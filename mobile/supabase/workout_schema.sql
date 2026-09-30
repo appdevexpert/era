@@ -1471,25 +1471,30 @@ AS $function$
       p.avatar_url,
       r.total_points,
       r.current_streak_days,
-      rank() over (order by r.total_points desc, r.user_id)::int as rank
+      rank() over (order by r.total_points desc, r.user_id)::int as rank,
+      row_number() over (order by r.total_points desc, r.user_id) as pos
     from public.user_reward_state r
     join public.profiles p on p.id = r.user_id
     where p.role = 'user'
   )
   select rank, user_id, display_name, avatar_url, total_points, current_streak_days
   from ranked
-  order by rank, user_id
-  limit greatest(p_limit, 0)
+  where pos <= 10
+  order by pos
+  limit least(greatest(p_limit, 0), 10)
   offset greatest(p_offset, 0);
 $function$;
 
-grant execute on function public.get_leaderboard_page(integer, integer) to anon, authenticated, service_role;
+revoke execute on function public.get_leaderboard_page(integer, integer) from public, anon;
+grant execute on function public.get_leaderboard_page(integer, integer) to authenticated, service_role;
 
 -- ------------------------------------------------------------
 -- get_my_leaderboard_rank
 -- ------------------------------------------------------------
-create or replace function public.get_my_leaderboard_rank()
- RETURNS TABLE(rank integer, total_points integer, total_users integer)
+drop function if exists public.get_my_leaderboard_rank();
+
+create function public.get_my_leaderboard_rank()
+ RETURNS TABLE(rank integer, total_points integer, display_name text, avatar_url text)
  LANGUAGE sql
  SECURITY DEFINER
  SET search_path TO 'public'
@@ -1504,12 +1509,17 @@ AS $function$
     where p.role = 'user'
   )
   select
-    coalesce((select rank from ranked where user_id = auth.uid()), 0) as rank,
-    coalesce((select total_points from ranked where user_id = auth.uid()), 0) as total_points,
-    (select count(*)::int from ranked) as total_users;
+    coalesce(ranked.rank, 0) as rank,
+    coalesce(ranked.total_points, 0) as total_points,
+    p.full_name as display_name,
+    p.avatar_url
+  from public.profiles p
+  left join ranked on ranked.user_id = p.id
+  where p.id = auth.uid();
 $function$;
 
-grant execute on function public.get_my_leaderboard_rank() to anon, authenticated, service_role;
+revoke execute on function public.get_my_leaderboard_rank() from public, anon;
+grant execute on function public.get_my_leaderboard_rank() to authenticated, service_role;
 
 -- ------------------------------------------------------------
 -- get_my_progress_photos
