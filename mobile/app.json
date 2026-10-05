@@ -2,7 +2,7 @@
   "expo": {
     "name": "ERA Fit",
     "slug": "era-fit",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon-era.png",
     "scheme": "erafit",
