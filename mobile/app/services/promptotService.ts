@@ -78,6 +78,23 @@ async function fetchPrompt(promptId: string): Promise<CachedPrompt | null> {
   }
 }
 
+/**
+ * Concurrent getPrompt calls for the same id share one network fetch. The
+ * weekly meal plan fires 7 parallel runPrompt calls with the same prompt —
+ * without this that was 7 identical PromptOT requests (Sentry ERA-FIT-9).
+ */
+const inFlight = new Map<string, Promise<CachedPrompt | null>>();
+
+function fetchPromptShared(promptId: string): Promise<CachedPrompt | null> {
+  const existing = inFlight.get(promptId);
+  if (existing) return existing;
+  const request = fetchPrompt(promptId).finally(() => {
+    inFlight.delete(promptId);
+  });
+  inFlight.set(promptId, request);
+  return request;
+}
+
 async function readCache(promptId: string): Promise<CachedPrompt | null> {
   try {
     const raw = await AsyncStorage.getItem(cacheKey(promptId));
@@ -95,7 +112,8 @@ export async function getPrompt(
   promptId: string,
   overrides: Record<string, string> = {},
 ): Promise<ResolvedPrompt> {
-  const compiled = (await fetchPrompt(promptId)) ?? (await readCache(promptId));
+  const compiled =
+    (await fetchPromptShared(promptId)) ?? (await readCache(promptId));
   if (!compiled) {
     throw new Error(`Could not load PromptOT prompt ${promptId}.`);
   }
