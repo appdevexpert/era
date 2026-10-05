@@ -73,8 +73,14 @@ interface WorkoutState {
    * Keyed by program_days.id.
    */
   dayDetailsById: Record<string, ProgramDayDetailData>;
-  /** program_day_ids of days with completed workout sessions */
+  /** program_day_ids of days with completed workout sessions in the current cycle */
   completedDayIds: string[];
+  /**
+   * Assignment id that completedDayIds / completedDayDurations belong to. When
+   * the bootstrap returns a different assignment (new cycle), the lists are
+   * replaced instead of unioned so the previous cycle's days don't leak in.
+   */
+  completedForAssignmentId: string | null;
   /**
    * Cached actual session length (in minutes) per completed program day.
    * Populated from the bootstrap fetch and updated optimistically when
@@ -122,6 +128,7 @@ const initialState: WorkoutState = {
   currentDayDetail: null,
   dayDetailsById: {},
   completedDayIds: [],
+  completedForAssignmentId: null,
   completedDayDurations: {},
   loadedAt: null,
   versionSignature: null,
@@ -185,10 +192,16 @@ export const loadWorkoutBootstrap = createAsyncThunk<
       }
     }
 
-    // Fetch one summary row per completed program day (latest session per day).
-    // Drives both completedDayIds and completedDayDurations downstream.
+    // Fetch active assignment (cycle_number, is_deload_week, etc.) so
+    // downstream UI (mappers, completion detection) can read it. Fetched before
+    // the completion summaries because its id scopes them to this cycle.
+    const assignment = userId ? await getActiveAssignment(userId) : null;
+
+    // Fetch one summary row per completed program day (latest session per day)
+    // within the current cycle. Drives both completedDayIds and
+    // completedDayDurations downstream.
     const completedSummaries = userId
-      ? await getCompletedSessionSummaries(userId)
+      ? await getCompletedSessionSummaries(userId, assignment?.id)
       : [];
     const completedDayIds = completedSummaries.map((s) => s.programDayId);
     const completedDayDurations = Object.fromEntries(
@@ -231,10 +244,6 @@ export const loadWorkoutBootstrap = createAsyncThunk<
     // subsequent admin edit will move the signature forward; the next
     // checkAndRefreshIfStale will see the mismatch and trigger a refetch.
     const versionSignature = await getProgramVersion();
-
-    // Fetch active assignment (cycle_number, is_deload_week, etc.) so
-    // downstream UI (mappers, completion detection) can read it.
-    const assignment = userId ? await getActiveAssignment(userId) : null;
 
     // Saved per-day exercise ordering (user drag-and-drop preference). One
     // round-trip; empty when the user has never reordered anything.
@@ -454,6 +463,14 @@ export const checkAndRefreshIfStale = createAsyncThunk<
   if (!workout.overview) return;
   if (workout.status === "loading") return;
 
+  // Completion list was built for another cycle — or before the app tracked
+  // cycles at all (rehydrates as null after an app update). Refetch once so it
+  // is rebuilt for the active assignment without the user logging out.
+  if (workout.assignment && workout.completedForAssignmentId !== workout.assignment.id) {
+    dispatch(loadWorkoutBootstrap());
+    return;
+  }
+
   const serverSignature = await getProgramVersion();
   if (!serverSignature) return;
 
@@ -539,22 +556,31 @@ const workoutSlice = createSlice({
       // workout_sessions UPDATE hasn't flushed yet — directly violating
       // doc/OFFLINE_ARCHITECTURE Rule 2 (Redux is source of truth during
       // the session). Completions are append-only from the user's POV,
-      // so union is semantically correct. Cycle reset clears the array
-      // via clearWorkoutCache.
-      state.completedDayIds = Array.from(
-        new Set([
-          ...state.completedDayIds,
-          ...action.payload.completedDayIds,
-        ]),
-      );
+      // so union is semantically correct — but only within one cycle. A new
+      // assignment (or a persisted list from before this field existed, where
+      // it reads undefined) means the local list belongs to another cycle, so
+      // the server snapshot replaces it.
+      const assignmentId = action.payload.assignment?.id ?? null;
+      const sameCycle = state.completedForAssignmentId === assignmentId;
+      state.completedDayIds = sameCycle
+        ? Array.from(
+            new Set([
+              ...state.completedDayIds,
+              ...action.payload.completedDayIds,
+            ]),
+          )
+        : action.payload.completedDayIds;
       // Same local-first rationale as completedDayIds: an in-flight finishSession
       // may have written a duration that hasn't yet round-tripped to the server.
       // Server values seed any unseen keys; local values override on conflict so
       // the optimistic minute count isn't clobbered by a stale server view.
-      state.completedDayDurations = {
-        ...action.payload.completedDayDurations,
-        ...state.completedDayDurations,
-      };
+      state.completedDayDurations = sameCycle
+        ? {
+            ...action.payload.completedDayDurations,
+            ...state.completedDayDurations,
+          }
+        : action.payload.completedDayDurations;
+      state.completedForAssignmentId = assignmentId;
       state.loadedAt = action.payload.loadedAt;
       state.versionSignature = action.payload.versionSignature;
       state.assignment = action.payload.assignment;

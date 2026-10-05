@@ -153,6 +153,11 @@ export const useWorkoutSession = (programDayId?: string) => {
   const prAlertsEnabled = useSelector(
     (state: RootState) => state.preferences.notifications.prAlerts,
   );
+  // Active cycle — sessions are scoped to it because a new cycle reuses the
+  // same program_day_ids as the previous one.
+  const assignmentId = useSelector(
+    (state: RootState) => state.workout.assignment?.id ?? null,
+  );
   const isDeloadWeek = useSelector(
     (state: RootState) => state.workout.assignment?.is_deload_week === true,
   );
@@ -303,6 +308,7 @@ export const useWorkoutSession = (programDayId?: string) => {
         id: localSessionId,
         userId,
         programDayId,
+        assignmentId,
         totalExercises,
         startedAt: new Date().toISOString(),
       });
@@ -389,7 +395,11 @@ export const useWorkoutSession = (programDayId?: string) => {
     }
 
     try {
-      const existing = await sessionService.findExistingSession({ userId, programDayId });
+      const existing = await sessionService.findExistingSession({
+        userId,
+        programDayId,
+        assignmentId,
+      });
 
       if (existing?.status === "completed") {
         // Always hydrate — covers both Start Again (editMode=true, full redo)
@@ -455,6 +465,7 @@ export const useWorkoutSession = (programDayId?: string) => {
   }, [
     sessionWorkout,
     userId,
+    assignmentId,
     totalExercises,
     dispatch,
     sessionId,

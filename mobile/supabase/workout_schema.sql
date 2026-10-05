@@ -436,6 +436,9 @@ create table if not exists public.workout_sessions (
   id uuid not null default gen_random_uuid(),
   user_id uuid not null,
   program_day_id uuid,
+  -- Cycle this session belongs to. A new cycle reuses the same program_day_ids,
+  -- so (user, program_day) alone can't tell cycle 1 from cycle 2.
+  assignment_id uuid,
   status public.workout_status not null default 'in_progress'::workout_status,
   started_at timestamptz not null default now(),
   completed_at timestamptz,
@@ -449,6 +452,7 @@ create table if not exists public.workout_sessions (
   constraint workout_sessions_pkey primary key (id),
   constraint workout_sessions_user_id_fkey foreign key (user_id) references auth.users(id) on delete cascade,
   constraint workout_sessions_program_day_id_fkey foreign key (program_day_id) references public.program_days(id) on delete set null,
+  constraint workout_sessions_assignment_id_fkey foreign key (assignment_id) references public.user_program_assignments(id) on delete set null,
   constraint workout_sessions_duration_seconds_check check (((duration_seconds is null) or (duration_seconds >= 0))),
   constraint workout_sessions_exercises_completed_check check ((exercises_completed >= 0)),
   constraint workout_sessions_points_awarded_check check ((points_awarded >= 0)),
@@ -944,7 +948,7 @@ create unique index water_logs_user_date_unique ON public.water_logs USING btree
 create unique index workout_programs_gender_level_idx ON public.workout_programs USING btree (gender, level) WHERE ((gender IS NOT NULL) AND (level IS NOT NULL));
 
 create index idx_workout_sessions_user_started ON public.workout_sessions USING btree (user_id, started_at DESC);
-create unique index workout_sessions_one_per_user_day ON public.workout_sessions USING btree (user_id, program_day_id);
+create unique index workout_sessions_one_per_user_cycle_day ON public.workout_sessions USING btree (user_id, assignment_id, program_day_id) NULLS NOT DISTINCT;
 
 
 -- ============================================================
@@ -1359,6 +1363,32 @@ $function$;
 -- ------------------------------------------------------------
 -- start_next_cycle (cycle 1 → cycle 2 transition RPC)
 -- ------------------------------------------------------------
+-- Fills workout_sessions.assignment_id with the active assignment when the
+-- client omits it (older app builds) or sends one that isn't the user's. See 2026_10_05_workout_sessions_assignment_id.sql.
+create or replace function public.set_workout_session_assignment()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  -- A missing id, or one that isn't this user's (deleted / foreign), falls
+  -- back to the active assignment instead of raising, so a queued offline
+  -- write can never get stuck retrying forever.
+  IF NEW.assignment_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM public.user_program_assignments a
+     WHERE a.id = NEW.assignment_id AND a.user_id = NEW.user_id
+  ) THEN
+    SELECT a.id INTO NEW.assignment_id
+      FROM public.user_program_assignments a
+     WHERE a.user_id = NEW.user_id AND a.status = 'active'
+     ORDER BY a.assigned_at DESC
+     LIMIT 1;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
 create or replace function public.start_next_cycle(p_choice text)
  returns jsonb
  language plpgsql
@@ -1781,6 +1811,7 @@ create trigger trg_user_reward_state_updated_at BEFORE UPDATE ON public.user_rew
 create trigger trg_user_streak_days_updated_at BEFORE UPDATE ON public.user_streak_days FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_workout_programs_updated_at BEFORE UPDATE ON public.workout_programs FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 create trigger trg_workout_sessions_updated_at BEFORE UPDATE ON public.workout_sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+create trigger trg_workout_sessions_assignment BEFORE INSERT ON public.workout_sessions FOR EACH ROW EXECUTE FUNCTION set_workout_session_assignment();
 
 
 -- ============================================================

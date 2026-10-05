@@ -30,6 +30,7 @@ const workoutPersistConfig = {
     "currentDayDetail",
     "dayDetailsById",
     "completedDayIds",
+    "completedForAssignmentId",
     "completedDayDurations",
     "loadedAt",
     "versionSignature",

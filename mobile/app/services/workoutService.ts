@@ -340,7 +340,8 @@ async function getExerciseCount(programDayId: string, sectionIds: string[]) {
  * plus the duration of the latest completed session for that day. A day can
  * have multiple completed sessions if the user re-played it; we keep only the
  * most recent (matches getCompletedSessionDetail's "latest by completed_at"
- * semantics).
+ * semantics). Pass `assignmentId` (the active assignment) to scope the result
+ * to the current cycle.
  */
 export type CompletedSessionSummary = {
   programDayId: string;
@@ -349,14 +350,23 @@ export type CompletedSessionSummary = {
 
 export async function getCompletedSessionSummaries(
   userId: string,
+  assignmentId?: string | null,
 ): Promise<CompletedSessionSummary[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("workout_sessions")
     .select("program_day_id, duration_seconds, completed_at")
     .eq("user_id", userId)
     .eq("status", "completed")
-    .not("program_day_id", "is", null)
-    .order("completed_at", { ascending: false });
+    .not("program_day_id", "is", null);
+
+  // A new cycle ("heavier") reuses the same program, so its program_day_ids
+  // are identical to the previous cycle's. Without this filter, days done in
+  // cycle 1 show as completed in cycle 2.
+  if (assignmentId) {
+    query = query.eq("assignment_id", assignmentId);
+  }
+
+  const { data, error } = await query.order("completed_at", { ascending: false });
 
   if (error) throw new Error(error.message);
 

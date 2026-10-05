@@ -48,6 +48,12 @@ export async function createWorkoutSession(params: {
   id: string;
   userId: string;
   programDayId: string;
+  /**
+   * Cycle this session belongs to, captured when the session starts so a
+   * write queued offline in one cycle still lands in that cycle. Null lets the
+   * DB trigger fill in the user's active assignment.
+   */
+  assignmentId?: string | null;
   totalExercises: number;
   startedAt?: string;
 }): Promise<{ id: string }> {
@@ -55,6 +61,7 @@ export async function createWorkoutSession(params: {
     id: params.id,
     user_id: params.userId,
     program_day_id: params.programDayId,
+    assignment_id: params.assignmentId ?? null,
     status: "in_progress",
     started_at: params.startedAt ?? new Date().toISOString(),
     total_exercises: params.totalExercises,
@@ -70,23 +77,34 @@ export async function createWorkoutSession(params: {
 }
 
 /**
- * Look up any existing session row for this user + program_day.
- * Returns null when nothing exists. The unique index guarantees at most one row.
+ * Look up any existing session row for this user + program_day in the given
+ * cycle. Returns null when nothing exists. The unique index guarantees at most
+ * one row per (user, assignment, program_day). A new cycle reuses the same
+ * program_day_ids, so without assignmentId this would find last cycle's row.
  */
 export async function findExistingSession(params: {
   userId: string;
   programDayId: string;
+  assignmentId?: string | null;
 }): Promise<{
   id: string;
   status: "in_progress" | "completed" | "abandoned";
   /** Seconds already committed from prior sittings — seeds accumulatedSeconds so a resume sums instead of overwrites. */
   durationSeconds: number;
 } | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("workout_sessions")
     .select("id, status, duration_seconds")
     .eq("user_id", params.userId)
-    .eq("program_day_id", params.programDayId)
+    .eq("program_day_id", params.programDayId);
+  if (params.assignmentId) {
+    query = query.eq("assignment_id", params.assignmentId);
+  }
+  // Without an assignment filter a user can have one row per cycle, so take
+  // the newest instead of letting maybeSingle() fail on multiple rows.
+  const { data, error } = await query
+    .order("started_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw new Error(error.message ?? "Failed to look up workout session");
@@ -217,10 +235,12 @@ export interface DaySessionSummary {
 export async function getDaySessionSummary(params: {
   userId: string;
   programDayId: string;
+  assignmentId?: string | null;
 }): Promise<DaySessionSummary | null> {
   const session = await findExistingSession({
     userId: params.userId,
     programDayId: params.programDayId,
+    assignmentId: params.assignmentId,
   });
   if (!session) return null;
 
@@ -1321,14 +1341,19 @@ export async function fetchLifetimeVolumeKg(): Promise<number> {
 export async function getCompletedSessionDetail(
   userId: string,
   programDayId: string,
+  assignmentId?: string | null,
 ): Promise<CompletedSessionDetail | null> {
-  // 1. Find the completed session for this day
-  const { data: session, error: sessionError } = await supabase
+  // 1. Find the completed session for this day in the current cycle
+  let query = supabase
     .from("workout_sessions")
     .select("id, duration_seconds, total_exercises, exercises_completed, sets_logged")
     .eq("user_id", userId)
     .eq("program_day_id", programDayId)
-    .eq("status", "completed")
+    .eq("status", "completed");
+  if (assignmentId) {
+    query = query.eq("assignment_id", assignmentId);
+  }
+  const { data: session, error: sessionError } = await query
     .order("completed_at", { ascending: false })
     .limit(1)
     .single();

@@ -53,6 +53,7 @@ export const useSyncQueue = () => {
           id: string;
           userId: string;
           programDayId: string;
+          assignmentId?: string | null;
           totalExercises: number;
           startedAt?: string;
         }),

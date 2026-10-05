@@ -423,6 +423,11 @@ const ExerciseListScreen = () => {
   const completedDayIds = useSelector(
     (state: RootState) => state.workout.completedDayIds,
   );
+  // Active cycle — a new cycle reuses the same program_day_ids, so session
+  // lookups must be scoped to it or they find last cycle's session.
+  const assignmentId = useSelector(
+    (state: RootState) => state.workout.assignment?.id ?? null,
+  );
   const activeSessionDayId = useSelector((state: RootState) =>
     state.session.sessionId ? state.session.programDayId : null,
   );
@@ -643,7 +648,7 @@ const ExerciseListScreen = () => {
       // and flickers when returning from ExerciseDetail via gesture. Cold
       // mount already starts with summaryLoaded=false; subsequent focuses
       // update sessionSummary in place so the label transitions smoothly.
-      getDaySessionSummary({ userId: user.id, programDayId: summaryProgramDayId })
+      getDaySessionSummary({ userId: user.id, programDayId: summaryProgramDayId, assignmentId })
         .then((summary) => {
           if (cancelled) return;
           setSessionSummary(summary);
@@ -657,7 +662,7 @@ const ExerciseListScreen = () => {
       return () => {
         cancelled = true;
       };
-    }, [user?.id, summaryProgramDayId, summaryEnabled]),
+    }, [user?.id, summaryProgramDayId, summaryEnabled, assignmentId]),
   );
 
   // Refetch user_exercise_stats every focus for the exercises in this day so
@@ -694,7 +699,7 @@ const ExerciseListScreen = () => {
     if (dayStatus === "completed" && requestedDayId && user?.id && !completedFetchedRef.current) {
       completedFetchedRef.current = true;
       setCompletedLoading(true);
-      getCompletedSessionDetail(user.id, requestedDayId)
+      getCompletedSessionDetail(user.id, requestedDayId, assignmentId)
         .then((result) => {
           if (!result) {
             console.warn("[ExerciseList] No completed session found in Supabase for dayId:", requestedDayId, "userId:", user.id);
@@ -706,7 +711,7 @@ const ExerciseListScreen = () => {
         })
         .finally(() => setCompletedLoading(false));
     }
-  }, [dayStatus, requestedDayId, user?.id]);
+  }, [dayStatus, requestedDayId, user?.id, assignmentId]);
 
   const showStartButton =
     dayStatus === "active" || (dayStatus === "completed" && isTodayDay);
