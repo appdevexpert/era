@@ -328,38 +328,63 @@ export const loadProgramDayDetail = createAsyncThunk<
  *   - Runs in chunks of 5 concurrent fetches to avoid spiking Supabase or
  *     hammering the device's connection pool.
  *   - Swallows individual day errors; the on-demand path catches the miss.
+ *   - Single-flight: a second dispatch while a run is active is a no-op
+ *     (PlanGeneration and WorkoutPlanScreen both fire it), so the same days
+ *     are never downloaded twice.
+ *   - Re-reads the cache before every chunk. A day can land in the cache
+ *     mid-run (user opens it, refreshTodayIfStale, re-bootstrap); dispatching
+ *     it anyway made loadProgramDayDetail's condition abort, and that
+ *     ConditionError was reported to Sentry as "[object Object]".
  */
 const PREFETCH_CONCURRENCY = 5;
+let prefetchRunning = false;
 
 export const prefetchAllDays = createAsyncThunk<
   void,
   void,
   { state: RootState }
 >("workout/prefetchAllDays", async (_, { getState, dispatch }) => {
-  const state = getState().workout;
-  const overview = state.overview;
-  if (!overview) return;
+  if (prefetchRunning) return;
+  prefetchRunning = true;
+  try {
+    // Days dispatched this run — a failed day stays uncached, so without this
+    // the loop would retry it forever. Cleared when the overview is replaced
+    // (re-bootstrap / re-login), since that also wipes dayDetailsById.
+    const attempted = new Set<string>();
+    let overviewSeen = getState().workout.overview;
 
-  const targets = overview.days.filter(
-    (d) => !d.is_rest_day && !state.dayDetailsById[d.id],
-  );
-  if (targets.length === 0) return;
+    while (true) {
+      const { overview, dayDetailsById } = getState().workout;
+      if (!overview) break;
+      if (overview !== overviewSeen) {
+        attempted.clear();
+        overviewSeen = overview;
+      }
 
-  for (let i = 0; i < targets.length; i += PREFETCH_CONCURRENCY) {
-    const chunk = targets.slice(i, i + PREFETCH_CONCURRENCY);
-    await Promise.all(
-      chunk.map((day) =>
-        dispatch(loadProgramDayDetail(day.id))
-          .unwrap()
-          .catch((error) => {
-            // On-demand path will retry when the user opens it — but record
-            // the breadcrumb so a recurring failure isn't invisible.
-            reportBackgroundError("workout.prefetchAllDays", error, {
-              programDayId: day.id,
-            });
-          }),
-      ),
-    );
+      const chunk = overview.days
+        .filter(
+          (d) => !d.is_rest_day && !dayDetailsById[d.id] && !attempted.has(d.id),
+        )
+        .slice(0, PREFETCH_CONCURRENCY);
+      if (chunk.length === 0) break;
+      chunk.forEach((d) => attempted.add(d.id));
+
+      await Promise.all(
+        chunk.map((day) =>
+          dispatch(loadProgramDayDetail(day.id))
+            .unwrap()
+            .catch((error) => {
+              // On-demand path will retry when the user opens it — but record
+              // the breadcrumb so a recurring failure isn't invisible.
+              reportBackgroundError("workout.prefetchAllDays", error, {
+                programDayId: day.id,
+              });
+            }),
+        ),
+      );
+    }
+  } finally {
+    prefetchRunning = false;
   }
 });
 

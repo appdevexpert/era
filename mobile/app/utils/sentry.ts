@@ -42,8 +42,34 @@ export const reportBackgroundError = (
     data: extra,
   });
   if (error instanceof Error) {
-    Sentry.captureException(error, { tags: { background: context } });
+    Sentry.captureException(error, { tags: { background: context }, extra });
   } else {
-    Sentry.captureMessage(`${context}: ${String(error)}`, "warning");
+    Sentry.captureMessage(`${context}: ${describeNonError(error)}`, {
+      level: "warning",
+      tags: { background: context },
+      extra,
+    });
   }
+};
+
+/**
+ * Readable text for a thrown non-Error. Plain objects (RTK's SerializedError /
+ * ConditionError, Supabase PostgrestError) otherwise stringify to
+ * "[object Object]" and the real cause is lost.
+ */
+const describeNonError = (error: unknown): string => {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object") {
+    const { name, code, message } = error as Record<string, unknown>;
+    const parts = [name, code, message].filter(
+      (part) => typeof part === "string" || typeof part === "number",
+    );
+    if (parts.length > 0) return parts.join(": ");
+    try {
+      return JSON.stringify(error);
+    } catch {
+      // Circular — fall through to String().
+    }
+  }
+  return String(error);
 };
