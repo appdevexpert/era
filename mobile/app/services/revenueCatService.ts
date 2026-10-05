@@ -115,15 +115,30 @@ export const identifyRevenueCatUser = async (userId: string) => {
   return customerInfo;
 };
 
-/** Reset RC to an anonymous app user. Call on sign-out / account delete. */
-export const resetRevenueCatUser = async () => {
-  if (!FEATURE_FLAGS.ENABLE_PAYWALL) return;
-  if (!configured) return;
-  // Logout returns the anonymous customerInfo, so the cached snapshot resets
-  // to free. The server-side mirror is untouched — it stays as the webhook
-  // last set it and is re-validated by RC on next sign-in.
-  const customerInfo = await Purchases.logOut();
-  updateCachedSnapshot(customerInfo);
+let resetInFlight: Promise<void> | null = null;
+
+/**
+ * Reset RC to an anonymous app user. Call on sign-out / account delete.
+ * Idempotent: a sign-out triggers this from both signOutThunk and the
+ * SIGNED_OUT auth listener, and RC's logOut throws when the user is already
+ * anonymous — so concurrent calls share one logOut and repeat calls no-op.
+ */
+export const resetRevenueCatUser = (): Promise<void> => {
+  if (!FEATURE_FLAGS.ENABLE_PAYWALL) return Promise.resolve();
+  if (!configured) return Promise.resolve();
+  if (resetInFlight) return resetInFlight;
+
+  resetInFlight = (async () => {
+    if (await Purchases.isAnonymous()) return;
+    // Logout returns the anonymous customerInfo, so the cached snapshot resets
+    // to free. The server-side mirror is untouched — it stays as the webhook
+    // last set it and is re-validated by RC on next sign-in.
+    const customerInfo = await Purchases.logOut();
+    updateCachedSnapshot(customerInfo);
+  })().finally(() => {
+    resetInFlight = null;
+  });
+  return resetInFlight;
 };
 
 /** Synchronous read of the currently cached snapshot. Safe to call in render. */
