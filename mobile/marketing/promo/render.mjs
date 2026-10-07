@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -13,7 +13,7 @@ const { chromium } = require('playwright');
 const here = dirname(fileURLToPath(import.meta.url));
 const html = resolve(here, process.argv[2] ?? 'promo.html');
 const out = resolve(process.argv[3] ?? join(here, 'era-promo.mp4'));
-const framesDir = join(here, '.frames');
+const framesDir = join(here, `.frames-${basename(out, '.mp4')}`);
 rmSync(framesDir, { recursive: true, force: true });
 mkdirSync(framesDir, { recursive: true });
 

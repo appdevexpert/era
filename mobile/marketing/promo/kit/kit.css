@@ -4,12 +4,13 @@
 @font-face { font-family: Italiana; src: url(../../../assets/fonts/Italiana-Regular.ttf); }
 :root {
   --gold: #D4AF37; --gold-hi: #F5D77A; --gold-lo: #8C6A12;
-  --bg: #0A0A0A; --card: #1A1A1A; --line: rgba(255,255,255,.08);
+  --bg: #0A0A0A; --card: #111111; --line: #1E1E1E; --text: #F0F0F0;
+  --p-dark: #C9A84C; --p-base: #F7E06F; --p-light: #FCF3C0;
   --muted: rgba(255,255,255,.6);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 1080px; height: 1920px; background: #000; overflow: hidden; }
-body { font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+body { font-family: -apple-system, "SF Pro Text", Inter, "Helvetica Neue", Arial, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
 #stage { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #2a2106 0%, #0b0904 45%, #000 80%); }
 
 /* captions */
@@ -24,16 +25,22 @@ body { font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-
 #phone { position: absolute; left: 50%; top: 470px; width: 393px; height: 852px; transform-origin: 50% 0; }
 #phone .bezel { position: absolute; inset: -12px; border-radius: 64px; background: linear-gradient(145deg, #3a3a3a, #111 40%, #2b2b2b); box-shadow: 0 50px 120px rgba(0,0,0,.8), 0 0 80px rgba(212,175,55,.18); }
 #phone .screen { position: absolute; inset: 0; border-radius: 54px; overflow: hidden; background: var(--bg); }
-#phone .island { position: absolute; top: 11px; left: 50%; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 50; }
-#phone .status { position: absolute; top: 0; left: 0; right: 0; height: 54px; padding: 18px 34px 0 44px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 600; z-index: 49; }
-#phone .homebar { position: absolute; bottom: 8px; left: 50%; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.8); z-index: 50; }
+#phone .island { position: absolute; top: 11px; left: 50%; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 1000; }
+#phone .status { position: absolute; top: 0; left: 0; right: 0; height: 54px; padding: 18px 34px 0 44px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 600; z-index: 1000; }
+#phone .homebar { position: absolute; bottom: 8px; left: 50%; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.8); z-index: 1000; }
 .view { position: absolute; inset: 0; opacity: 0; overflow: hidden; background: var(--bg); }
 
 /* tap ripple (positioned in screen points) */
-.tap { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.8); opacity: 0; z-index: 60; pointer-events: none; }
+.tap { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.8); opacity: 0; z-index: 1001; pointer-events: none; }
 
 /* misc */
 #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.6) 100%); }
 #progress { position: absolute; left: 0; bottom: 0; height: 8px; background: linear-gradient(90deg, var(--gold-lo), var(--gold-hi)); }
 #brand { position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-family: Italiana; font-size: 44px; letter-spacing: 14px; color: var(--gold); opacity: .85; }
-.gold-grad { background: linear-gradient(135deg, #F5D77A 0%, #D4AF37 45%, #A8831C 100%); }
+.gold-grad { background: linear-gradient(270deg, #FCF3C0 0%, #F7E06F 50%, #C9A84C 100%); }
+.eyebrow { font-size: 12px; line-height: 14.4px; color: #C9A84C; letter-spacing: .48px; text-transform: uppercase; }
+.disp { font-family: Playfair; font-weight: 500; color: #F0F0F0; }
+.btn-gold { height: 53px; border-radius: 138px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; letter-spacing: .36px; color: #F0F0F0; background: linear-gradient(270deg, #FCF3C0, #F7E06F 50%, #C9A84C); box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -8px 16px rgba(0,0,0,.12); text-shadow: 0 1px 3px rgba(0,0,0,.55), 0 0 10px rgba(80,60,0,.45); }
+.btn-soft { height: 53px; border-radius: 138px; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; letter-spacing: .36px; color: #fff; background: linear-gradient(90deg, rgba(201,168,76,.6), rgba(247,224,111,.6), rgba(252,243,192,.6)); box-shadow: inset 0 1px 0 rgba(255,255,255,.35); text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.card { background: #111111; border: 1px solid #1E1E1E; }
+#taps { position: absolute; inset: 0; z-index: 1001; pointer-events: none; }

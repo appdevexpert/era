@@ -28,14 +28,17 @@
     }
   }
 
-  // views inside the phone: [[t0, t1, id, transition]] transition: 'fade' | 'push' | 'up'
+  // views inside the phone: [[t0, t1, id, transition]] transition: 'fade' | 'push' | 'up'.
+  // An id may appear in several windows; the active window wins.
   function views(t, list) {
+    const seen = new Set();
+    for (const [, , id] of list) { if (!seen.has(id)) { $(id).style.opacity = 0; $(id).style.zIndex = 0; seen.add(id); } }
     for (const [a, b, id, tr = 'fade'] of list) {
+      if (t < a || t > b + 0.4) continue;
       const el = $(id);
       const inP = easeInOut(prog(t, a, a + 0.4));
-      const vis = t >= a && t <= b + 0.4;
-      el.style.opacity = vis ? (tr === 'fade' ? Math.min(inP, 1 - prog(t, b, b + 0.4)) : 1) : 0;
-      el.style.zIndex = vis ? Math.round(a * 10) : 0;
+      el.style.opacity = tr === 'fade' ? Math.min(inP, 1 - prog(t, b, b + 0.4)) : (t > b ? 1 - prog(t, b, b + 0.4) : 1);
+      el.style.zIndex = Math.round(a * 10) + 1;
       if (tr === 'push') el.style.transform = `translateX(${(1 - inP) * 393}px)`;
       else if (tr === 'up') el.style.transform = `translateY(${(1 - inP) * 852}px)`;
       else el.style.transform = '';

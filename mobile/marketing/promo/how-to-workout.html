@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ERA How To Workout</title>
+<link rel="stylesheet" href="kit/kit.css">
+<link rel="stylesheet" href="kit/screens.css">
+<style>
+  #endcard { position: absolute; inset: 0; opacity: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #endcard .logo { font-family: Italiana; font-size: 300px; letter-spacing: 30px; line-height: 1; background: linear-gradient(180deg, #FCF3C0, #F7E06F 40%, #C9A84C 75%, #8B7332); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 40px rgba(201,168,76,.5)); }
+  #infowrap { position: absolute; inset: 0; z-index: 900; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="cap">
+    <div class="cap" id="c0"><span class="step">ERA FIT · GUIDE</span><h1>How to do<br>your <em>workout</em></h1><p>From the home screen to the finish.</p></div>
+    <div class="cap" id="c1"><span class="step">STEP 1</span><h1>Open <em>today's</em> workout</h1><p>Your workout for today is on the home screen.<br>Tap Start.</p></div>
+    <div class="cap" id="c2"><span class="step">STEP 2</span><h1>See the <em>plan</em></h1><p>Every exercise with its sets, reps<br>and starting weight.</p></div>
+    <div class="cap" id="c3"><span class="step">STEP 3</span><h1>Learn the <em>form</em></h1><p>Tap any exercise for form tips<br>before you lift.</p></div>
+    <div class="cap" id="c4"><span class="step">STEP 4</span><h1>Tap <em>Start Now</em></h1><p>A 3-second countdown and you're in.</p></div>
+    <div class="cap" id="c5"><span class="step">STEP 5</span><h1>Go <em>set by set</em></h1><p>Log each set, then rest.<br>ERA takes you to the next one.</p></div>
+    <div class="cap" id="c6"><span class="step">CORE</span><h1>Timed <em>holds</em></h1><p>Holds like the plank have<br>a built-in stopwatch.</p></div>
+    <div class="cap" id="c7"><span class="step">CARDIO</span><h1>Finish with <em>cardio</em></h1><p>Cardio has its own countdown timer.</p></div>
+    <div class="cap" id="c8"><span class="step">DONE</span><h1>Workout <em>complete</em></h1><p>Your session, points and streak<br>are saved automatically.</p></div>
+  </div>
+
+  <div id="phone">
+    <div class="bezel"></div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="island"></div>
+      <div class="view" id="v-home"></div>
+      <div class="view" id="v-ex"></div>
+      <div class="view" id="v-count"></div>
+      <div class="view" id="v-log"></div>
+      <div class="view" id="v-rest"></div>
+      <div class="view" id="v-timer"></div>
+      <div class="view" id="v-cardio"></div>
+      <div class="view trophyv" id="v-done"></div>
+      <div id="infowrap"></div>
+      <div id="taps"></div>
+      <div class="homebar"></div>
+    </div>
+  </div>
+
+  <div id="endcard">
+    <div class="logo">ERA</div>
+    <div style="font-size:40px;letter-spacing:12px;color:#ddd;margin-top:40px">YOUR PLAN. EVERY DAY.</div>
+    <div style="font-family:Playfair;font-weight:800;font-size:110px;margin-top:10px;background:linear-gradient(180deg,#FCF3C0,#F7E06F 45%,#C9A84C);-webkit-background-clip:text;background-clip:text;color:transparent">Just Press Start.</div>
+    <div style="margin-top:70px;font-size:38px;color:#bbb;letter-spacing:2px">Download <b style="color:#fff">ERA Fit</b> today</div>
+  </div>
+  <div id="vignette"></div>
+  <div id="progress"></div>
+</div>
+
+<script src="kit/kit.js"></script>
+<script src="kit/screens.js"></script>
+<script>
+const { $, prog, easeOut, easeInOut, easeOutBack, lerp, captions, views, taps, scroll, start } = Kit;
+[['v-home', 'home'], ['v-ex', 'exlist'], ['v-count', 'count'], ['v-log', 'log'], ['v-rest', 'rest'], ['v-timer', 'timer'], ['v-cardio', 'cardio'], ['v-done', 'done'], ['infowrap', 'infosheet']].forEach(([id, n]) => Screens.mount(id, n));
+
+const TAPS = [
+  [6.6, 323, 663],    // Start on workout card
+  [13.7, 200, 528],   // Bench Press row
+  [17.6, 196, 200],   // dismiss sheet (tap backdrop)
+  [18.9, 196, 778],   // Start Now
+  [24.0, 164, 779],   // Complete Set
+];
+window.PROMO = { FPS: 30, DURATION: 42, HITS: TAPS.map(x => x[0]), MUSIC: 'explainer' };
+const mmss = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function render(t) {
+  captions(t, [[0, 3.5, 'c0'], [3.5, 8.0, 'c1'], [8.0, 13.0, 'c2'], [13.0, 18.3, 'c3'], [18.3, 22.2, 'c4'], [22.2, 26.6, 'c5'], [26.6, 30.6, 'c6'], [30.6, 34.6, 'c7'], [34.6, 38.6, 'c8']]);
+  views(t, [[0, 7.0, 'v-home'], [6.9, 19.3, 'v-ex', 'push'], [19.2, 22.3, 'v-count'], [22.2, 24.4, 'v-log', 'push'], [24.3, 26.6, 'v-rest', 'push'], [26.5, 30.6, 'v-timer', 'push'], [30.5, 34.6, 'v-cardio', 'push'], [34.5, 40, 'v-done', 'push']]);
+  taps(t, TAPS, $('taps'));
+
+  // exercise list scroll, then back up to show the Bench Press row
+  scroll($('exscroll'), t, [[0, 0, 0, 0], [9.6, 11.2, 0, 420], [11.6, 12.9, 420, 0]]);
+  // info sheet
+  const so = easeOut(prog(t, 13.8, 14.3)) * (1 - prog(t, 17.7, 18.1));
+  $('infowrap').style.opacity = so > 0 ? 1 : 0;
+  $('infowrap').querySelector('.sbd').style.opacity = so;
+  $('infowrap').querySelector('.isheet').style.transform = `translateY(${(1 - so) * 420}px)`;
+
+  // countdown
+  const ct = Math.max(0, t - 19.4);
+  $('cnum').textContent = Math.max(1, 3 - Math.floor(ct));
+  $('cring').style.strokeDashoffset = 279.6 * Math.min(1, ct / 3);
+
+  // rest timer
+  const remain = Math.max(0, Math.ceil(90 - Math.max(0, t - 24.6) * 4));
+  $('rnum').textContent = remain;
+  $('rring').style.strokeDashoffset = 754 * (1 - remain / 90);
+
+  // stopwatch (real time)
+  const sw = Math.max(0, t - 27.0) + 38;
+  $('sw').textContent = `${mmss(sw)}.${String(Math.floor((sw % 1) * 100)).padStart(2, '0')}`;
+  // cardio countdown 20:00, sped up
+  const ks = Math.max(0, 1200 - Math.max(0, t - 31.0) * 25);
+  $('knum').textContent = mmss(ks);
+  $('kring').style.strokeDashoffset = 754 * (1 - ks / 1200);
+
+  // session stats count up
+  const d = document.querySelector('#v-done');
+  d.querySelector('.dd1').textContent = mmss(Math.round(lerp(0, 68 * 60 + 12, easeOut(prog(t, 35.0, 36.5)))));
+  d.querySelector('.dd2').textContent = Kit.count(t, 35.0, 36.5, 0, 18);
+  d.querySelector('.dd3').textContent = '+' + Kit.count(t, 35.1, 36.7, 0, 420);
+  d.querySelector('.dd4').textContent = Kit.count(t, 35.2, 36.2, 0, 1);
+
+  const intro = easeOutBack(prog(t, 0, 0.9));
+  const out = easeInOut(prog(t, 38.6, 39.4));
+  $('phone').style.transform = `translateX(-50%) translateY(${(1 - intro) * 300 + out * 200}px) scale(${1.6 - out * 0.3})`;
+  $('phone').style.opacity = 1 - out;
+  $('cap').style.opacity = 1 - out;
+  const ec = easeOut(prog(t, 39.2, 40.2));
+  $('endcard').style.opacity = ec;
+  $('endcard').style.transform = `scale(${1.08 - ec * 0.08})`;
+}
+start(render);
+</script>
+</body>
+</html>

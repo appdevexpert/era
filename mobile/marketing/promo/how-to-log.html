@@ -1,0 +1,409 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ERA How To Log</title>
+<link rel="stylesheet" href="kit/kit.css">
+<style>
+  /* ---- WorkoutLog screen ---- */
+  .hdr { position: absolute; top: 0; left: 0; right: 0; z-index: 10; background: rgba(17,17,17,.82); backdrop-filter: blur(24px); border-bottom: 1px solid #1E1E1E; padding: 67px 24px 16px; }
+  .hdr .nav { display: flex; align-items: center; justify-content: space-between; min-height: 36px; }
+  .hdr .nav img { width: 24px; height: 24px; }
+  .hdr .info { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 16px; }
+  .hdr .info .name { font-family: Playfair; font-size: 28px; line-height: 33.6px; font-weight: 500; margin-top: 6px; }
+  .hdr .timer { text-align: center; }
+  .hdr .timer b { display: block; font-size: 36px; line-height: 43.2px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .hdr .timer span { font-size: 14px; color: rgba(240,240,240,.5); }
+  .sets { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+  .bars { flex: 1; }
+  .bars .row { display: flex; gap: 12px; }
+  .bars .bar { flex: 1; height: 6px; border-radius: 3px; background: #1E1E1E; overflow: hidden; }
+  .bars .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #FCF3C0, #F7E06F, #C9A84C); }
+  .bars .lbl { display: flex; gap: 12px; margin-top: 10px; }
+  .bars .lbl span { flex: 1; text-align: center; font-size: 10px; color: rgba(240,240,240,.5); letter-spacing: .4px; }
+  .bars .lbl span.on { color: #C9A84C; }
+  .plus { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(90deg, rgba(201,168,76,.18), rgba(241,203,48,.18)); border: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 500; }
+  .body { position: absolute; left: 0; right: 0; top: 239px; padding: 0 16px; }
+  .stats { display: flex; gap: 12px; }
+  .stats div { flex: 1; background: #111; border-radius: 12px; padding: 12px 8px; text-align: center; }
+  .stats b { display: block; font-size: 18px; line-height: 21.6px; font-weight: 500; margin-bottom: 6px; }
+  .rtitle { font-family: Playfair; font-size: 24px; line-height: 28.8px; font-weight: 500; text-align: center; }
+  .ruler { margin: 24px -16px 0; }
+  .rval { text-align: center; font-size: 28px; line-height: 34px; font-weight: 500; margin: 8px 0; background: linear-gradient(90deg, #C9A84C 15%, #F7E06F 80%, #FCF3C0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .rarea { position: relative; height: 70px; overflow: hidden; }
+  .ticks { position: absolute; left: 0; bottom: 0; height: 70px; }
+  .ticks i { position: absolute; bottom: 0; width: 1.5px; border-radius: .5px; }
+  .rind { position: absolute; left: 50%; top: 0; width: 2px; height: 70px; margin-left: -1px; background: linear-gradient(180deg, #FCF3C0, #F7E06F, #C9A84C); }
+  .reps { margin: 32px -16px; padding: 32px 0; border-top: 1px solid #1E1E1E; border-bottom: 1px solid #1E1E1E; }
+  .rpick { position: relative; height: 66px; margin-top: 24px; overflow: hidden; }
+  .rhl { position: absolute; left: 50%; width: 56px; margin-left: -28px; height: 66px; background: linear-gradient(90deg, rgba(201,168,76,.1), rgba(247,224,111,.1), rgba(252,243,192,.1)); border-left: 1px solid #C9A84C; border-right: 1px solid #C9A84C; }
+  .rnums { position: absolute; top: 0; left: 0; height: 66px; }
+  .rnums span { position: absolute; top: 0; width: 56px; height: 66px; line-height: 66px; text-align: center; font-size: 28px; font-weight: 500; }
+  .fb { padding-bottom: 32px; border-bottom: 1px solid #1E1E1E; }
+  .fb h4 { font-size: 16px; font-weight: 500; }
+  .fb p { font-size: 14px; color: rgba(255,255,255,.6); margin-top: 6px; }
+  .fbrow { display: flex; gap: 8px; margin-top: 12px; }
+  .fbc { flex: 1; height: 100px; background: #111; border: 1px solid #1E1E1E; border-radius: 16px; padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 12px; font-size: 14px; color: rgba(240,240,240,.5); }
+  .fbc img { width: 39px; height: 39px; }
+  .cmt { padding-top: 32px; }
+  .cmt h4 { font-size: 16px; font-weight: 500; margin-bottom: 8px; }
+  .cmt .box { position: relative; height: 146px; background: #111; border: 1px solid #1E1E1E; border-radius: 16px; padding: 16px; font-size: 14px; color: rgba(240,240,240,.5); }
+  .cmt .mic { position: absolute; right: 16px; bottom: 16px; width: 40px; height: 40px; border-radius: 50%; background: #1E1E1E; display: flex; align-items: center; justify-content: center; }
+  .fade { position: absolute; left: 0; right: 0; bottom: 0; height: 121px; background: linear-gradient(180deg, rgba(10,10,10,0), rgba(10,10,10,.8) 51%, rgba(10,10,10,1)); z-index: 11; }
+  .bbar { position: absolute; left: 16px; right: 16px; bottom: 46px; display: flex; gap: 12px; z-index: 12; }
+  .bbar .btn-gold { flex: 1; }
+  .circ { width: 53px; height: 53px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .circ img { width: 24px; height: 24px; }
+
+  /* ---- countdown ---- */
+  #v-count img.bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #v-count .grad { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 45%, rgba(0,0,0,.85) 85%); }
+  #v-count .row { position: absolute; left: 24px; right: 24px; bottom: 58px; display: flex; align-items: center; gap: 18px; }
+
+  /* ---- rest ---- */
+  #v-rest { padding: 0 24px; }
+  .ring { position: relative; }
+  .ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .ring .mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .pill { display: inline-block; padding: 10px 18px; border-radius: 999px; background: #111; border: 1px solid #1E1E1E; font-size: 20px; font-weight: 500; }
+  .upnext { position: absolute; left: 24px; right: 24px; bottom: 50px; display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 16px; background: #111; border: 1px solid #1E1E1E; }
+  .chev { width: 42px; height: 42px; border-radius: 50%; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.15); display: flex; align-items: center; justify-content: center; }
+
+  /* ---- sheet ---- */
+  #sheetwrap { position: absolute; inset: 0; z-index: 400; opacity: 0; }
+  #backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.6); }
+  #sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 470px; background: #111; border-radius: 24px 24px 0 0; padding: 0 20px; }
+  #sheet .handle { width: 54px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.2); margin: 10px auto 8px; }
+  .scard { width: 31%; background: #0A0A0A; border: 1px solid #1E1E1E; border-radius: 12px; padding: 12px 8px; display: flex; flex-direction: column; gap: 8px; }
+  .scard b { font-size: 15px; font-weight: 500; }
+  .scard span { font-size: 12px; color: #C9A84C; letter-spacing: .48px; }
+
+  /* ---- PR + session complete ---- */
+  .trophyv .topgrad { position: absolute; top: 0; left: 0; right: 0; height: 296px; background: linear-gradient(180deg, rgba(201,168,76,.4), transparent); }
+  .trophyv img.tr { position: absolute; left: 50%; top: -31px; width: 422px; height: 422px; margin-left: -211px; object-fit: contain; }
+  .ptspill { display: inline-block; background: #342C15; border-radius: 999px; padding: 8px 16px; font-size: 16px; font-weight: 500; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid div { min-height: 102px; background: #111; border: 1px solid #1E1E1E; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; }
+  .grid b { font-size: 36px; line-height: 43.2px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .glassbtn { height: 53px; border-radius: 138px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 18px; font-weight: 600; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); }
+
+  /* ---- stage extras ---- */
+  #pts { position: absolute; left: 50%; top: 1000px; padding: 22px 44px; border-radius: 60px; background: linear-gradient(90deg, #C9A84C, #F7E06F, #FCF3C0); color: #1a1405; font-size: 54px; font-weight: 800; opacity: 0; z-index: 900; box-shadow: 0 20px 60px rgba(201,168,76,.5); white-space: nowrap; }
+  #drag { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.3); border: 2px solid rgba(255,255,255,.8); opacity: 0; z-index: 1001; }
+  #endcard { position: absolute; inset: 0; opacity: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #endcard .logo { font-family: Italiana; font-size: 300px; letter-spacing: 30px; line-height: 1; background: linear-gradient(180deg, #FCF3C0, #F7E06F 40%, #C9A84C 75%, #8B7332); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 40px rgba(201,168,76,.5)); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="cap">
+    <div class="cap" id="c0"><span class="step">ERA FIT · GUIDE</span><h1>How to <em>log</em><br>your workout</h1><p>Each set takes about five seconds.</p></div>
+    <div class="cap" id="c1"><span class="step">STEP 1</span><h1>Set the <em>weight</em></h1><p>Swipe the ruler. ERA fills it in<br>from your last session.</p></div>
+    <div class="cap" id="c2"><span class="step">STEP 2</span><h1>Pick your <em>reps</em></h1><p>Swipe to the number of reps you did.</p></div>
+    <div class="cap" id="c3"><span class="step">STEP 3</span><h1>How did it <em>feel?</em></h1><p>Light, correct or heavy.<br>Your next set adjusts to match.</p></div>
+    <div class="cap" id="c4"><span class="step">STEP 4</span><h1>Tap <em>Complete Set</em></h1><p>Every set you log earns ERA points.</p></div>
+    <div class="cap" id="c5"><span class="step">REST</span><h1>Rest, then <em>go again</em></h1><p>The timer counts your rest.<br>Need longer? Tap +30 sec.</p></div>
+    <div class="cap" id="c6"><span class="step">SMART WEIGHTS</span><h1>Smarter <em>every set</em></h1><p>Your feedback sets the next weight.<br>(Standard &amp; Pro)</p></div>
+    <div class="cap" id="c7"><span class="step">LAST SET</span><h1>Finish the <em>exercise</em></h1><p>See every set at a glance,<br>add a note, and continue.</p></div>
+    <div class="cap" id="c8"><span class="step">PERSONAL RECORDS</span><h1>Hit a <em>new PR?</em></h1><p>ERA spots it automatically.</p></div>
+    <div class="cap" id="c9"><span class="step">DONE</span><h1>Session <em>complete</em></h1><p>Time, sets, points and PRs.<br>All saved for you.</p></div>
+  </div>
+
+  <div id="phone">
+    <div class="bezel"></div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="island"></div>
+
+      <!-- Countdown -->
+      <div class="view" id="v-count">
+        <img class="bg" src="../../assets/images/workout-countdown-bg.png">
+        <div class="grad"></div>
+        <div class="row">
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div class="eyebrow">Week 1 • Day 1</div>
+            <div class="disp" style="font-size:32px;line-height:38.4px">Push – Heavy</div>
+            <div style="font-size:20px;line-height:24px;font-weight:500">Bench Press starting in</div>
+          </div>
+          <div class="ring" style="width:92px;height:92px">
+            <svg width="92" height="92"><defs><linearGradient id="rg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FCF3C0"/><stop offset=".35" stop-color="#F7E06F"/><stop offset=".7" stop-color="#C9A84C"/><stop offset="1" stop-color="#8B7332"/></linearGradient></defs>
+              <circle cx="46" cy="46" r="44.5" stroke="rgba(201,168,76,.2)" stroke-width="3" fill="none"/>
+              <circle id="cring" cx="46" cy="46" r="44.5" stroke="url(#rg1)" stroke-width="3" fill="none" stroke-linecap="round" stroke-dasharray="279.6"/></svg>
+            <div class="mid"><span id="cnum" style="font-size:36px;font-weight:500">3</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Workout log -->
+      <div class="view" id="v-log">
+        <div class="body" id="logbody">
+          <div class="stats"><div><b>80 kg x 8 Reps</b><span class="eyebrow">Last Set</span></div><div><b>82.5 kg x 6 Reps</b><span class="eyebrow">Best Set</span></div></div>
+          <div class="ruler">
+            <div class="rtitle" id="rtitle">Weight</div>
+            <div class="rval" id="rval">75 kg</div>
+            <div class="rarea"><div class="ticks" id="ticks"></div><div class="rind"></div></div>
+          </div>
+          <div class="reps">
+            <div class="rtitle">Reps</div>
+            <div class="rpick"><div class="rhl"></div><div class="rnums" id="rnums"></div></div>
+          </div>
+          <div class="fb">
+            <h4>How did the set feel?</h4>
+            <p>Weight for the next set will be adjusted accordingly.</p>
+            <div class="fbrow">
+              <div class="fbc" id="fb1">Light Weight<img src="../../assets/icons/feedback-light.svg"></div>
+              <div class="fbc" id="fb2">Correct Weight<img src="../../assets/icons/feedback-correct.svg"></div>
+              <div class="fbc" id="fb3">Felt Heavy<img src="../../assets/icons/feedback-heavy.svg"></div>
+            </div>
+          </div>
+          <div class="cmt"><h4>Add Comments</h4><div class="box">Write your thoughts...<div class="mic"><img src="../../assets/icons/mic-large.svg" style="width:24px;height:24px"></div></div></div>
+        </div>
+        <div class="hdr">
+          <div class="nav"><img src="../../assets/icons/arrow-back.svg"><span class="eyebrow">3/6 Exercises</span></div>
+          <div class="info">
+            <div><div class="eyebrow">Compound</div><div class="name">Bench Press</div></div>
+            <div class="timer"><b id="stime">00:42</b><span>Session Time</span></div>
+          </div>
+          <div class="sets">
+            <div class="bars">
+              <div class="row"><div class="bar"><i id="sb1"></i></div><div class="bar"><i id="sb2"></i></div><div class="bar"><i id="sb3"></i></div></div>
+              <div class="lbl"><span id="sl1">SET 1</span><span id="sl2">SET 2</span><span id="sl3">SET 3</span></div>
+            </div>
+            <div class="plus">+</div>
+          </div>
+        </div>
+        <div class="fade"></div>
+        <div class="bbar">
+          <div class="btn-gold" id="cbtn">Complete Set</div>
+          <div class="circ gold-grad"><img src="../../assets/icons/skip-next.svg"></div>
+        </div>
+      </div>
+
+      <!-- Rest timer -->
+      <div class="view" id="v-rest">
+        <div class="eyebrow" style="font-size:14px;letter-spacing:.56px;text-align:center;margin-top:71px">3/6 Exercises</div>
+        <div style="position:absolute;left:0;right:0;top:160px;display:flex;flex-direction:column;align-items:center;gap:36px">
+          <div style="text-align:center"><div class="disp" style="font-size:28px">Rest Timer</div><div id="restsub" style="font-size:20px;color:rgba(240,240,240,.6);margin-top:12px">Set 2 starting in...</div></div>
+          <div class="ring" style="width:260px;height:260px">
+            <svg width="260" height="260"><defs><linearGradient id="rg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FCF3C0"/><stop offset=".35" stop-color="#F7E06F"/><stop offset=".7" stop-color="#C9A84C"/><stop offset="1" stop-color="#8B7332"/></linearGradient></defs>
+              <circle cx="130" cy="130" r="120" stroke="rgba(201,168,76,.18)" stroke-width="20" fill="none"/>
+              <circle id="rring" cx="130" cy="130" r="120" stroke="url(#rg2)" stroke-width="20" fill="none" stroke-linecap="round" stroke-dasharray="754"/></svg>
+            <div class="mid" style="gap:8px"><span id="rnum" style="font-size:76px;font-weight:500;line-height:1">90</span><span style="font-size:20px;font-weight:500;color:rgba(255,255,255,.6)">Seconds</span></div>
+          </div>
+          <div class="pill">+ 30 sec</div>
+        </div>
+        <div class="upnext">
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;color:rgba(240,240,240,.6)">Up Next</span>
+            <span class="disp" style="font-size:20px">Bench Press</span>
+            <span class="eyebrow" style="font-size:14px;letter-spacing:.56px">2/3 Set</span>
+          </div>
+          <div class="chev"><img src="../../assets/icons/chevron-back.svg" style="width:20px;height:20px;transform:rotate(180deg)"></div>
+        </div>
+      </div>
+
+      <!-- PR -->
+      <div class="view trophyv" id="v-pr">
+        <div class="topgrad"></div><img class="tr" src="../../assets/images/trophy.png">
+        <div style="position:absolute;left:20px;right:20px;top:367px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div class="disp" style="font-size:32px;line-height:38.4px">New Personal Record</div>
+          <span class="ptspill">+100 ERA Points</span>
+        </div>
+        <div style="position:absolute;left:20px;right:20px;top:500px;display:flex;flex-direction:column;align-items:center;gap:20px">
+          <div class="card" style="border-radius:12px;padding:12px 24px;text-align:center;display:flex;flex-direction:column;gap:6px"><span class="eyebrow">Compound</span><span class="disp" style="font-size:28px">Bench Press</span></div>
+          <div style="font-size:30px;font-weight:600;white-space:pre">85 kg  x  6 reps</div>
+          <div style="font-size:14px;color:rgba(255,255,255,.6)">Previous Best: 82.5 kg</div>
+        </div>
+        <div class="btn-soft" style="position:absolute;left:20px;right:20px;bottom:50px">Continue</div>
+      </div>
+
+      <!-- Session complete -->
+      <div class="view trophyv" id="v-done">
+        <div class="topgrad"></div><img class="tr" src="../../assets/images/trophy.png">
+        <div style="position:absolute;left:20px;right:20px;top:367px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div class="disp" style="font-size:32px;line-height:38.4px">Session Complete</div>
+          <span class="eyebrow">Push Heavy • Week 1 • Day 1</span>
+        </div>
+        <div class="grid" style="position:absolute;left:20px;right:20px;top:450px">
+          <div><span class="eyebrow">Session Duration</span><b id="d1">42:17</b></div>
+          <div><span class="eyebrow">Sets Logged</span><b id="d2">18</b></div>
+          <div><span class="eyebrow">ERA Points</span><b id="d3">+420</b></div>
+          <div><span class="eyebrow">New PRs</span><b id="d4">1</b></div>
+        </div>
+        <div style="position:absolute;left:20px;right:20px;bottom:50px;display:flex;flex-direction:column;gap:12px">
+          <div class="glassbtn"><img src="../../assets/icons/camera.svg" style="width:24px;height:24px">Capture Progress</div>
+          <div class="btn-soft">Continue</div>
+        </div>
+      </div>
+
+      <!-- Exercise Completed sheet -->
+      <div id="sheetwrap"><div id="backdrop"></div>
+        <div id="sheet">
+          <div class="handle"></div>
+          <div class="disp" style="font-size:22px;line-height:26.4px;padding:8px 0 20px;border-bottom:1px solid #1E1E1E">Exercise Completed</div>
+          <div style="display:flex;justify-content:space-between;margin-top:20px">
+            <div class="scard"><b>80 kg x 8 Reps</b><span>SET 1</span></div>
+            <div class="scard"><b>82.5 kg x 8 Reps</b><span>SET 2</span></div>
+            <div class="scard"><b>85 kg x 6 Reps</b><span>SET 3</span></div>
+          </div>
+          <div class="cmt" style="padding-top:20px"><h4>Add Comments</h4><div class="box" style="height:120px">Write your thoughts...<div class="mic"><img src="../../assets/icons/mic-large.svg" style="width:24px;height:24px"></div></div></div>
+          <div class="btn-soft" style="position:absolute;left:20px;right:20px;bottom:50px">Continue</div>
+        </div>
+      </div>
+
+      <div id="taps"></div>
+      <div id="drag"></div>
+      <div class="homebar"></div>
+    </div>
+  </div>
+
+  <div id="pts">+15 ERA points</div>
+  <div id="endcard">
+    <div class="logo">ERA</div>
+    <div style="font-size:40px;letter-spacing:12px;color:#ddd;margin-top:40px">LOG FASTER.</div>
+    <div style="font-family:Playfair;font-weight:800;font-size:110px;margin-top:10px;background:linear-gradient(180deg,#FCF3C0,#F7E06F 45%,#C9A84C);-webkit-background-clip:text;background-clip:text;color:transparent">Lift Smarter.</div>
+    <div style="margin-top:70px;font-size:38px;color:#bbb;letter-spacing:2px">Download <b style="color:#fff">ERA Fit</b> today</div>
+  </div>
+  <div id="vignette"></div>
+  <div id="progress"></div>
+</div>
+
+<script src="kit/kit.js"></script>
+<script>
+const { $, prog, easeOut, easeInOut, easeOutBack, lerp, win, captions, views, taps, scroll, start } = Kit;
+const TAPS = [
+  [19.9, 164, 779],   // Complete Set
+  [16.0, 196, 569],   // Correct Weight
+  [24.6, 196, 593],   // +30 sec
+  [26.7, 332, 748],   // Up next chevron
+  [32.4, 164, 779],   // Complete Exercise
+  [35.6, 196, 775],   // Sheet Continue
+  [40.0, 196, 775],   // PR Continue
+];
+window.PROMO = { FPS: 30, DURATION: 50, HITS: TAPS.map(x => x[0]).concat([1.2, 2.2, 3.2]), MUSIC: 'explainer' };
+
+// build ruler ticks (1 tick = 1 kg, 18px apart)
+const ticks = $('ticks');
+for (let i = 0; i <= 200; i++) {
+  const el = document.createElement('i');
+  const h = i % 10 === 0 ? 26 : i % 5 === 0 ? 18 : 10;
+  const c = i % 10 === 0 ? .55 : i % 5 === 0 ? .35 : .2;
+  el.style.cssText = `left:${i * 18}px;height:${h}px;background:rgba(240,240,240,${c})`;
+  ticks.appendChild(el);
+}
+const setRuler = kg => {
+  ticks.style.transform = `translateX(${196.5 - kg * 18}px)`;
+  $('rval').textContent = `${Math.round(kg * 2) / 2} kg`;
+};
+// reps picker (cells 56 wide, 14 gap)
+const rnums = $('rnums');
+for (let n = 1; n <= 30; n++) { const s = document.createElement('span'); s.textContent = n; s.style.left = `${(n - 1) * 70}px`; rnums.appendChild(s); }
+const setReps = v => {
+  rnums.style.transform = `translateX(${196.5 - 28 - (v - 1) * 70}px)`;
+  [...rnums.children].forEach((s, i) => {
+    const d = Math.abs(i + 1 - v);
+    s.style.color = d < .5 ? '#C9A84C' : '#F0F0F0';
+    s.style.opacity = d < .5 ? 1 : d < 1.5 ? .25 : d < 2.5 ? .1 : .04;
+  });
+};
+const setSets = (done, active) => {
+  [1, 2, 3].forEach(i => {
+    $('sb' + i).style.width = i <= done ? '100%' : i === active ? '35%' : '0';
+    $('sl' + i).className = i === active ? 'on' : '';
+  });
+};
+const mmss = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function render(t) {
+  captions(t, [[0, 3.6, 'c0'], [3.6, 9.4, 'c1'], [9.4, 13.9, 'c2'], [13.9, 18.9, 'c3'], [18.9, 22.3, 'c4'], [22.3, 27.3, 'c5'], [27.3, 31.2, 'c6'], [31.2, 36.0, 'c7'], [36.0, 40.4, 'c8'], [40.4, 45.2, 'c9']]);
+  views(t, [[0, 3.5, 'v-count'], [3.5, 21.0, 'v-log', 'push'], [20.6, 27.0, 'v-rest', 'push'], [26.9, 41.0, 'v-log', 'push'], [36.0, 40.5, 'v-pr', 'up'], [40.4, 46, 'v-done', 'push']]);
+  taps(t, TAPS, $('taps'));
+
+  // countdown 3-2-1
+  const ct = Math.max(0, t - 0.4);
+  $('cnum').textContent = Math.max(1, 3 - Math.floor(ct));
+  $('cring').style.strokeDashoffset = 279.6 * Math.min(1, ct / 3);
+
+  // log screen state
+  const set2 = t >= 26.9, set3 = t >= 30.8;
+  if (!set2) {
+    setSets(0, 1);
+    $('rtitle').textContent = 'Weight';
+    // drag: 75 -> 80 kg
+    setRuler(lerp(75, 80, easeInOut(prog(t, 5.4, 6.9))));
+    setReps(lerp(6, 8, easeInOut(prog(t, 11.0, 12.2))));
+    $('cbtn').textContent = 'Complete Set';
+  } else if (!set3) {
+    setSets(1, 2);
+    $('rtitle').textContent = 'Next set: 82.5 kg';
+    setRuler(82.5); setReps(8);
+    $('cbtn').textContent = 'Complete Set';
+  } else {
+    setSets(2, 3);
+    $('rtitle').textContent = 'Next set: 85 kg';
+    setRuler(85); setReps(6);
+    $('cbtn').textContent = 'Complete Exercise';
+  }
+  // feedback selection (set 1 only)
+  const fbSel = t >= 16.05 && !set2;
+  ['fb1', 'fb2', 'fb3'].forEach(id => { $(id).style.borderColor = (fbSel && id === 'fb2') ? '#C9A84C' : '#1E1E1E'; });
+  // body scroll
+  scroll($('logbody'), t, set2 ? [[0, 0, 0, 0]] : [[0, 0, 0, 0], [14.1, 14.9, 0, 260], [18.9, 19.5, 260, 260]]);
+  $('stime').textContent = mmss(42 + (t < 26.9 ? t : t + 120));
+
+  // ruler drag finger
+  const dp = prog(t, 5.0, 7.3);
+  const drag = $('drag');
+  if (dp > 0 && dp < 1) {
+    drag.style.opacity = Math.min(prog(t, 5.0, 5.3), 1 - prog(t, 7.0, 7.3)) * .9;
+    drag.style.left = lerp(280, 190, easeInOut(prog(t, 5.4, 6.9))) + 'px'; drag.style.top = '362px';
+  } else if (t > 10.6 && t < 12.6) {
+    drag.style.opacity = Math.min(prog(t, 10.6, 10.9), 1 - prog(t, 12.3, 12.6)) * .9;
+    drag.style.left = lerp(300, 160, easeInOut(prog(t, 11.0, 12.2))) + 'px'; drag.style.top = '628px';
+  } else drag.style.opacity = 0;
+
+  // +15 points burst
+  const pp = prog(t, 20.0, 21.8);
+  $('pts').style.opacity = pp > 0 && pp < 1 ? Math.min(prog(t, 20.0, 20.2), 1 - prog(t, 21.4, 21.8)) : 0;
+  $('pts').style.transform = `translateX(-50%) translateY(${-easeOut(pp) * 140}px) scale(${0.6 + easeOutBack(prog(t, 20.0, 20.4)) * 0.4})`;
+  $('pts').textContent = t < 30 ? '+15 ERA points' : '+100 ERA points';
+  // reuse the burst for the PR
+  const pp2 = prog(t, 37.0, 38.8);
+  if (pp2 > 0 && pp2 < 1) {
+    $('pts').style.opacity = Math.min(prog(t, 37.0, 37.2), 1 - prog(t, 38.4, 38.8));
+    $('pts').style.transform = `translateX(-50%) translateY(${-easeOut(pp2) * 140}px) scale(${0.6 + easeOutBack(prog(t, 37.0, 37.4)) * 0.4})`;
+  }
+
+  // rest timer: 90s total, runs quickly for the video; +30 at 24.6
+  const el = (t - 20.8) * 3;
+  const add = t >= 24.65 ? 30 : 0;
+  const remain = Math.max(0, Math.ceil(90 + add - Math.max(0, el)));
+  $('rnum').textContent = remain;
+  $('rring').style.strokeDashoffset = 754 * (1 - remain / (90 + add));
+
+  // sheet
+  const so = easeOut(prog(t, 32.6, 33.1)) * (1 - prog(t, 35.8, 36.2));
+  $('sheetwrap').style.opacity = so > 0 ? 1 : 0;
+  $('backdrop').style.opacity = so;
+  $('sheet').style.transform = `translateY(${(1 - so) * 480}px)`;
+
+  // session stats count up
+  $('d1').textContent = mmss(Math.round(lerp(0, 42 * 60 + 17, easeOut(prog(t, 40.8, 42.3)))));
+  $('d2').textContent = Kit.count(t, 40.9, 42.3, 0, 18);
+  $('d3').textContent = '+' + Kit.count(t, 41.0, 42.6, 0, 420);
+  $('d4').textContent = Kit.count(t, 41.2, 42.2, 0, 1);
+
+  // phone in / out, end card
+  const intro = easeOutBack(prog(t, 0, 0.9));
+  const out = easeInOut(prog(t, 45.2, 46.0));
+  $('phone').style.transform = `translateX(-50%) translateY(${(1 - intro) * 300 + out * 200}px) scale(${1.6 - out * 0.3})`;
+  $('phone').style.opacity = 1 - out;
+  $('cap').style.opacity = 1 - out;
+  const ec = easeOut(prog(t, 45.8, 46.8));
+  $('endcard').style.opacity = ec;
+  $('endcard').style.transform = `scale(${1.08 - ec * 0.08})`;
+}
+start(render);
+</script>
+</body>
+</html>

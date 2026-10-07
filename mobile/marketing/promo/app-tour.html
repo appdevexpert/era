@@ -1,0 +1,130 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ERA App Tour</title>
+<link rel="stylesheet" href="kit/kit.css">
+<link rel="stylesheet" href="kit/screens.css">
+<style>
+  #endcard { position: absolute; inset: 0; opacity: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #endcard .logo { font-family: Italiana; font-size: 300px; letter-spacing: 30px; line-height: 1; background: linear-gradient(180deg, #FCF3C0, #F7E06F 40%, #C9A84C 75%, #8B7332); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 40px rgba(201,168,76,.5)); }
+  .feat { display: flex; gap: 18px; justify-content: center; margin-top: 60px; flex-wrap: wrap; max-width: 900px; }
+  .feat span { padding: 14px 26px; border-radius: 40px; border: 2px solid rgba(201,168,76,.5); color: #F7E06F; font-size: 30px; background: rgba(201,168,76,.08); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="cap">
+    <div class="cap" id="c0"><span class="step">MEET ERA</span><h1>Your strength coach,<br><em>in your pocket</em></h1><p>Here's what the app does.</p></div>
+    <div class="cap" id="c1"><span class="step">1 · PERSONALISE</span><h1>Tell ERA <em>about you</em></h1><p>Your goal, level and focus.<br>Eight quick questions.</p></div>
+    <div class="cap" id="c2"><span class="step">2 · YOUR PLAN</span><h1>Built in <em>seconds</em></h1><p>A 12-week program with starting weights<br>made for you.</p></div>
+    <div class="cap" id="c3"><span class="step">3 · TRAIN</span><h1>Today's workout, <em>ready</em></h1><p>Open the app and press Start.<br>No guessing what to do.</p></div>
+    <div class="cap" id="c4"><span class="step">4 · KNOW THE PLAN</span><h1>Every move <em>explained</em></h1><p>Sets, reps and starting weight<br>for each exercise.</p></div>
+    <div class="cap" id="c5"><span class="step">5 · LOG</span><h1>Log in <em>seconds</em></h1><p>Swipe the weight, pick your reps,<br>say how it felt. Done.</p></div>
+    <div class="cap" id="c6"><span class="step">6 · PROGRESS</span><h1>Watch yourself <em>grow</em></h1><p>Workouts, points, lifetime volume,<br>streaks and PRs.</p></div>
+    <div class="cap" id="c7"><span class="step">7 · COMPETE</span><h1>Climb the <em>leaderboard</em></h1><p>Earn ERA points for every set,<br>PR and streak.</p></div>
+    <div class="cap" id="c8"><span class="step">8 · FUEL</span><h1>Eat for your <em>goal</em></h1><p>Daily calories, macros and water,<br>matched to your plan.</p></div>
+  </div>
+
+  <div id="phone">
+    <div class="bezel"></div>
+    <div class="screen">
+      <div class="status"><span>9:41</span><span>●●● ▮</span></div>
+      <div class="island"></div>
+      <div class="view" id="v-get"></div>
+      <div class="view" id="v-goal"></div>
+      <div class="view" id="v-plan"></div>
+      <div class="view" id="v-home"></div>
+      <div class="view" id="v-ex"></div>
+      <div class="view" id="v-log"></div>
+      <div class="view" id="v-prog"></div>
+      <div class="view" id="v-lb"></div>
+      <div class="view" id="v-nut"></div>
+      <div id="taps"></div>
+      <div class="homebar"></div>
+    </div>
+  </div>
+
+  <div id="endcard">
+    <div class="logo">ERA</div>
+    <div style="font-size:40px;letter-spacing:12px;color:#ddd;margin-top:40px">YOUR STRONGEST ERA</div>
+    <div style="font-family:Playfair;font-weight:800;font-size:120px;margin-top:10px;background:linear-gradient(180deg,#FCF3C0,#F7E06F 45%,#C9A84C);-webkit-background-clip:text;background-clip:text;color:transparent">Starts Now.</div>
+    <div class="feat"><span>12-week plans</span><span>Smart weights</span><span>PR tracking</span><span>Leaderboard</span><span>Nutrition</span></div>
+    <div style="margin-top:70px;font-size:38px;color:#bbb;letter-spacing:2px">Download <b style="color:#fff">ERA Fit</b> today</div>
+  </div>
+  <div id="vignette"></div>
+  <div id="progress"></div>
+</div>
+
+<script src="kit/kit.js"></script>
+<script src="kit/screens.js"></script>
+<script>
+const { $, prog, easeOut, easeInOut, easeOutBack, lerp, captions, views, taps, scroll, start } = Kit;
+[['v-get', 'getstarted'], ['v-goal', 'goal'], ['v-plan', 'plangen'], ['v-home', 'home'], ['v-ex', 'exlist'], ['v-log', 'log'], ['v-prog', 'progress'], ['v-lb', 'leaderboard'], ['v-nut', 'nutrition']].forEach(([id, n]) => Screens.mount(id, n));
+
+const TAPS = [
+  [5.3, 106, 311],   // Build Muscle
+  [7.3, 196, 775],   // Next
+  [17.6, 323, 663],  // Start on workout card
+  [26.6, 164, 779],  // Complete Set
+];
+window.PROMO = { FPS: 30, DURATION: 46, HITS: TAPS.map(x => x[0]).concat([2.9]), MUSIC: 'explainer' };
+const fmt = n => Math.round(n).toLocaleString('en-US');
+
+function render(t) {
+  captions(t, [[0, 3.4, 'c0'], [3.4, 8.2, 'c1'], [8.2, 13.0, 'c2'], [13.0, 18.0, 'c3'], [18.0, 23.0, 'c4'], [23.0, 27.6, 'c5'], [27.6, 32.4, 'c6'], [32.4, 36.8, 'c7'], [36.8, 41.4, 'c8']]);
+  views(t, [[0, 3.4, 'v-get'], [3.3, 7.7, 'v-goal', 'push'], [7.6, 13.0, 'v-plan'], [12.9, 17.9, 'v-home'], [17.8, 23.0, 'v-ex', 'push'], [22.9, 27.6, 'v-log', 'push'], [27.5, 32.4, 'v-prog'], [32.3, 36.8, 'v-lb', 'push'], [36.7, 42.5, 'v-nut']]);
+  taps(t, TAPS, $('taps'));
+
+  // slide-to-start knob
+  $('knob').style.transform = `translateX(${easeInOut(prog(t, 2.0, 2.9)) * 285}px)`;
+  document.querySelector('.slide span').style.opacity = 1 - prog(t, 2.1, 2.6);
+  // goal selection
+  $('og1').className = t >= 5.35 ? 'ocard sel' : 'ocard';
+  // plan generation
+  const pct = 100 * easeOut(prog(t, 8.0, 12.6));
+  $('pgpct').textContent = `${Math.round(pct)}%`;
+  $('pgbar').style.width = `${pct}%`;
+  $('pgt').textContent = `01:${String(Math.max(0, Math.round(32 - pct * .32))).padStart(2, '0')}`;
+  const active = Math.min(5, Math.floor(pct / 100 * 6));
+  for (let i = 0; i < 6; i++) {
+    const done = i < active || pct >= 100;
+    $('pgi' + i).className = 'pgic' + (done ? ' ok' : i === active ? ' load' : '');
+    $('pg' + i).style.opacity = done || i === active ? 1 : i === active + 1 ? .5 : .28;
+  }
+  $('pgi' + active).style.transform = `rotate(${t * 360}deg)`;
+
+  scroll($('exscroll'), t, [[0, 0, 0, 0], [19.6, 21.6, 0, 360]]);
+
+  // progress count-up
+  $('pv1').textContent = fmt(lerp(0, 24, easeOut(prog(t, 27.9, 29.4))));
+  $('pv2').textContent = fmt(lerp(0, 5840, easeOut(prog(t, 28.0, 29.6))));
+  $('pv3').textContent = fmt(lerp(0, 48230, easeOut(prog(t, 28.1, 29.8))));
+
+  // leaderboard sheet rows slide up
+  const lb = $('v-lb');
+  lb.querySelector('.lsheet').style.transform = `translateY(${(1 - easeOutBack(prog(t, 32.7, 33.4))) * 380}px)`;
+  lb.querySelectorAll('.pcol').forEach((c, i) => {
+    const p = easeOutBack(prog(t, 32.6 + [0.25, 0, 0.4][i], 33.3 + [0.25, 0, 0.4][i]));
+    c.style.transform = `translateY(${(1 - p) * 300}px)`;
+  });
+
+  // nutrition gauge
+  const kc = lerp(0, 1840, easeOut(prog(t, 37.1, 38.6)));
+  $('nkc').textContent = fmt(kc);
+  $('nrem').textContent = `${fmt(2800 - kc)}kCal remaining`;
+  document.querySelectorAll('.nseg').forEach(s => { s.style.opacity = +s.dataset.i < Math.round(kc / 2800 * 11) ? 1 : .15; });
+
+  const intro = easeOutBack(prog(t, 0, 0.9));
+  const out = easeInOut(prog(t, 41.4, 42.2));
+  $('phone').style.transform = `translateX(-50%) translateY(${(1 - intro) * 300 + out * 200}px) scale(${1.6 - out * 0.3})`;
+  $('phone').style.opacity = 1 - out;
+  $('cap').style.opacity = 1 - out;
+  const ec = easeOut(prog(t, 42.0, 43.0));
+  $('endcard').style.opacity = ec;
+  $('endcard').style.transform = `scale(${1.08 - ec * 0.08})`;
+}
+start(render);
+</script>
+</body>
+</html>
