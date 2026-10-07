@@ -1,0 +1,264 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ERA Fit Promo</title>
+<style>
+  @font-face { font-family: Playfair; src: url(../../assets/fonts/PlayfairDisplay.ttf); }
+  @font-face { font-family: Italiana; src: url(../../assets/fonts/Italiana-Regular.ttf); }
+  :root { --gold: #D4AF37; --gold-hi: #F5D77A; --gold-lo: #8C6A12; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; background: #000; overflow: hidden; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #fff; }
+  #stage { position: absolute; inset: 0; overflow: hidden; background: #000; }
+  .scene { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+  .bg { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; }
+  .shade { position: absolute; inset: 0; }
+  .center { position: absolute; left: 0; right: 0; text-align: center; }
+  .kicker { font-size: 44px; letter-spacing: 18px; font-weight: 300; color: #e8e8e8; }
+  .big { font-family: Playfair; font-weight: 900; font-size: 190px; line-height: .95; letter-spacing: -2px; }
+  .goldtext {
+    background: linear-gradient(180deg, var(--gold-hi) 0%, var(--gold) 45%, var(--gold-lo) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 30px rgba(212,175,55,.45));
+  }
+  .sub { font-size: 42px; color: #d9d9d9; letter-spacing: 1px; line-height: 1.35; font-weight: 400; }
+  .line { position: absolute; left: 50%; height: 3px; background: linear-gradient(90deg, transparent, var(--gold), transparent); transform: translateX(-50%); }
+  .card {
+    position: absolute; left: 90px; right: 90px; height: 230px; border-radius: 36px;
+    background: linear-gradient(135deg, rgba(40,32,10,.92), rgba(12,12,12,.92));
+    border: 2px solid rgba(212,175,55,.55);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 40px rgba(212,175,55,.15) inset;
+    display: flex; align-items: center; padding: 0 50px; gap: 44px;
+  }
+  .card .ic { width: 130px; height: 130px; border-radius: 30px; background: rgba(212,175,55,.12); display: flex; align-items: center; justify-content: center; flex: none; }
+  .card .ic img { width: 84px; height: 84px; object-fit: contain; }
+  .card h3 { font-family: Playfair; font-size: 58px; font-weight: 700; color: var(--gold-hi); margin-bottom: 8px; }
+  .card p { font-size: 34px; color: #cfcfcf; }
+  #flash { position: absolute; inset: 0; background: radial-gradient(circle, #fff6d8 0%, #D4AF37 60%, #000 100%); opacity: 0; pointer-events: none; mix-blend-mode: screen; }
+  #grain { position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: overlay; }
+  #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.75) 100%); }
+  canvas#particles { position: absolute; inset: 0; pointer-events: none; }
+  .badge { display: inline-flex; align-items: center; gap: 18px; padding: 26px 48px; border-radius: 22px; border: 2px solid rgba(255,255,255,.35); background: rgba(255,255,255,.06); font-size: 36px; font-weight: 600; }
+  .badge small { display: block; font-size: 22px; font-weight: 400; opacity: .8; letter-spacing: 1px; }
+  .badge svg { width: 54px; height: 54px; fill: #fff; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- S1: hook -->
+  <section class="scene" id="s1">
+    <div class="center kicker" id="s1a" style="top:760px">NO MORE</div>
+    <div class="center big goldtext" id="s1b" style="top:840px">GUESS<br>WORK.</div>
+  </section>
+
+  <!-- S2: train heavy -->
+  <section class="scene" id="s2">
+    <img class="bg" id="s2bg" src="../../assets/images/workout-countdown-bg.png">
+    <div class="shade" style="background:linear-gradient(180deg,rgba(0,0,0,.2) 0%,rgba(0,0,0,.1) 40%,rgba(0,0,0,.92) 78%)"></div>
+    <div class="center kicker" id="s2a" style="top:1180px">TRAIN</div>
+    <div class="center big goldtext" id="s2b" style="top:1250px;font-size:240px">HEAVY.</div>
+    <div class="center sub" id="s2c" style="top:1520px">Structured 12-week strength programs<br>built around your goal.</div>
+  </section>
+
+  <!-- S3: plan in your pocket -->
+  <section class="scene" id="s3">
+    <img class="bg" id="s3bg" src="../../assets/images/progress-stats-bg.png" style="filter:brightness(.22) saturate(1.2) blur(6px)">
+    <div class="center kicker" id="s3a" style="top:150px">YOUR PLAN.</div>
+    <div class="center big goldtext" id="s3b" style="top:220px;font-size:150px">EVERY DAY.</div>
+    <img id="s3phone" src="../../assets/images/notification-phone-mockup.png" style="position:absolute;left:50%;top:520px;width:1120px;transform-origin:50% 0;-webkit-mask-image:radial-gradient(ellipse 58% 62% at 50% 45%, #000 78%, transparent 100%)">
+  </section>
+
+  <!-- S4: features -->
+  <section class="scene" id="s4">
+    <img class="bg" id="s4bg" src="../../assets/images/intro-bg.png" style="filter:brightness(.75)">
+    <div class="center kicker" id="s4a" style="top:250px">BUILT TO</div>
+    <div class="center big goldtext" id="s4b" style="top:320px;font-size:170px">PROGRESS.</div>
+    <div class="card" id="c1" style="top:720px"><div class="ic"><img src="../../assets/icons/chart-gold.svg"></div><div><h3>Smart progression</h3><p>Weights adapt after every set</p></div></div>
+    <div class="card" id="c2" style="top:990px"><div class="ic"><img src="../../assets/images/trophy-gold.png"></div><div><h3>Track every PR</h3><p>Celebrate each new record</p></div></div>
+    <div class="card" id="c3" style="top:1260px"><div class="ic"><img src="../../assets/icons/fire-gold.svg"></div><div><h3>Streaks &amp; points</h3><p>Stay consistent. Climb the board.</p></div></div>
+  </section>
+
+  <!-- S5: results -->
+  <section class="scene" id="s5">
+    <img class="bg" id="s5bg" src="../../assets/images/twelve-week-completion.png" style="filter:brightness(.9)">
+    <img id="s5medal" src="../../assets/images/trophy.png" style="position:absolute;left:50%;top:330px;width:640px">
+    <div class="center kicker" id="s5a" style="top:1200px">12 WEEKS LATER</div>
+    <div class="center big goldtext" id="s5b" style="top:1280px;font-size:150px">STRONGER<br>THAN EVER.</div>
+  </section>
+
+  <!-- S6: logo + CTA -->
+  <section class="scene" id="s6">
+    <div class="shade" id="s6glow" style="background:radial-gradient(circle at 50% 42%, rgba(212,175,55,.35) 0%, rgba(212,175,55,.05) 35%, #000 70%)"></div>
+    <div class="center goldtext" id="s6logo" style="top:560px;font-family:Italiana;font-size:330px;letter-spacing:30px;line-height:1">ERA</div>
+    <div class="line" id="s6line" style="top:960px;width:600px"></div>
+    <div class="center kicker" id="s6t1" style="top:1010px;font-size:40px;letter-spacing:12px">YOUR STRONGEST ERA</div>
+    <div class="center big goldtext" id="s6t2" style="top:1080px;font-size:120px">STARTS NOW.</div>
+    <div class="center" id="s6cta" style="top:1420px;display:flex;justify-content:center;gap:30px">
+      <div class="badge"><svg viewBox="0 0 24 24"><path d="M16.37 12.6c-.02-2.3 1.88-3.4 1.97-3.46-1.07-1.57-2.74-1.78-3.33-1.8-1.42-.14-2.77.83-3.49.83-.72 0-1.83-.81-3.01-.79-1.55.02-2.98.9-3.78 2.29-1.61 2.8-.41 6.94 1.16 9.21.77 1.11 1.68 2.36 2.88 2.31 1.16-.05 1.59-.75 2.99-.75 1.4 0 1.79.75 3.01.72 1.24-.02 2.03-1.13 2.79-2.25.88-1.29 1.24-2.54 1.26-2.6-.03-.01-2.42-.93-2.45-3.71zM14.08 5.85c.64-.77 1.07-1.85.95-2.92-.92.04-2.03.61-2.69 1.38-.59.68-1.1 1.77-.97 2.82 1.03.08 2.07-.52 2.71-1.28z"/></svg><div><small>Download on the</small>App Store</div></div>
+      <div class="badge"><svg viewBox="0 0 24 24"><path d="M3.6 1.8 13.8 12 3.6 22.2c-.4-.2-.6-.6-.6-1.1V2.9c0-.5.2-.9.6-1.1zm11.4 11.4 2.6 2.6-11.7 6.7 9.1-9.3zm3.9-3.9 2.8 1.6c.8.5.8 1.7 0 2.2l-2.8 1.6-2.9-2.7 2.9-2.7zM5.9 1.5l11.7 6.7L15 10.8 5.9 1.5z"/></svg><div><small>Get it on</small>Google Play</div></div>
+    </div>
+    <div class="center sub" id="s6name" style="top:1640px;font-size:34px;letter-spacing:8px;color:#9a9a9a">ERA FIT</div>
+  </section>
+
+  <canvas id="particles" width="1080" height="1920"></canvas>
+  <canvas id="grain" width="540" height="960"></canvas>
+  <div id="vignette"></div>
+  <div id="flash"></div>
+</div>
+
+<script>
+const FPS = 30, DURATION = 20;
+// scene windows [start, end] in seconds
+const S = { s1: [0, 2.7], s2: [2.6, 5.4], s3: [5.3, 8.6], s4: [8.5, 11.9], s5: [11.8, 14.9], s6: [14.8, 20] };
+// beat hits (seconds) -> flash + shake; shared with the soundtrack generator
+const HITS = [0.15, 2.65, 5.35, 8.55, 9.3, 10.05, 11.85, 14.85];
+
+const $ = id => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+const easeIn = x => x * x * x;
+const easeOutBack = x => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+
+function sceneOpacity(t, [a, b]) {
+  const fin = 0.12, fout = 0.12;
+  if (t < a || t > b) return 0;
+  return Math.min(prog(t, a, a + fin), 1 - prog(t, b - fout, b));
+}
+
+// reveal: slide up + fade + unblur
+function reveal(el, t, start, dur = 0.45, dist = 80, blur = 18) {
+  const p = easeOut(prog(t, start, start + dur));
+  el.style.opacity = p;
+  el.style.transform = `translateY(${(1 - p) * dist}px)`;
+  el.style.filter = `blur(${(1 - p) * blur}px)`;
+}
+// punch: scale from big, slam in
+function punch(el, t, start, dur = 0.35, from = 1.8) {
+  const p = prog(t, start, start + dur);
+  const s = lerp(from, 1, easeOut(p));
+  el.style.opacity = clamp(p * 3);
+  el.style.transform = `scale(${s})`;
+}
+
+// deterministic particles
+function rand(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+const R = rand(42);
+const PARTS = Array.from({ length: 140 }, () => ({ x: R() * 1080, y: R() * 1920, r: 1 + R() * 4, v: 30 + R() * 110, ph: R() * 6.28, a: .25 + R() * .7 }));
+const pctx = $('particles').getContext('2d');
+function drawParticles(t, intensity) {
+  pctx.clearRect(0, 0, 1080, 1920);
+  if (intensity <= 0) return;
+  for (const p of PARTS) {
+    const y = ((p.y - t * p.v) % 1920 + 1920) % 1920;
+    const x = p.x + Math.sin(t * 1.3 + p.ph) * 30;
+    const tw = .6 + .4 * Math.sin(t * 4 + p.ph * 3);
+    const g = pctx.createRadialGradient(x, y, 0, x, y, p.r * 4);
+    g.addColorStop(0, `rgba(255,230,150,${p.a * tw * intensity})`);
+    g.addColorStop(1, 'rgba(212,175,55,0)');
+    pctx.fillStyle = g;
+    pctx.beginPath(); pctx.arc(x, y, p.r * 4, 0, 6.283); pctx.fill();
+  }
+}
+const gctx = $('grain').getContext('2d');
+const gimg = gctx.createImageData(540, 960);
+function drawGrain(frame) {
+  const r = rand(1000 + frame);
+  for (let i = 0; i < gimg.data.length; i += 4) {
+    const v = r() * 255; gimg.data[i] = gimg.data[i + 1] = gimg.data[i + 2] = v; gimg.data[i + 3] = 255;
+  }
+  gctx.putImageData(gimg, 0, 0);
+}
+
+function render(t) {
+  const frame = Math.round(t * FPS);
+  for (const k in S) $(k).style.opacity = sceneOpacity(t, S[k]);
+
+  // flash + shake on hits
+  let flash = 0, shake = 0;
+  for (const h of HITS) {
+    const d = t - h;
+    if (d >= 0 && d < 0.35) { flash = Math.max(flash, (1 - d / 0.35) ** 2); shake = Math.max(shake, 1 - d / 0.35); }
+  }
+  $('flash').style.opacity = flash * 0.55;
+  const sr = rand(frame + 7);
+  $('stage').style.transform = shake > 0 ? `translate(${(sr() - .5) * 28 * shake}px, ${(sr() - .5) * 28 * shake}px)` : '';
+
+  // S1
+  reveal($('s1a'), t, 0.15, 0.5, 40, 12);
+  punch($('s1b'), t, 0.55, 0.4, 2.4);
+  $('s1').style.transform = `scale(${1 + t * 0.03})`;
+
+  // S2
+  const t2 = t - S.s2[0];
+  $('s2bg').style.transform = `scale(${1.15 - t2 * 0.04}) translateY(${t2 * -12}px)`;
+  reveal($('s2a'), t, 2.85, 0.4);
+  punch($('s2b'), t, 3.15, 0.35, 2.2);
+  reveal($('s2c'), t, 3.7, 0.5, 40, 10);
+
+  // S3
+  const t3 = t - S.s3[0];
+  $('s3bg').style.transform = `scale(${1.1 + t3 * 0.03}) rotate(${t3 * 0.6}deg)`;
+  reveal($('s3a'), t, 5.45, 0.4);
+  punch($('s3b'), t, 5.7, 0.35, 2);
+  const pp = easeOutBack(prog(t, 5.5, 6.4));
+  $('s3phone').style.transform = `translateX(-50%) translateY(${(1 - pp) * 1300 - t3 * 15}px) rotate(${(1 - pp) * 8}deg) scale(${1 + t3 * 0.015})`;
+
+  // S4
+  const t4 = t - S.s4[0];
+  $('s4bg').style.transform = `scale(${1.25 - t4 * 0.05})`;
+  reveal($('s4a'), t, 8.6, 0.35);
+  punch($('s4b'), t, 8.75, 0.35, 1.9);
+  [['c1', 9.25], ['c2', 10.0], ['c3', 10.75]].forEach(([id, st]) => {
+    const p = easeOutBack(prog(t, st, st + 0.45));
+    const el = $(id);
+    el.style.opacity = clamp(prog(t, st, st + 0.2));
+    el.style.transform = `translateX(${(1 - p) * (id === 'c2' ? 1100 : -1100)}px)`;
+  });
+
+  // S5
+  const t5 = t - S.s5[0];
+  $('s5bg').style.transform = `scale(${1.05 + t5 * 0.04})`;
+  const mp = easeOutBack(prog(t, 11.85, 12.6));
+  $('s5medal').style.transform = `translateX(-50%) translateY(${(1 - mp) * -900 + Math.sin(t5 * 2.2) * 12}px) rotateY(${(1 - mp) * 540}deg) scale(${0.6 + mp * 0.4})`;
+  $('s5medal').style.filter = `drop-shadow(0 0 ${40 + 30 * Math.sin(t5 * 3)}px rgba(212,175,55,.7))`;
+  reveal($('s5a'), t, 12.5, 0.4);
+  punch($('s5b'), t, 12.8, 0.4, 2);
+
+  // S6
+  const t6 = t - S.s6[0];
+  const lp = easeOut(prog(t, 14.9, 16.0));
+  const logo = $('s6logo');
+  logo.style.opacity = lp;
+  logo.style.letterSpacing = `${lerp(110, 30, lp)}px`;
+  logo.style.filter = `blur(${(1 - lp) * 20}px) drop-shadow(0 0 ${30 + 25 * Math.sin(t6 * 2.5)}px rgba(212,175,55,.6))`;
+  logo.style.transform = `scale(${1 + t6 * 0.012})`;
+  $('s6glow').style.opacity = 0.7 + 0.3 * Math.sin(t6 * 1.8);
+  const lnp = easeOut(prog(t, 15.7, 16.3));
+  $('s6line').style.width = `${lnp * 640}px`;
+  reveal($('s6t1'), t, 16.0, 0.45, 40, 10);
+  punch($('s6t2'), t, 16.35, 0.4, 1.8);
+  reveal($('s6cta'), t, 17.1, 0.5, 60, 8);
+  reveal($('s6name'), t, 17.5, 0.5, 20, 6);
+
+  // particles: stronger on hook, results and logo
+  const pi = Math.max(sceneOpacity(t, S.s1), sceneOpacity(t, S.s5) * 0.8, sceneOpacity(t, S.s6), 0.35);
+  drawParticles(t, pi);
+  drawGrain(frame);
+  // global fade-out
+  $('stage').style.opacity = 1 - prog(t, 19.6, 20);
+}
+
+window.render = render;
+window.PROMO = { FPS, DURATION, HITS };
+// live preview when opened in a browser directly
+if (!navigator.webdriver) {
+  const t0 = performance.now();
+  (function loop() { render(((performance.now() - t0) / 1000) % DURATION); requestAnimationFrame(loop); })();
+}
+</script>
+</body>
+</html>
