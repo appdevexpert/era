@@ -1,0 +1,39 @@
+/* Shared look for the ERA explainer videos (1080x1920). The phone screen is laid out
+   in iPhone points (393x852) and scaled up, so app dp values can be used directly. */
+@font-face { font-family: Playfair; src: url(../../../assets/fonts/PlayfairDisplay.ttf); }
+@font-face { font-family: Italiana; src: url(../../../assets/fonts/Italiana-Regular.ttf); }
+:root {
+  --gold: #D4AF37; --gold-hi: #F5D77A; --gold-lo: #8C6A12;
+  --bg: #0A0A0A; --card: #1A1A1A; --line: rgba(255,255,255,.08);
+  --muted: rgba(255,255,255,.6);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1080px; height: 1920px; background: #000; overflow: hidden; }
+body { font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+#stage { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #2a2106 0%, #0b0904 45%, #000 80%); }
+
+/* captions */
+#cap { position: absolute; left: 60px; right: 60px; top: 90px; height: 330px; text-align: center; }
+.cap { position: absolute; inset: 0; opacity: 0; display: flex; flex-direction: column; align-items: center; }
+.cap .step { display: inline-block; padding: 10px 26px; border-radius: 40px; border: 2px solid rgba(212,175,55,.6); color: var(--gold-hi); font-size: 28px; letter-spacing: 6px; font-weight: 600; margin-bottom: 26px; background: rgba(212,175,55,.08); }
+.cap h1 { font-family: Playfair; font-weight: 800; font-size: 84px; line-height: 1.02; }
+.cap h1 em { font-style: normal; background: linear-gradient(180deg, var(--gold-hi), var(--gold) 50%, var(--gold-lo)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cap p { margin-top: 20px; font-size: 36px; line-height: 1.32; color: #d0d0d0; }
+
+/* phone */
+#phone { position: absolute; left: 50%; top: 470px; width: 393px; height: 852px; transform-origin: 50% 0; }
+#phone .bezel { position: absolute; inset: -12px; border-radius: 64px; background: linear-gradient(145deg, #3a3a3a, #111 40%, #2b2b2b); box-shadow: 0 50px 120px rgba(0,0,0,.8), 0 0 80px rgba(212,175,55,.18); }
+#phone .screen { position: absolute; inset: 0; border-radius: 54px; overflow: hidden; background: var(--bg); }
+#phone .island { position: absolute; top: 11px; left: 50%; width: 124px; height: 36px; margin-left: -62px; border-radius: 20px; background: #000; z-index: 50; }
+#phone .status { position: absolute; top: 0; left: 0; right: 0; height: 54px; padding: 18px 34px 0 44px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 600; z-index: 49; }
+#phone .homebar { position: absolute; bottom: 8px; left: 50%; width: 140px; height: 5px; margin-left: -70px; border-radius: 3px; background: rgba(255,255,255,.8); z-index: 50; }
+.view { position: absolute; inset: 0; opacity: 0; overflow: hidden; background: var(--bg); }
+
+/* tap ripple (positioned in screen points) */
+.tap { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(255,255,255,.35); border: 2px solid rgba(255,255,255,.8); opacity: 0; z-index: 60; pointer-events: none; }
+
+/* misc */
+#vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.6) 100%); }
+#progress { position: absolute; left: 0; bottom: 0; height: 8px; background: linear-gradient(90deg, var(--gold-lo), var(--gold-hi)); }
+#brand { position: absolute; bottom: 40px; left: 0; right: 0; text-align: center; font-family: Italiana; font-size: 44px; letter-spacing: 14px; color: var(--gold); opacity: .85; }
+.gold-grad { background: linear-gradient(135deg, #F5D77A 0%, #D4AF37 45%, #A8831C 100%); }
